@@ -46,7 +46,7 @@ dotenvy = "0.15"
 async-trait = "0.1"
 
 # Scheduler
-tokio-cron-scheduler = "0.13"
+tokio-cron-scheduler = "0.15"
 
 [dev-dependencies]
 wiremock = "0.6"
