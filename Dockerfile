@@ -1,5 +1,5 @@
 # Stage 1: Build frontend
-FROM node:24-alpine AS frontend-build
+FROM node:24-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40a06dbdfc94f AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 # Using `npm install` instead of `npm ci` because newer eslint/typescript-eslint
@@ -11,7 +11,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Build backend
-FROM rust:1.95-slim-bookworm AS backend-build
+FROM rust:1.95-slim-bookworm@sha256:b8ecdb97c5b9c1ae058249f72710dbe33d4da19f7b8d911bd3c72e5f048af251 AS backend-build
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
@@ -29,7 +29,7 @@ RUN touch src/main.rs
 RUN cargo build --release
 
 # Stage 3: Runtime
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@sha256:67b30a61dc87758f0caf819646104f29ecbda97d920aaf5edc834128ac8493d3
 RUN apt-get update && apt-get install -y ca-certificates libssl3 curl && rm -rf /var/lib/apt/lists/*
 
 # Non-root user; /data writable for SQLite file
