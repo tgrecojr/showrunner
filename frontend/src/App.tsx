@@ -1,0 +1,25 @@
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import Layout from './components/Layout';
+import Watchlist from './pages/Watchlist';
+import Search from './pages/Search';
+import Calendar from './pages/Calendar';
+import ShowDetail from './pages/ShowDetail';
+import Settings from './pages/Settings';
+import UpNext from './pages/UpNext';
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Watchlist />} />
+          <Route path="/up-next" element={<UpNext />} />
+          <Route path="/search" element={<Search />} />
+          <Route path="/shows/:tmdbId" element={<ShowDetail />} />
+          <Route path="/calendar" element={<Calendar />} />
+          <Route path="/settings" element={<Settings />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+}

@@ -1,0 +1,43 @@
+# Environment
+.env
+.env.*
+.env.local
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Rust build artifacts
+backend/target/
+target/
+
+# Frontend build output
+frontend/dist/
+
+# Test coverage artifacts
+frontend/coverage/
+backend/lcov.info
+backend/target/llvm-cov-target/
+
+# SQLite databases (volume-mounted at runtime)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/
+
+# Build outputs
+*.pyc
+
+# Claude local files
+.claude/settings.local.json
+CLAUDE.local.md
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,25 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      SERVER_HOST: ${SERVER_HOST:-0.0.0.0}
+      SERVER_PORT: ${SERVER_PORT:-3001}
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///data/showrunner.db}
+      TMDB_API_KEY: ${TMDB_API_KEY}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      RESYNC_CRON: ${RESYNC_CRON:-0 0 6 * * *}
+      NOTIFICATION_CHECK_INTERVAL_MINUTES: ${NOTIFICATION_CHECK_INTERVAL_MINUTES:-60}
+      TIMEZONE: ${TIMEZONE:-America/New_York}
+      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-}
+      RUST_LOG: ${RUST_LOG:-info}
+      STATIC_DIR: /app/static
+    volumes:
+      - showrunner_data:/data
+
+volumes:
+  showrunner_data:

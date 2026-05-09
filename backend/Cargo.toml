@@ -1,0 +1,61 @@
+[package]
+name = "showrunner-backend"
+version = "0.1.0"
+edition = "2021"
+description = "Showrunner — TV show tracking across streaming and cable"
+authors = ["tgrecojr"]
+
+[dependencies]
+# Web framework
+axum = { version = "0.8", features = ["macros"] }
+tower-http = { version = "0.6", features = ["cors", "fs", "limit"] }
+tokio = { version = "1", features = ["full"] }
+
+# Database
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "sqlite",
+    "chrono",
+    "migrate",
+    "macros",
+] }
+
+# HTTP client (TMDB, Slack)
+reqwest = { version = "0.13", features = ["json", "query"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Date/Time
+chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Environment
+dotenvy = "0.15"
+
+# Async traits for Notifier
+async-trait = "0.1"
+
+# Scheduler
+tokio-cron-scheduler = "0.13"
+
+[dev-dependencies]
+wiremock = "0.6"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+serial_test = "3"
+tempfile = "3"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
