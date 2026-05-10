@@ -12,8 +12,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
-          <Route path="/" element={<Watchlist />} />
-          <Route path="/up-next" element={<UpNext />} />
+          <Route path="/" element={<UpNext />} />
+          <Route path="/watchlist" element={<Watchlist />} />
           <Route path="/search" element={<Search />} />
           <Route path="/shows/:tmdbId" element={<ShowDetail />} />
           <Route path="/calendar" element={<Calendar />} />

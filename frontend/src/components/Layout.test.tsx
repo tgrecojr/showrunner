@@ -9,7 +9,7 @@ function renderAt(path: string) {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<div>HomeRouteContent</div>} />
-          <Route path="/up-next" element={<div>UpNextRouteContent</div>} />
+          <Route path="/watchlist" element={<div>WatchlistRouteContent</div>} />
           <Route path="/calendar" element={<div>CalendarRouteContent</div>} />
         </Route>
       </Routes>
@@ -20,7 +20,7 @@ function renderAt(path: string) {
 describe('Layout', () => {
   it('renders nav links and brand', () => {
     renderAt('/');
-    expect(screen.getByText('Showrunner')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Showrunner' })).toHaveAttribute('href', '/');
     expect(screen.getByRole('link', { name: 'Watchlist' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Up Next' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Search' })).toBeInTheDocument();
@@ -29,9 +29,9 @@ describe('Layout', () => {
   });
 
   it('marks active nav link via NavLink', () => {
-    renderAt('/up-next');
-    const upNextLink = screen.getByRole('link', { name: 'Up Next' });
-    expect(upNextLink).toHaveClass('active');
+    renderAt('/watchlist');
+    const watchlistLink = screen.getByRole('link', { name: 'Watchlist' });
+    expect(watchlistLink).toHaveClass('active');
   });
 
   it('renders the active route content via Outlet', () => {

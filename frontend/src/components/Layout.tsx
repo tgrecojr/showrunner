@@ -1,13 +1,13 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet } from 'react-router-dom';
 
 export default function Layout() {
   return (
     <div className="layout">
       <header className="topnav">
-        <div className="brand">Showrunner</div>
+        <Link to="/" className="brand">Showrunner</Link>
         <nav>
-          <NavLink to="/" end>Watchlist</NavLink>
-          <NavLink to="/up-next">Up Next</NavLink>
+          <NavLink to="/" end>Up Next</NavLink>
+          <NavLink to="/watchlist">Watchlist</NavLink>
           <NavLink to="/search">Search</NavLink>
           <NavLink to="/calendar">Calendar</NavLink>
           <NavLink to="/settings">Settings</NavLink>

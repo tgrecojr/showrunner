@@ -37,14 +37,14 @@ async function renderAt(path: string) {
 }
 
 describe('App routing', () => {
-  it('renders Watchlist at /', async () => {
+  it('renders UpNext at /', async () => {
     await renderAt('/');
-    await waitFor(() => expect(screen.getByText('WatchlistPage')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('UpNextPage')).toBeInTheDocument());
   });
 
-  it('renders UpNext at /up-next', async () => {
-    await renderAt('/up-next');
-    await waitFor(() => expect(screen.getByText('UpNextPage')).toBeInTheDocument());
+  it('renders Watchlist at /watchlist', async () => {
+    await renderAt('/watchlist');
+    await waitFor(() => expect(screen.getByText('WatchlistPage')).toBeInTheDocument());
   });
 
   it('renders Search at /search', async () => {
