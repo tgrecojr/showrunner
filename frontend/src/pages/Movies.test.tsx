@@ -68,6 +68,18 @@ describe('Movies', () => {
     expect(screen.getByText('No poster')).toBeInTheDocument();
   });
 
+  it('poster links to the movie detail page', async () => {
+    mockListMovies.mockResolvedValueOnce({
+      movies: [buildMovie({ tmdb_id: 42, name: 'Inception' })],
+    });
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Inception')).toBeInTheDocument());
+
+    expect(
+      screen.getByRole('link', { name: 'View details for Inception' }),
+    ).toHaveAttribute('href', '/movies/42');
+  });
+
   it('shows empty state with link to Search', async () => {
     mockListMovies.mockResolvedValueOnce({ movies: [] });
     renderPage();

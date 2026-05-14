@@ -36,6 +36,25 @@ export interface MovieListResponse {
   movies: MovieWatchlistItem[];
 }
 
+export interface CastMember {
+  name: string;
+  character: string | null;
+  profile_url: string | null;
+}
+
+export interface MovieDetail {
+  tmdb_id: number;
+  name: string;
+  overview: string | null;
+  poster_url: string | null;
+  backdrop_url: string | null;
+  release_date: string | null;
+  runtime: number | null;
+  watch_providers: string[];
+  directors: string[];
+  cast: CastMember[];
+}
+
 export interface WatchlistItem {
   tmdb_id: number;
   name: string;

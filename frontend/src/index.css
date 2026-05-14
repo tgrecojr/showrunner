@@ -623,3 +623,96 @@ body {
   font-size: 0.8rem;
   color: #888;
 }
+
+/* Movie detail */
+.movie-backdrop {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+  background: #111;
+  background-size: cover;
+  background-position: center 25%;
+  min-height: 260px;
+}
+
+.movie-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.25) 0%,
+    rgba(0, 0, 0, 0.85) 100%
+  );
+}
+
+.movie-backdrop .show-header {
+  position: relative;
+  z-index: 1;
+  padding: 1.5rem;
+  margin-bottom: 0;
+  color: #fff;
+}
+
+.movie-backdrop .show-meta h1,
+.movie-backdrop .show-meta p,
+.movie-backdrop .providers,
+.movie-backdrop .meta-row {
+  color: #fff;
+}
+
+.movie-backdrop .year {
+  color: #d4d4d4;
+}
+
+.cast-section h2 {
+  margin-top: 0;
+}
+
+.cast-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 1rem;
+}
+
+.cast-card {
+  background: #fff;
+  border: 1px solid #e3e3e3;
+  border-radius: 8px;
+  padding: 0.5rem;
+  text-align: center;
+}
+
+.cast-photo {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #eee;
+}
+
+.cast-photo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: #999;
+}
+
+.cast-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin: 0.4rem 0 0.1rem;
+  line-height: 1.2;
+}
+
+.cast-character {
+  font-size: 0.75rem;
+  color: #666;
+  margin: 0;
+  line-height: 1.2;
+}

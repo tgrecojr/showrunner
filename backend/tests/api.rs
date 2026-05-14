@@ -803,6 +803,86 @@ async fn add_movie_returns_404_when_tmdb_missing() {
 }
 
 #[tokio::test]
+async fn get_movie_detail_returns_cast_and_providers() {
+    let app = build_app(vec![]).await;
+    insert_movie(&app.pool, 27205, "Inception").await;
+    Mock::given(wm_method("GET"))
+        .and(wm_path("/movie/27205"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "id": 27205,
+            "title": "Inception",
+            "overview": "dreams",
+            "poster_path": "/p.jpg",
+            "backdrop_path": "/b.jpg",
+            "release_date": "2010-07-16",
+            "runtime": 148,
+            "credits": {
+                "cast": [
+                    {"name": "Leonardo DiCaprio", "character": "Cobb",
+                     "profile_path": "/leo.jpg", "order": 0},
+                    {"name": "Joseph Gordon-Levitt", "character": "Arthur",
+                     "profile_path": null, "order": 1}
+                ],
+                "crew": [
+                    {"name": "Christopher Nolan", "job": "Director"}
+                ]
+            },
+            "watch/providers": {
+                "results": {"US": {"flatrate": [{"provider_name": "Netflix"}]}}
+            }
+        })))
+        .mount(&app.tmdb_server)
+        .await;
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::GET, "/api/v1/movies/27205"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v = body_to_value(resp).await;
+    assert_eq!(v["tmdb_id"], 27205);
+    assert_eq!(v["directors"][0], "Christopher Nolan");
+    assert_eq!(v["watch_providers"][0], "Netflix");
+    let cast = v["cast"].as_array().unwrap();
+    assert_eq!(cast.len(), 2);
+    assert_eq!(cast[0]["name"], "Leonardo DiCaprio");
+    assert_eq!(
+        cast[0]["profile_url"],
+        "https://image.tmdb.org/t/p/w185/leo.jpg"
+    );
+    assert!(cast[1]["profile_url"].is_null());
+}
+
+#[tokio::test]
+async fn get_movie_detail_returns_404_when_not_on_watchlist() {
+    let app = build_app(vec![]).await;
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::GET, "/api/v1/movies/999"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn get_movie_detail_maps_tmdb_429_to_friendly_message() {
+    let app = build_app(vec![]).await;
+    insert_movie(&app.pool, 27205, "Inception").await;
+    Mock::given(wm_method("GET"))
+        .and(wm_path("/movie/27205"))
+        .respond_with(ResponseTemplate::new(429))
+        .mount(&app.tmdb_server)
+        .await;
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::GET, "/api/v1/movies/27205"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+    let v = body_to_value(resp).await;
+    assert!(v["error"].as_str().unwrap().contains("rate-limiting"));
+}
+
+#[tokio::test]
 async fn delete_movie_removes_and_returns_204() {
     let app = build_app(vec![]).await;
     insert_movie(&app.pool, 1, "X").await;
