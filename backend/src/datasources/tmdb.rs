@@ -64,6 +64,30 @@ impl TmdbClient {
         Ok(resp.json().await?)
     }
 
+    pub async fn get_movie(&self, tmdb_id: i64) -> Result<TmdbMovie> {
+        let url = format!("{}/movie/{}", self.base_url, tmdb_id);
+        let resp = self
+            .http
+            .get(&url)
+            .query(&[("api_key", self.api_key.as_str())])
+            .send()
+            .await?;
+
+        if resp.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(AppError::NotFound(format!(
+                "movie {} not found on TMDB",
+                tmdb_id
+            )));
+        }
+        if !resp.status().is_success() {
+            return Err(AppError::Upstream(format!(
+                "TMDB returned {}",
+                resp.status()
+            )));
+        }
+        Ok(resp.json().await?)
+    }
+
     pub async fn get_season(&self, tmdb_id: i64, season_number: i64) -> Result<TmdbSeason> {
         let url = format!("{}/tv/{}/season/{}", self.base_url, tmdb_id, season_number);
         let resp = self
@@ -126,6 +150,18 @@ pub struct TmdbEpisode {
     pub name: Option<String>,
     pub overview: Option<String>,
     pub air_date: Option<String>,
+    pub runtime: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TmdbMovie {
+    pub id: i64,
+    // TMDB uses `title` for movies (not `name`).
+    pub title: String,
+    pub overview: Option<String>,
+    pub poster_path: Option<String>,
+    pub backdrop_path: Option<String>,
+    pub release_date: Option<String>,
     pub runtime: Option<i64>,
 }
 
@@ -311,6 +347,58 @@ mod tests {
         assert_eq!(season.episodes.len(), 1);
         assert_eq!(season.episodes[0].name.as_deref(), Some("Pilot"));
         assert_eq!(season.episodes[0].runtime, Some(30));
+    }
+
+    #[tokio::test]
+    async fn get_movie_parses_response() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/movie/27205"))
+            .and(query_param("api_key", "test_key"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": 27205,
+                "title": "Inception",
+                "overview": "dreams",
+                "poster_path": "/p.jpg",
+                "backdrop_path": "/b.jpg",
+                "release_date": "2010-07-16",
+                "runtime": 148
+            })))
+            .mount(&server)
+            .await;
+
+        let c = TmdbClient::with_base_url("test_key".into(), server.uri());
+        let movie = c.get_movie(27205).await.unwrap();
+        assert_eq!(movie.id, 27205);
+        assert_eq!(movie.title, "Inception");
+        assert_eq!(movie.runtime, Some(148));
+        assert_eq!(movie.release_date.as_deref(), Some("2010-07-16"));
+    }
+
+    #[tokio::test]
+    async fn get_movie_404_maps_to_not_found() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/movie/9"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        let c = TmdbClient::with_base_url("k".into(), server.uri());
+        let err = c.get_movie(9).await.unwrap_err();
+        assert!(matches!(err, crate::error::AppError::NotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn get_movie_500_maps_to_upstream() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/movie/9"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+        let c = TmdbClient::with_base_url("k".into(), server.uri());
+        let err = c.get_movie(9).await.unwrap_err();
+        assert!(matches!(err, crate::error::AppError::Upstream(_)));
     }
 
     #[tokio::test]

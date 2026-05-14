@@ -152,6 +152,18 @@ pub async fn insert_season(pool: &SqlitePool, show_id: i64, season: i64, episode
     .unwrap();
 }
 
+pub async fn insert_movie(pool: &SqlitePool, tmdb_id: i64, name: &str) {
+    sqlx::query(
+        "INSERT INTO movies (tmdb_id, name, added_at)
+         VALUES (?, ?, '2026-05-13T00:00:00Z')",
+    )
+    .bind(tmdb_id)
+    .bind(name)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
 pub async fn insert_episode(
     pool: &SqlitePool,
     show_id: i64,

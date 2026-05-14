@@ -1,6 +1,8 @@
 import type {
   CalendarResponse,
   HealthResponse,
+  MovieListResponse,
+  MovieWatchlistItem,
   SearchResponse,
   ShowDetail,
   SyncResponse,
@@ -45,6 +47,14 @@ export const api = {
     request<ShowDetail>(`/shows/${tmdb_id}`),
   deleteShow: (tmdb_id: number) =>
     request<void>(`/shows/${tmdb_id}`, { method: 'DELETE' }),
+  listMovies: () => request<MovieListResponse>('/movies'),
+  addMovie: (tmdb_id: number) =>
+    request<MovieWatchlistItem>('/movies', {
+      method: 'POST',
+      body: JSON.stringify({ tmdb_id }),
+    }),
+  deleteMovie: (tmdb_id: number) =>
+    request<void>(`/movies/${tmdb_id}`, { method: 'DELETE' }),
   setEpisodeWatched: (
     tmdb_id: number,
     season_number: number,

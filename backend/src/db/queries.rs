@@ -2,8 +2,9 @@ use chrono::Utc;
 use chrono_tz::Tz;
 use sqlx::SqlitePool;
 
-use crate::datasources::tmdb::{TmdbEpisode, TmdbSeason, TmdbShow};
+use crate::datasources::tmdb::{TmdbEpisode, TmdbMovie, TmdbSeason, TmdbShow};
 use crate::error::Result;
+use crate::models::movie::{MovieRow, MovieWatchlistItem};
 use crate::models::show::{
     backdrop_url, poster_url, CalendarEpisode, EpisodeDetail, EpisodeRow, SeasonDetail, SeasonRow,
     ShowDetail, ShowRow, UpNextItem, WatchlistItem,
@@ -259,6 +260,108 @@ pub async fn get_show_detail(pool: &SqlitePool, tmdb_id: i64) -> Result<Option<S
         watch_providers: providers,
         seasons: season_details,
     }))
+}
+
+// === Movies ===
+
+pub async fn movie_exists(pool: &SqlitePool, tmdb_id: i64) -> Result<bool> {
+    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM movies WHERE tmdb_id = ?")
+        .bind(tmdb_id)
+        .fetch_one(pool)
+        .await?;
+    Ok(row.0 > 0)
+}
+
+pub async fn insert_movie(pool: &SqlitePool, movie: &TmdbMovie) -> Result<()> {
+    let now = Utc::now().to_rfc3339();
+    sqlx::query(
+        "INSERT INTO movies (
+            tmdb_id, name, overview, poster_path, backdrop_path,
+            release_date, runtime, added_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(movie.id)
+    .bind(&movie.title)
+    .bind(empty_to_none(movie.overview.as_deref()))
+    .bind(empty_to_none(movie.poster_path.as_deref()))
+    .bind(empty_to_none(movie.backdrop_path.as_deref()))
+    .bind(empty_to_none(movie.release_date.as_deref()))
+    .bind(movie.runtime)
+    .bind(&now)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn list_movies(pool: &SqlitePool) -> Result<Vec<MovieWatchlistItem>> {
+    let rows: Vec<MovieRow> = sqlx::query_as(
+        "SELECT tmdb_id, name, overview, poster_path, backdrop_path,
+                release_date, runtime, added_at
+         FROM movies
+         ORDER BY added_at DESC, name COLLATE NOCASE",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|m| MovieWatchlistItem {
+            tmdb_id: m.tmdb_id,
+            name: m.name,
+            overview: m.overview,
+            poster_url: poster_url(m.poster_path.as_deref()),
+            backdrop_url: backdrop_url(m.backdrop_path.as_deref()),
+            release_date: m.release_date,
+            runtime: m.runtime,
+            added_at: m.added_at,
+        })
+        .collect())
+}
+
+pub async fn get_movie(pool: &SqlitePool, tmdb_id: i64) -> Result<Option<MovieWatchlistItem>> {
+    let row: Option<MovieRow> = sqlx::query_as(
+        "SELECT tmdb_id, name, overview, poster_path, backdrop_path,
+                release_date, runtime, added_at
+         FROM movies WHERE tmdb_id = ?",
+    )
+    .bind(tmdb_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|m| MovieWatchlistItem {
+        tmdb_id: m.tmdb_id,
+        name: m.name,
+        overview: m.overview,
+        poster_url: poster_url(m.poster_path.as_deref()),
+        backdrop_url: backdrop_url(m.backdrop_path.as_deref()),
+        release_date: m.release_date,
+        runtime: m.runtime,
+        added_at: m.added_at,
+    }))
+}
+
+pub async fn delete_movie(pool: &SqlitePool, tmdb_id: i64) -> Result<bool> {
+    let result = sqlx::query("DELETE FROM movies WHERE tmdb_id = ?")
+        .bind(tmdb_id)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+pub async fn tracked_movie_tmdb_ids_in(pool: &SqlitePool, ids: &[i64]) -> Result<Vec<i64>> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let sql = format!(
+        "SELECT tmdb_id FROM movies WHERE tmdb_id IN ({})",
+        placeholders
+    );
+    let mut q = sqlx::query_as::<_, (i64,)>(&sql);
+    for id in ids {
+        q = q.bind(*id);
+    }
+    let rows = q.fetch_all(pool).await?;
+    Ok(rows.into_iter().map(|r| r.0).collect())
 }
 
 pub async fn tracked_tmdb_ids_in(pool: &SqlitePool, ids: &[i64]) -> Result<Vec<i64>> {
