@@ -8,6 +8,7 @@ export default function Layout() {
         <nav>
           <NavLink to="/" end>Up Next</NavLink>
           <NavLink to="/watchlist">Watchlist</NavLink>
+          <NavLink to="/movies">Movies</NavLink>
           <NavLink to="/search">Search</NavLink>
           <NavLink to="/calendar">Calendar</NavLink>
           <NavLink to="/settings">Settings</NavLink>

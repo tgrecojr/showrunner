@@ -9,8 +9,8 @@ export default function Search() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [addStates, setAddStates] = useState<Record<number, AddState>>({});
-  const [addErrors, setAddErrors] = useState<Record<number, string>>({});
+  const [addStates, setAddStates] = useState<Record<string, AddState>>({});
+  const [addErrors, setAddErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const term = query.trim();
@@ -50,27 +50,36 @@ export default function Search() {
     };
   }, [query]);
 
-  async function handleAdd(tmdbId: number) {
-    setAddStates((prev) => ({ ...prev, [tmdbId]: 'pending' }));
+  // Keyed by media_type:tmdb_id so a movie and TV show with the same TMDB id
+  // (unlikely but possible) don't share state.
+  const stateKey = (s: SearchResult) => `${s.media_type}:${s.tmdb_id}`;
+
+  async function handleAdd(s: SearchResult) {
+    const key = stateKey(s);
+    setAddStates((prev) => ({ ...prev, [key]: 'pending' }));
     setAddErrors((prev) => {
       const next = { ...prev };
-      delete next[tmdbId];
+      delete next[key];
       return next;
     });
     try {
-      await api.addShow(tmdbId);
-      setAddStates((prev) => ({ ...prev, [tmdbId]: 'added' }));
+      if (s.media_type === 'movie') {
+        await api.addMovie(s.tmdb_id);
+      } else {
+        await api.addShow(s.tmdb_id);
+      }
+      setAddStates((prev) => ({ ...prev, [key]: 'added' }));
     } catch (err) {
-      setAddStates((prev) => ({ ...prev, [tmdbId]: 'error' }));
+      setAddStates((prev) => ({ ...prev, [key]: 'error' }));
       setAddErrors((prev) => ({
         ...prev,
-        [tmdbId]: err instanceof Error ? err.message : 'Add failed',
+        [key]: err instanceof Error ? err.message : 'Add failed',
       }));
     }
   }
 
   function buttonFor(s: SearchResult) {
-    const state = addStates[s.tmdb_id] ?? 'idle';
+    const state = addStates[stateKey(s)] ?? 'idle';
     if (s.already_tracked || state === 'added') {
       return (
         <span className="status-pill status-pill-success">On watchlist</span>
@@ -87,7 +96,7 @@ export default function Search() {
       <button
         type="button"
         className="btn btn-primary"
-        onClick={() => handleAdd(s.tmdb_id)}
+        onClick={() => handleAdd(s)}
       >
         Add
       </button>
@@ -96,15 +105,15 @@ export default function Search() {
 
   return (
     <div className="search-page">
-      <h1>Search TV Shows</h1>
+      <h1>Search</h1>
       <input
         type="search"
         autoFocus
-        placeholder="The Bear, Severance, Game of Thrones..."
+        placeholder="Search movies & TV shows..."
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         className="search-input"
-        aria-label="Search shows"
+        aria-label="Search movies and TV shows"
       />
 
       {loading && <p className="status">Searching…</p>}
@@ -114,37 +123,40 @@ export default function Search() {
       )}
 
       <ul className="results-grid">
-        {results.map((s) => (
-          <li key={s.tmdb_id} className="result-card">
-            {s.poster_url ? (
-              <img
-                src={s.poster_url}
-                alt={`${s.name} poster`}
-                className="poster"
-              />
-            ) : (
-              <div className="poster poster-placeholder">No poster</div>
-            )}
-            <div className="result-body">
-              <h3>
-                {s.name}
-                {s.first_air_date && (
-                  <span className="year">
-                    {' '}
-                    ({s.first_air_date.slice(0, 4)})
-                  </span>
-                )}
-              </h3>
-              {s.overview && <p className="overview">{s.overview}</p>}
-              <div className="card-actions">{buttonFor(s)}</div>
-              {addErrors[s.tmdb_id] && (
-                <p className="status status-error">
-                  {addErrors[s.tmdb_id]}
-                </p>
+        {results.map((s) => {
+          const key = stateKey(s);
+          return (
+            <li key={key} className="result-card">
+              {s.poster_url ? (
+                <img
+                  src={s.poster_url}
+                  alt={`${s.name} poster`}
+                  className="poster"
+                />
+              ) : (
+                <div className="poster poster-placeholder">No poster</div>
               )}
-            </div>
-          </li>
-        ))}
+              <div className="result-body">
+                <h3>
+                  {s.name}
+                  {s.date && (
+                    <span className="year"> ({s.date.slice(0, 4)})</span>
+                  )}
+                </h3>
+                <div className="meta-row">
+                  <span className="status-pill">
+                    {s.media_type === 'movie' ? 'Movie' : 'TV'}
+                  </span>
+                </div>
+                {s.overview && <p className="overview">{s.overview}</p>}
+                <div className="card-actions">{buttonFor(s)}</div>
+                {addErrors[key] && (
+                  <p className="status status-error">{addErrors[key]}</p>
+                )}
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

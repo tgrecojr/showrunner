@@ -16,7 +16,7 @@ use crate::notifications::dispatcher::NotificationDispatcher;
 use crate::notifications::slack::SlackNotifier;
 use crate::notifications::Notifier;
 use crate::state::AppState;
-use axum::routing::{get, patch, post};
+use axum::routing::{delete, get, patch, post};
 use axum::Router;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -46,6 +46,14 @@ pub fn build_api_router(state: AppState) -> Router {
         .route(
             "/api/v1/episodes/{show_tmdb_id}/{season_number}/{episode_number}",
             patch(api::episodes::patch_episode),
+        )
+        .route(
+            "/api/v1/movies",
+            get(api::movies::list_movies).post(api::movies::add_movie),
+        )
+        .route(
+            "/api/v1/movies/{tmdb_id}",
+            delete(api::movies::delete_movie),
         )
         .route("/api/v1/calendar", get(api::calendar::get_calendar))
         .route("/api/v1/up-next", get(api::up_next::list_up_next))

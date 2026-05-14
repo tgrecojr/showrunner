@@ -6,20 +6,35 @@ import Search from './Search';
 import type { SearchResult } from '../types';
 
 vi.mock('../api/client', () => ({
-  api: { search: vi.fn(), addShow: vi.fn() },
+  api: { search: vi.fn(), addShow: vi.fn(), addMovie: vi.fn() },
 }));
 import { api } from '../api/client';
 
 const mockSearch = vi.mocked(api.search);
-const mockAdd = vi.mocked(api.addShow);
+const mockAddShow = vi.mocked(api.addShow);
+const mockAddMovie = vi.mocked(api.addMovie);
 
-function result(overrides: Partial<SearchResult> = {}): SearchResult {
+function tvResult(overrides: Partial<SearchResult> = {}): SearchResult {
   return {
+    media_type: 'tv',
     tmdb_id: 1,
     name: 'Show',
     overview: 'description',
-    first_air_date: '2024-05-01',
+    date: '2024-05-01',
     poster_url: '/p.jpg',
+    already_tracked: false,
+    ...overrides,
+  };
+}
+
+function movieResult(overrides: Partial<SearchResult> = {}): SearchResult {
+  return {
+    media_type: 'movie',
+    tmdb_id: 100,
+    name: 'Movie Title',
+    overview: 'movie description',
+    date: '2010-07-16',
+    poster_url: '/m.jpg',
     already_tracked: false,
     ...overrides,
   };
@@ -33,10 +48,13 @@ function renderPage() {
   );
 }
 
+const SEARCH_LABEL = 'Search movies and TV shows';
+
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   mockSearch.mockReset();
-  mockAdd.mockReset();
+  mockAddShow.mockReset();
+  mockAddMovie.mockReset();
 });
 
 afterEach(() => {
@@ -53,10 +71,10 @@ async function flushDebounce() {
 describe('Search', () => {
   it('debounces query and renders results', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    mockSearch.mockResolvedValueOnce({ results: [result({ tmdb_id: 99 })] });
+    mockSearch.mockResolvedValueOnce({ results: [tvResult({ tmdb_id: 99 })] });
     renderPage();
 
-    await user.type(screen.getByLabelText('Search shows'), 'bear');
+    await user.type(screen.getByLabelText(SEARCH_LABEL), 'bear');
     expect(mockSearch).not.toHaveBeenCalled();
 
     await flushDebounce();
@@ -68,10 +86,10 @@ describe('Search', () => {
 
   it('clears results when query becomes empty', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    mockSearch.mockResolvedValueOnce({ results: [result()] });
+    mockSearch.mockResolvedValueOnce({ results: [tvResult()] });
     renderPage();
 
-    const input = screen.getByLabelText('Search shows');
+    const input = screen.getByLabelText(SEARCH_LABEL);
     await user.type(input, 'bear');
     await flushDebounce();
     await waitFor(() => expect(screen.getByText('Show')).toBeInTheDocument());
@@ -85,7 +103,7 @@ describe('Search', () => {
     mockSearch.mockResolvedValueOnce({ results: [] });
     renderPage();
 
-    await user.type(screen.getByLabelText('Search shows'), 'xyzzy');
+    await user.type(screen.getByLabelText(SEARCH_LABEL), 'xyzzy');
     await flushDebounce();
     await waitFor(() => expect(screen.getByText('No matches.')).toBeInTheDocument());
   });
@@ -95,7 +113,7 @@ describe('Search', () => {
     mockSearch.mockRejectedValueOnce(new Error('500'));
     renderPage();
 
-    await user.type(screen.getByLabelText('Search shows'), 'q');
+    await user.type(screen.getByLabelText(SEARCH_LABEL), 'q');
     await flushDebounce();
     await waitFor(() => expect(screen.getByText('Error: 500')).toBeInTheDocument());
   });
@@ -105,46 +123,77 @@ describe('Search', () => {
     mockSearch.mockRejectedValueOnce('boom');
     renderPage();
 
-    await user.type(screen.getByLabelText('Search shows'), 'q');
+    await user.type(screen.getByLabelText(SEARCH_LABEL), 'q');
     await flushDebounce();
     await waitFor(() =>
       expect(screen.getByText('Error: Search failed')).toBeInTheDocument(),
     );
   });
 
-  it('marks already-tracked shows with a chip rather than an Add button', async () => {
+  it('marks already-tracked items with a chip rather than an Add button', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    mockSearch.mockResolvedValueOnce({ results: [result({ already_tracked: true })] });
+    mockSearch.mockResolvedValueOnce({ results: [tvResult({ already_tracked: true })] });
     renderPage();
 
-    await user.type(screen.getByLabelText('Search shows'), 'q');
+    await user.type(screen.getByLabelText(SEARCH_LABEL), 'q');
     await flushDebounce();
     await waitFor(() => expect(screen.getByText('On watchlist')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument();
   });
 
-  it('adds a show, transitions to "On watchlist"', async () => {
+  it('adds a TV show, transitions to "On watchlist"', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    mockSearch.mockResolvedValueOnce({ results: [result({ tmdb_id: 7 })] });
-    mockAdd.mockResolvedValueOnce({} as never);
+    mockSearch.mockResolvedValueOnce({ results: [tvResult({ tmdb_id: 7 })] });
+    mockAddShow.mockResolvedValueOnce({} as never);
     renderPage();
 
-    await user.type(screen.getByLabelText('Search shows'), 'q');
+    await user.type(screen.getByLabelText(SEARCH_LABEL), 'q');
     await flushDebounce();
     const addBtn = await screen.findByRole('button', { name: 'Add' });
     await user.click(addBtn);
 
-    await waitFor(() => expect(mockAdd).toHaveBeenCalledWith(7));
+    await waitFor(() => expect(mockAddShow).toHaveBeenCalledWith(7));
+    expect(mockAddMovie).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.getByText('On watchlist')).toBeInTheDocument());
+  });
+
+  it('adds a movie via addMovie, not addShow', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    mockSearch.mockResolvedValueOnce({ results: [movieResult({ tmdb_id: 27205 })] });
+    mockAddMovie.mockResolvedValueOnce({} as never);
+    renderPage();
+
+    await user.type(screen.getByLabelText(SEARCH_LABEL), 'q');
+    await flushDebounce();
+    const addBtn = await screen.findByRole('button', { name: 'Add' });
+    await user.click(addBtn);
+
+    await waitFor(() => expect(mockAddMovie).toHaveBeenCalledWith(27205));
+    expect(mockAddShow).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByText('On watchlist')).toBeInTheDocument());
+  });
+
+  it('renders media type badges for both kinds', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    mockSearch.mockResolvedValueOnce({
+      results: [tvResult({ tmdb_id: 1 }), movieResult({ tmdb_id: 2 })],
+    });
+    renderPage();
+
+    await user.type(screen.getByLabelText(SEARCH_LABEL), 'q');
+    await flushDebounce();
+    await waitFor(() => expect(screen.getByText('Show')).toBeInTheDocument());
+    expect(screen.getByText('TV')).toBeInTheDocument();
+    expect(screen.getByText('Movie')).toBeInTheDocument();
   });
 
   it('shows per-result error when add fails', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    mockSearch.mockResolvedValueOnce({ results: [result({ tmdb_id: 7 })] });
-    mockAdd.mockRejectedValueOnce(new Error('duplicate'));
+    mockSearch.mockResolvedValueOnce({ results: [tvResult({ tmdb_id: 7 })] });
+    mockAddShow.mockRejectedValueOnce(new Error('duplicate'));
     renderPage();
 
-    await user.type(screen.getByLabelText('Search shows'), 'q');
+    await user.type(screen.getByLabelText(SEARCH_LABEL), 'q');
     await flushDebounce();
     const addBtn = await screen.findByRole('button', { name: 'Add' });
     await user.click(addBtn);
@@ -154,11 +203,11 @@ describe('Search', () => {
 
   it('shows generic add error for non-Error rejection', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    mockSearch.mockResolvedValueOnce({ results: [result({ tmdb_id: 7 })] });
-    mockAdd.mockRejectedValueOnce('weird');
+    mockSearch.mockResolvedValueOnce({ results: [tvResult({ tmdb_id: 7 })] });
+    mockAddShow.mockRejectedValueOnce('weird');
     renderPage();
 
-    await user.type(screen.getByLabelText('Search shows'), 'q');
+    await user.type(screen.getByLabelText(SEARCH_LABEL), 'q');
     await flushDebounce();
     const addBtn = await screen.findByRole('button', { name: 'Add' });
     await user.click(addBtn);
@@ -166,14 +215,14 @@ describe('Search', () => {
     await waitFor(() => expect(screen.getByText('Add failed')).toBeInTheDocument());
   });
 
-  it('renders placeholder card when poster is missing and falsy first_air_date', async () => {
+  it('renders placeholder card when poster is missing and date is null', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     mockSearch.mockResolvedValueOnce({
-      results: [result({ poster_url: null, first_air_date: null, overview: null })],
+      results: [tvResult({ poster_url: null, date: null, overview: null })],
     });
     renderPage();
 
-    await user.type(screen.getByLabelText('Search shows'), 'q');
+    await user.type(screen.getByLabelText(SEARCH_LABEL), 'q');
     await flushDebounce();
     await waitFor(() => expect(screen.getByText('No poster')).toBeInTheDocument());
     expect(screen.queryByText(/\(202\d\)/)).not.toBeInTheDocument();

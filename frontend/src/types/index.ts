@@ -5,17 +5,35 @@ export interface HealthResponse {
   notifiers: string[];
 }
 
+export type MediaType = 'tv' | 'movie';
+
 export interface SearchResult {
+  media_type: MediaType;
   tmdb_id: number;
   name: string;
   overview: string | null;
-  first_air_date: string | null;
+  date: string | null;
   poster_url: string | null;
   already_tracked: boolean;
 }
 
 export interface SearchResponse {
   results: SearchResult[];
+}
+
+export interface MovieWatchlistItem {
+  tmdb_id: number;
+  name: string;
+  overview: string | null;
+  poster_url: string | null;
+  backdrop_url: string | null;
+  release_date: string | null;
+  runtime: number | null;
+  added_at: string;
+}
+
+export interface MovieListResponse {
+  movies: MovieWatchlistItem[];
 }
 
 export interface WatchlistItem {

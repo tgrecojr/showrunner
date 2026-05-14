@@ -123,21 +123,28 @@ async fn health_lists_configured_notifier_channels() {
 // ============================ Search ============================
 
 #[tokio::test]
-async fn search_returns_results_with_already_tracked_flag() {
+async fn search_returns_mixed_results_with_already_tracked_flag() {
     let app = build_app(vec![]).await;
     insert_show(&app.pool, 1, "TrackedShow", None, None, true, &[]).await;
+    insert_movie(&app.pool, 27205, "Inception").await;
 
     Mock::given(wm_method("GET"))
-        .and(wm_path("/search/tv"))
+        .and(wm_path("/search/multi"))
         .and(query_param("query", "bear"))
         .and(query_param("api_key", "test_key"))
         .and(query_param("include_adult", "false"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "results": [
-                {"id": 1, "name": "TrackedShow", "overview": "x",
+                {"id": 1, "media_type": "tv", "name": "TrackedShow", "overview": "x",
                  "first_air_date": "2020-01-01", "poster_path": "/a.jpg"},
-                {"id": 2, "name": "Other", "overview": "",
-                 "first_air_date": "", "poster_path": ""}
+                {"id": 2, "media_type": "tv", "name": "Other", "overview": "",
+                 "first_air_date": "", "poster_path": ""},
+                {"id": 27205, "media_type": "movie", "title": "Inception",
+                 "overview": "dreams", "release_date": "2010-07-16",
+                 "poster_path": "/p.jpg"},
+                {"id": 99, "media_type": "movie", "title": "Other Movie",
+                 "release_date": "2024-01-01"},
+                {"id": 500, "media_type": "person", "name": "Nolan"}
             ]
         })))
         .mount(&app.tmdb_server)
@@ -150,16 +157,24 @@ async fn search_returns_results_with_already_tracked_flag() {
     assert_eq!(resp.status(), StatusCode::OK);
     let v = body_to_value(resp).await;
     let results = v["results"].as_array().unwrap();
-    assert_eq!(results.len(), 2);
+    // Persons are filtered out, so 4 results remain.
+    assert_eq!(results.len(), 4);
+    assert_eq!(results[0]["media_type"], "tv");
     assert_eq!(results[0]["already_tracked"], true);
+    assert_eq!(results[0]["date"], "2020-01-01");
     assert_eq!(
         results[0]["poster_url"],
         "https://image.tmdb.org/t/p/w185/a.jpg"
     );
+    assert_eq!(results[1]["media_type"], "tv");
     assert_eq!(results[1]["already_tracked"], false);
-    assert_eq!(results[1]["overview"], Value::Null);
-    assert_eq!(results[1]["first_air_date"], Value::Null);
-    assert_eq!(results[1]["poster_url"], Value::Null);
+    assert_eq!(results[1]["date"], Value::Null);
+    assert_eq!(results[2]["media_type"], "movie");
+    assert_eq!(results[2]["name"], "Inception");
+    assert_eq!(results[2]["already_tracked"], true);
+    assert_eq!(results[2]["date"], "2010-07-16");
+    assert_eq!(results[3]["media_type"], "movie");
+    assert_eq!(results[3]["already_tracked"], false);
 }
 
 #[tokio::test]
@@ -176,7 +191,7 @@ async fn search_rejects_blank_query() {
 async fn search_returns_502_when_tmdb_errors() {
     let app = build_app(vec![]).await;
     Mock::given(wm_method("GET"))
-        .and(wm_path("/search/tv"))
+        .and(wm_path("/search/multi"))
         .respond_with(ResponseTemplate::new(500))
         .mount(&app.tmdb_server)
         .await;
@@ -691,4 +706,115 @@ async fn test_notification_with_no_channels_returns_empty_results() {
     assert_eq!(resp.status(), StatusCode::OK);
     let v = body_to_value(resp).await;
     assert!(v["results"].as_array().unwrap().is_empty());
+}
+
+// ============================ Movies ============================
+
+#[tokio::test]
+async fn list_movies_returns_empty_initially() {
+    let app = build_app(vec![]).await;
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::GET, "/api/v1/movies"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v = body_to_value(resp).await;
+    assert!(v["movies"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn add_movie_fetches_from_tmdb_and_inserts() {
+    let app = build_app(vec![]).await;
+    Mock::given(wm_method("GET"))
+        .and(wm_path("/movie/27205"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "id": 27205,
+            "title": "Inception",
+            "overview": "dreams",
+            "poster_path": "/p.jpg",
+            "backdrop_path": "/b.jpg",
+            "release_date": "2010-07-16",
+            "runtime": 148
+        })))
+        .mount(&app.tmdb_server)
+        .await;
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/movies",
+            serde_json::json!({"tmdb_id": 27205}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let v = body_to_value(resp).await;
+    assert_eq!(v["tmdb_id"], 27205);
+    assert_eq!(v["name"], "Inception");
+    assert_eq!(v["release_date"], "2010-07-16");
+    assert_eq!(v["runtime"], 148);
+    assert_eq!(v["poster_url"], "https://image.tmdb.org/t/p/w185/p.jpg");
+
+    // It also appears in the list now.
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::GET, "/api/v1/movies"))
+        .await
+        .unwrap();
+    let v = body_to_value(resp).await;
+    let movies = v["movies"].as_array().unwrap();
+    assert_eq!(movies.len(), 1);
+    assert_eq!(movies[0]["tmdb_id"], 27205);
+}
+
+#[tokio::test]
+async fn add_movie_rejects_duplicate() {
+    let app = build_app(vec![]).await;
+    insert_movie(&app.pool, 1, "Already").await;
+    let resp = build_api_router(app.state.clone())
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/movies",
+            serde_json::json!({"tmdb_id": 1}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let v = body_to_value(resp).await;
+    assert!(v["error"].as_str().unwrap().contains("already"));
+}
+
+#[tokio::test]
+async fn add_movie_returns_404_when_tmdb_missing() {
+    let app = build_app(vec![]).await;
+    Mock::given(wm_method("GET"))
+        .and(wm_path("/movie/9"))
+        .respond_with(ResponseTemplate::new(404))
+        .mount(&app.tmdb_server)
+        .await;
+    let resp = build_api_router(app.state.clone())
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/movies",
+            serde_json::json!({"tmdb_id": 9}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn delete_movie_removes_and_returns_204() {
+    let app = build_app(vec![]).await;
+    insert_movie(&app.pool, 1, "X").await;
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::DELETE, "/api/v1/movies/1"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::DELETE, "/api/v1/movies/1"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
