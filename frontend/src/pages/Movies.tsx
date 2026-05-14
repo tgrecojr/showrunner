@@ -82,15 +82,21 @@ export default function Movies() {
           const year = m.release_date ? m.release_date.slice(0, 4) : null;
           return (
             <li key={m.tmdb_id} className="result-card">
-              {m.poster_url ? (
-                <img
-                  src={m.poster_url}
-                  alt={`${m.name} poster`}
-                  className="poster"
-                />
-              ) : (
-                <div className="poster poster-placeholder">No poster</div>
-              )}
+              <Link
+                to={`/movies/${m.tmdb_id}`}
+                className="card-poster-link"
+                aria-label={`View details for ${m.name}`}
+              >
+                {m.poster_url ? (
+                  <img
+                    src={m.poster_url}
+                    alt={`${m.name} poster`}
+                    className="poster"
+                  />
+                ) : (
+                  <div className="poster poster-placeholder">No poster</div>
+                )}
+              </Link>
               <div className="result-body">
                 <h3>
                   {m.name}

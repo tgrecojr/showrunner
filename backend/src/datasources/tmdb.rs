@@ -69,7 +69,10 @@ impl TmdbClient {
         let resp = self
             .http
             .get(&url)
-            .query(&[("api_key", self.api_key.as_str())])
+            .query(&[
+                ("api_key", self.api_key.as_str()),
+                ("append_to_response", "credits,watch/providers"),
+            ])
             .send()
             .await?;
 
@@ -78,6 +81,12 @@ impl TmdbClient {
                 "movie {} not found on TMDB",
                 tmdb_id
             )));
+        }
+        if resp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(AppError::Upstream(
+                "TMDB is rate-limiting requests right now. Please try again in a moment."
+                    .to_string(),
+            ));
         }
         if !resp.status().is_success() {
             return Err(AppError::Upstream(format!(
@@ -163,6 +172,37 @@ pub struct TmdbMovie {
     pub backdrop_path: Option<String>,
     pub release_date: Option<String>,
     pub runtime: Option<i64>,
+    #[serde(default)]
+    pub credits: Option<TmdbCredits>,
+    #[serde(rename = "watch/providers", default)]
+    pub watch_providers: Option<TmdbWatchProvidersWrapper>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TmdbCredits {
+    #[serde(default)]
+    pub cast: Vec<TmdbCastMember>,
+    #[serde(default)]
+    pub crew: Vec<TmdbCrewMember>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TmdbCastMember {
+    pub name: String,
+    #[serde(default)]
+    pub character: Option<String>,
+    #[serde(default)]
+    pub profile_path: Option<String>,
+    #[serde(default)]
+    pub order: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TmdbCrewMember {
+    pub name: String,
+    pub job: String,
+    #[serde(default)]
+    pub department: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -189,23 +229,45 @@ pub struct TmdbProvider {
 impl TmdbShow {
     /// Extract a simple list of US streaming/free/ads provider names.
     pub fn us_providers(&self) -> Vec<String> {
-        let Some(wrapper) = &self.watch_providers else {
-            return Vec::new();
-        };
-        let Some(region) = wrapper.results.get("US") else {
-            return Vec::new();
-        };
-        let mut names: Vec<String> = region
-            .flatrate
-            .iter()
-            .chain(region.free.iter())
-            .chain(region.ads.iter())
-            .map(|p| p.provider_name.clone())
-            .collect();
-        names.sort();
-        names.dedup();
-        names
+        us_providers_from(self.watch_providers.as_ref())
     }
+}
+
+impl TmdbMovie {
+    pub fn us_providers(&self) -> Vec<String> {
+        us_providers_from(self.watch_providers.as_ref())
+    }
+
+    pub fn directors(&self) -> Vec<String> {
+        let Some(credits) = &self.credits else {
+            return Vec::new();
+        };
+        credits
+            .crew
+            .iter()
+            .filter(|c| c.job == "Director")
+            .map(|c| c.name.clone())
+            .collect()
+    }
+}
+
+fn us_providers_from(wrapper: Option<&TmdbWatchProvidersWrapper>) -> Vec<String> {
+    let Some(wrapper) = wrapper else {
+        return Vec::new();
+    };
+    let Some(region) = wrapper.results.get("US") else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = region
+        .flatrate
+        .iter()
+        .chain(region.free.iter())
+        .chain(region.ads.iter())
+        .map(|p| p.provider_name.clone())
+        .collect();
+    names.sort();
+    names.dedup();
+    names
 }
 
 #[cfg(test)]
@@ -355,6 +417,7 @@ mod tests {
         Mock::given(method("GET"))
             .and(path("/movie/27205"))
             .and(query_param("api_key", "test_key"))
+            .and(query_param("append_to_response", "credits,watch/providers"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "id": 27205,
                 "title": "Inception",
@@ -362,7 +425,26 @@ mod tests {
                 "poster_path": "/p.jpg",
                 "backdrop_path": "/b.jpg",
                 "release_date": "2010-07-16",
-                "runtime": 148
+                "runtime": 148,
+                "credits": {
+                    "cast": [
+                        {"name": "Leonardo DiCaprio", "character": "Cobb",
+                         "profile_path": "/leo.jpg", "order": 0},
+                        {"name": "Joseph Gordon-Levitt", "character": "Arthur",
+                         "profile_path": null, "order": 1}
+                    ],
+                    "crew": [
+                        {"name": "Christopher Nolan", "job": "Director",
+                         "department": "Directing"},
+                        {"name": "Hans Zimmer", "job": "Original Music Composer",
+                         "department": "Sound"}
+                    ]
+                },
+                "watch/providers": {
+                    "results": {
+                        "US": {"flatrate": [{"provider_name": "Netflix"}]}
+                    }
+                }
             })))
             .mount(&server)
             .await;
@@ -373,6 +455,29 @@ mod tests {
         assert_eq!(movie.title, "Inception");
         assert_eq!(movie.runtime, Some(148));
         assert_eq!(movie.release_date.as_deref(), Some("2010-07-16"));
+        let credits = movie.credits.as_ref().expect("credits present");
+        assert_eq!(credits.cast.len(), 2);
+        assert_eq!(credits.cast[0].character.as_deref(), Some("Cobb"));
+        assert_eq!(movie.directors(), vec!["Christopher Nolan".to_string()]);
+        assert_eq!(movie.us_providers(), vec!["Netflix".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn get_movie_429_maps_to_rate_limit_message() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/movie/9"))
+            .respond_with(ResponseTemplate::new(429))
+            .mount(&server)
+            .await;
+        let c = TmdbClient::with_base_url("k".into(), server.uri());
+        let err = c.get_movie(9).await.unwrap_err();
+        match err {
+            crate::error::AppError::Upstream(msg) => {
+                assert!(msg.contains("rate-limiting"), "unexpected msg: {msg}");
+            }
+            other => panic!("expected Upstream, got {other:?}"),
+        }
     }
 
     #[tokio::test]
