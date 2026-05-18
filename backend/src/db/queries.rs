@@ -652,6 +652,7 @@ pub async fn list_up_next(pool: &SqlitePool, tz: Tz) -> Result<Vec<UpNextItem>> 
         season_number: i64,
         episode_number: i64,
         episode_name: Option<String>,
+        episode_overview: Option<String>,
         air_date: String,
         remaining: i64,
     }
@@ -664,6 +665,7 @@ pub async fn list_up_next(pool: &SqlitePool, tz: Tz) -> Result<Vec<UpNextItem>> 
                 e.episode_number,
                 e.air_date,
                 e.name AS episode_name,
+                e.overview AS episode_overview,
                 ROW_NUMBER() OVER (
                     PARTITION BY e.show_tmdb_id
                     ORDER BY e.air_date ASC, e.season_number ASC, e.episode_number ASC
@@ -680,6 +682,7 @@ pub async fn list_up_next(pool: &SqlitePool, tz: Tz) -> Result<Vec<UpNextItem>> 
             ne.season_number,
             ne.episode_number,
             ne.episode_name,
+            ne.episode_overview,
             ne.air_date,
             (SELECT COUNT(*) FROM episodes e2
              WHERE e2.show_tmdb_id = s.tmdb_id
@@ -705,6 +708,7 @@ pub async fn list_up_next(pool: &SqlitePool, tz: Tz) -> Result<Vec<UpNextItem>> 
             season_number: r.season_number,
             episode_number: r.episode_number,
             episode_name: r.episode_name,
+            episode_overview: r.episode_overview,
             air_date: r.air_date,
             remaining: r.remaining,
         })
