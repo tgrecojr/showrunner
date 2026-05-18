@@ -602,6 +602,17 @@ body {
   min-width: 0;
 }
 
+.upnext-ep-overview {
+  margin: 0.3rem 0 0.4rem 0;
+  font-size: 0.85rem;
+  color: #555;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .upnext-action {
   flex-shrink: 0;
 }

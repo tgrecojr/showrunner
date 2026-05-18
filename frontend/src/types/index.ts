@@ -117,6 +117,7 @@ export interface UpNextItem {
   season_number: number;
   episode_number: number;
   episode_name: string | null;
+  episode_overview: string | null;
   air_date: string;
   remaining: number;
 }

@@ -122,6 +122,7 @@ pub struct UpNextItem {
     pub season_number: i64,
     pub episode_number: i64,
     pub episode_name: Option<String>,
+    pub episode_overview: Option<String>,
     pub air_date: String,
     pub remaining: i64,
 }
