@@ -1,0 +1,13 @@
+# cargo-audit configuration
+# See https://github.com/rustsec/rustsec/tree/main/cargo-audit#configuration
+#
+# RUSTSEC-2023-0071: Marvin Attack timing side-channel on `rsa` 0.9.x.
+# Justification: `rsa` is pulled in transitively only via `sqlx-mysql`,
+# which sqlx lists as an optional dep on its umbrella crate. We use sqlx
+# with `default-features = false` and only the `sqlite` feature, so
+# `sqlx-mysql` and `rsa` are not compiled into the binary. The
+# vulnerability requires actually performing RSA decryption, which we
+# never do. Re-evaluate periodically; mirror is in backend/osv-scanner.toml.
+
+[advisories]
+ignore = ["RUSTSEC-2023-0071"]
