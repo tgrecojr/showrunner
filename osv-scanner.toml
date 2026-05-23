@@ -1,9 +1,0 @@
-# OSV-Scanner ignore allowlist.
-# Format: https://google.github.io/osv-scanner/configuration/
-#
-# Each entry should include id, ignoreUntil, and reason. Example:
-#
-# [[IgnoredVulns]]
-# id = "GHSA-xxxx-xxxx-xxxx"
-# ignoreUntil = 2026-12-31
-# reason = "No upstream fix; not exploitable in our usage of <package>."
