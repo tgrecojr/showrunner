@@ -1,9 +1,0 @@
-# cargo-audit configuration.
-# Format: https://docs.rs/cargo-audit/latest/cargo_audit/config/index.html
-#
-# To allowlist a specific RustSec advisory, add it under [advisories]:
-#
-# [advisories]
-# ignore = [
-#   # "RUSTSEC-YYYY-NNNN",  # reason: <why this is acceptable>
-# ]
