@@ -1,0 +1,58 @@
+name: Supply chain scan
+
+on:
+  workflow_call:
+    secrets:
+      SOCKET_SECURITY_API_KEY:
+        required: true
+
+jobs:
+  scan:
+    name: Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps (no scripts)
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+
+      - name: Verify npm package signatures
+        working-directory: frontend
+        run: npm audit signatures
+
+      - name: Socket Security scan (frontend)
+        env:
+          SOCKET_SECURITY_API_KEY: ${{ secrets.SOCKET_SECURITY_API_KEY }}
+        run: |
+          repo_slug="${GITHUB_REPOSITORY##*/}"
+          branch_name="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          npx -y @socketsecurity/cli@latest scan create \
+            --org grecolabs \
+            --repo "${repo_slug}" \
+            --branch "${branch_name}" \
+            --report \
+            ./frontend
+
+      - name: OSV scan (npm + cargo lockfiles)
+        uses: google/osv-scanner-action/osv-scanner-action@v2.3.8
+        with:
+          scan-args: |-
+            --recursive
+            ./
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: taiki-e/install-action@cargo-audit
+
+      - name: cargo audit (backend)
+        working-directory: backend
+        run: cargo audit
