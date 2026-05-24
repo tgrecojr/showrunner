@@ -1,6 +1,6 @@
 use chrono::Utc;
 use chrono_tz::Tz;
-use sqlx::SqlitePool;
+use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
 use crate::datasources::tmdb::{TmdbEpisode, TmdbMovie, TmdbSeason, TmdbShow};
 use crate::error::Result;
@@ -351,16 +351,14 @@ pub async fn tracked_movie_tmdb_ids_in(pool: &SqlitePool, ids: &[i64]) -> Result
     if ids.is_empty() {
         return Ok(Vec::new());
     }
-    let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-    let sql = format!(
-        "SELECT tmdb_id FROM movies WHERE tmdb_id IN ({})",
-        placeholders
-    );
-    let mut q = sqlx::query_as::<_, (i64,)>(&sql);
+    let mut qb: QueryBuilder<Sqlite> =
+        QueryBuilder::new("SELECT tmdb_id FROM movies WHERE tmdb_id IN (");
+    let mut separated = qb.separated(", ");
     for id in ids {
-        q = q.bind(*id);
+        separated.push_bind(*id);
     }
-    let rows = q.fetch_all(pool).await?;
+    separated.push_unseparated(")");
+    let rows: Vec<(i64,)> = qb.build_query_as().fetch_all(pool).await?;
     Ok(rows.into_iter().map(|r| r.0).collect())
 }
 
@@ -368,17 +366,15 @@ pub async fn tracked_tmdb_ids_in(pool: &SqlitePool, ids: &[i64]) -> Result<Vec<i
     if ids.is_empty() {
         return Ok(Vec::new());
     }
-    // SQLite doesn't bind arrays — build placeholders.
-    let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-    let sql = format!(
-        "SELECT tmdb_id FROM shows WHERE tmdb_id IN ({})",
-        placeholders
-    );
-    let mut q = sqlx::query_as::<_, (i64,)>(&sql);
+    // SQLite doesn't bind arrays — build placeholders via QueryBuilder.
+    let mut qb: QueryBuilder<Sqlite> =
+        QueryBuilder::new("SELECT tmdb_id FROM shows WHERE tmdb_id IN (");
+    let mut separated = qb.separated(", ");
     for id in ids {
-        q = q.bind(*id);
+        separated.push_bind(*id);
     }
-    let rows = q.fetch_all(pool).await?;
+    separated.push_unseparated(")");
+    let rows: Vec<(i64,)> = qb.build_query_as().fetch_all(pool).await?;
     Ok(rows.into_iter().map(|r| r.0).collect())
 }
 
