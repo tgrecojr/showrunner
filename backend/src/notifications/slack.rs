@@ -1,9 +1,13 @@
+use std::time::Duration;
+
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
 
 use crate::error::{AppError, Result};
 use crate::notifications::{NotificationEvent, Notifier};
+
+const SLACK_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct SlackNotifier {
     http: Client,
@@ -12,10 +16,11 @@ pub struct SlackNotifier {
 
 impl SlackNotifier {
     pub fn new(webhook_url: String) -> Self {
-        Self {
-            http: Client::new(),
-            webhook_url,
-        }
+        let http = Client::builder()
+            .timeout(SLACK_HTTP_TIMEOUT)
+            .build()
+            .expect("reqwest client with static config should build");
+        Self { http, webhook_url }
     }
 
     fn format(event: &NotificationEvent) -> String {

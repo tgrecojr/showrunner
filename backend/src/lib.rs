@@ -16,14 +16,19 @@ use crate::notifications::dispatcher::NotificationDispatcher;
 use crate::notifications::slack::SlackNotifier;
 use crate::notifications::Notifier;
 use crate::state::AppState;
+use axum::http::StatusCode;
 use axum::routing::{get, patch, post};
 use axum::Router;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::time::Duration;
 use tower_http::cors::CorsLayer;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::{ServeDir, ServeFile};
+use tower_http::timeout::TimeoutLayer;
 use tracing_subscriber::EnvFilter;
+
+const API_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Build the API router with all routes wired up. Public so tests can drive
 /// the same Router used in production.
@@ -63,6 +68,10 @@ pub fn build_api_router(state: AppState) -> Router {
             post(api::notifications::test_notification),
         )
         .layer(RequestBodyLimitLayer::new(1024 * 1024))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            API_REQUEST_TIMEOUT,
+        ))
         .with_state(state)
 }
 
