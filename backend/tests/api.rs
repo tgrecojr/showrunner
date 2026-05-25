@@ -631,11 +631,7 @@ async fn test_notification_dispatches_to_all_channels() {
     let app = build_app_with_recording_notifier().await;
 
     let resp = build_api_router(app.state.clone())
-        .oneshot(json_request(
-            Method::POST,
-            "/api/v1/notifications/test",
-            serde_json::json!({"message": "ping"}),
-        ))
+        .oneshot(empty_request(Method::POST, "/api/v1/notifications/test"))
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -647,19 +643,34 @@ async fn test_notification_dispatches_to_all_channels() {
     assert_eq!(results[0]["ok"], true);
 
     let calls = app.notifier_calls.unwrap();
-    assert_eq!(calls.lock().unwrap().len(), 1);
+    let calls = calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
 }
 
 #[tokio::test]
-async fn test_notification_with_no_body_uses_default_message() {
+async fn test_notification_ignores_user_supplied_message_field() {
+    // The endpoint must NOT accept a caller-supplied message — otherwise any
+    // unauthenticated request could broadcast arbitrary content to Slack.
     let app = build_app_with_recording_notifier().await;
     let resp = build_api_router(app.state.clone())
-        .oneshot(empty_request(Method::POST, "/api/v1/notifications/test"))
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/notifications/test",
+            serde_json::json!({"message": "<malicious payload>"}),
+        ))
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    let v = body_to_value(resp).await;
-    assert_eq!(v["results"][0]["channel"], "rec");
+
+    let calls = app.notifier_calls.unwrap();
+    let calls = calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    match &calls[0] {
+        showrunner_backend::notifications::NotificationEvent::Test { message } => {
+            assert!(!message.contains("malicious"));
+        }
+        other => panic!("expected Test event, got {:?}", other),
+    }
 }
 
 #[tokio::test]

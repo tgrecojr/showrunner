@@ -81,11 +81,8 @@ export const api = {
       `/calendar?start=${start}&end=${end}`,
     ),
   sync: () => request<SyncResponse>('/sync', { method: 'POST' }),
-  testNotification: (message?: string) =>
-    request<TestNotificationResponse>('/notifications/test', {
-      method: 'POST',
-      body: JSON.stringify({ message: message ?? null }),
-    }),
+  testNotification: () =>
+    request<TestNotificationResponse>('/notifications/test', { method: 'POST' }),
 };
 
 export type BulkWatchScope =
