@@ -136,18 +136,13 @@ describe('api client', () => {
     expect(init?.method).toBe('POST');
   });
 
-  it('testNotification sends provided message', async () => {
-    fetchSpy.mockResolvedValueOnce(jsonResponse(200, { results: [] }));
-    await api.testNotification('hello');
-    const [, init] = fetchSpy.mock.calls[0] as FetchArgs;
-    expect(JSON.parse(init?.body as string)).toEqual({ message: 'hello' });
-  });
-
-  it('testNotification sends null when message omitted', async () => {
+  it('testNotification POSTs to /notifications/test with no body', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse(200, { results: [] }));
     await api.testNotification();
-    const [, init] = fetchSpy.mock.calls[0] as FetchArgs;
-    expect(JSON.parse(init?.body as string)).toEqual({ message: null });
+    const [url, init] = fetchSpy.mock.calls[0] as FetchArgs;
+    expect(url).toBe('/api/v1/notifications/test');
+    expect(init?.method).toBe('POST');
+    expect(init?.body).toBeUndefined();
   });
 
   it('health hits /health', async () => {

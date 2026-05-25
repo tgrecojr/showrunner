@@ -1,7 +1,8 @@
 use crate::error::{AppError, Result};
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 use sqlx::SqlitePool;
 use std::str::FromStr;
+use std::time::Duration;
 
 pub async fn create_pool(database_url: &str) -> Result<SqlitePool> {
     let max_conn: u32 = std::env::var("DB_MAX_CONNECTIONS")
@@ -12,7 +13,10 @@ pub async fn create_pool(database_url: &str) -> Result<SqlitePool> {
     let options = SqliteConnectOptions::from_str(database_url)
         .map_err(|e| AppError::Config(format!("Invalid DATABASE_URL: {}", e)))?
         .create_if_missing(true)
-        .foreign_keys(true);
+        .foreign_keys(true)
+        .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
+        .busy_timeout(Duration::from_secs(30));
 
     let pool = SqlitePoolOptions::new()
         .max_connections(max_conn)

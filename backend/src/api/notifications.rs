@@ -1,15 +1,15 @@
 use axum::extract::State;
 use axum::Json;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::error::Result;
 use crate::notifications::NotificationEvent;
 use crate::state::AppState;
 
-#[derive(Debug, Deserialize, Default)]
-pub struct TestRequest {
-    pub message: Option<String>,
-}
+// Fixed text dispatched by `POST /notifications/test`. The endpoint takes no
+// body — accepting a user-controlled message would let any unauthenticated
+// caller broadcast arbitrary content to every configured channel.
+const TEST_MESSAGE: &str = "Hello from Showrunner.";
 
 #[derive(Debug, Serialize)]
 pub struct ChannelResult {
@@ -23,15 +23,9 @@ pub struct TestResponse {
     pub results: Vec<ChannelResult>,
 }
 
-pub async fn test_notification(
-    State(state): State<AppState>,
-    body: Option<Json<TestRequest>>,
-) -> Result<Json<TestResponse>> {
-    let req = body.map(|Json(b)| b).unwrap_or_default();
+pub async fn test_notification(State(state): State<AppState>) -> Result<Json<TestResponse>> {
     let event = NotificationEvent::Test {
-        message: req
-            .message
-            .unwrap_or_else(|| "Hello from Showrunner.".to_string()),
+        message: TEST_MESSAGE.to_string(),
     };
 
     let dispatched = state.notifier.dispatch(&event).await;

@@ -1,9 +1,12 @@
+use std::time::Duration;
+
 use reqwest::Client;
 use serde::Deserialize;
 
 use crate::error::{AppError, Result};
 
 const TMDB_BASE_URL: &str = "https://api.themoviedb.org/3";
+const TMDB_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Clone)]
 pub struct TmdbClient {
@@ -18,8 +21,12 @@ impl TmdbClient {
     }
 
     pub fn with_base_url(api_key: String, base_url: String) -> Self {
+        let http = Client::builder()
+            .timeout(TMDB_HTTP_TIMEOUT)
+            .build()
+            .expect("reqwest client with static config should build");
         Self {
-            http: Client::new(),
+            http,
             api_key,
             base_url,
         }
