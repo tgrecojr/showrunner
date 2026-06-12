@@ -11,7 +11,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Build backend
-FROM rust:1.96-slim-bookworm@sha256:b5f842fac1e3b4ff718a652a8e0173b62d9403ec826ef4998880b9347db30684 AS backend-build
+FROM rust:1.96-slim-bookworm@sha256:c8a94a78f67ec8c4d474ec7f71e0720f21eb7e584e158daec0874cafa7c30e4d AS backend-build
 WORKDIR /app
 
 # Copy manifests first for dependency caching
