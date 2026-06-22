@@ -3,8 +3,12 @@ name: Supply chain scan
 on:
   workflow_call:
     secrets:
+      # Not marked required: bot-authored PRs (Dependabot, Renovate) run without
+      # access to repository secrets. With required: true the reusable-workflow
+      # call hard-fails before the job starts. Keeping it optional lets those PRs
+      # run the rest of the scan; the Socket step below self-skips when absent.
       SOCKET_SECURITY_API_KEY:
-        required: true
+        required: false
 
 jobs:
   scan:
@@ -12,6 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    # Job-level env so the Socket step's `if:` can test for the secret's
+    # presence (step-level env isn't available to that step's own `if:`, and
+    # the `secrets` context can't be used in an `if:` directly).
+    env:
+      SOCKET_SECURITY_API_KEY: ${{ secrets.SOCKET_SECURITY_API_KEY }}
     steps:
       - uses: actions/checkout@v6
 
@@ -30,8 +39,7 @@ jobs:
         run: npm audit signatures
 
       - name: Socket Security scan (frontend)
-        env:
-          SOCKET_SECURITY_API_KEY: ${{ secrets.SOCKET_SECURITY_API_KEY }}
+        if: ${{ env.SOCKET_SECURITY_API_KEY != '' }}
         run: |
           repo_slug="${GITHUB_REPOSITORY##*/}"
           branch_name="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
