@@ -67,7 +67,7 @@ export default function MovieDetail() {
 
   const year = movie.release_date ? movie.release_date.slice(0, 4) : null;
   const backdropStyle = movie.backdrop_url
-    ? { backgroundImage: `url(${movie.backdrop_url})` }
+    ? { backgroundImage: `url("${encodeURI(movie.backdrop_url)}")` }
     : undefined;
 
   return (

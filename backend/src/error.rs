@@ -8,7 +8,7 @@ pub enum AppError {
     Database(#[from] sqlx::Error),
 
     #[error("HTTP request error: {0}")]
-    Http(#[from] reqwest::Error),
+    Http(reqwest::Error),
 
     #[error("Configuration error: {0}")]
     Config(String),
@@ -31,24 +31,58 @@ pub enum AppError {
 
 pub type Result<T> = std::result::Result<T, AppError>;
 
+impl From<reqwest::Error> for AppError {
+    /// Strip the request URL before storing the error. `reqwest::Error`'s
+    /// `Display` appends " for url (...)", and our outbound URLs carry secrets
+    /// — the TMDB API key as a query param and the Slack webhook (itself a
+    /// bearer secret). Some handlers surface error strings to clients and logs,
+    /// so the URL must never reach the error object in the first place.
+    fn from(err: reqwest::Error) -> Self {
+        AppError::Http(err.without_url())
+    }
+}
+
+impl AppError {
+    /// A message safe to hand back to clients. User-facing variants keep their
+    /// text; internal variants (DB / HTTP / IO / JSON) collapse to a generic
+    /// string so sqlx and reqwest internals — including anything the URL-strip
+    /// in `From<reqwest::Error>` didn't cover — never reach a response body.
+    /// Use this anywhere an error is serialized into a `200 OK` body (e.g. the
+    /// per-item results of `/sync` and `/notifications/test`), not just the
+    /// `IntoResponse` error path.
+    pub fn client_message(&self) -> String {
+        match self {
+            AppError::NotFound(msg)
+            | AppError::InvalidData(msg)
+            | AppError::Config(msg)
+            | AppError::Upstream(msg) => msg.clone(),
+            AppError::Database(_) | AppError::Http(_) | AppError::Io(_) | AppError::Json(_) => {
+                "An internal error occurred".to_string()
+            }
+        }
+    }
+
+    fn status_code(&self) -> StatusCode {
+        match self {
+            AppError::NotFound(_) => StatusCode::NOT_FOUND,
+            AppError::InvalidData(_) => StatusCode::BAD_REQUEST,
+            AppError::Upstream(_) => StatusCode::BAD_GATEWAY,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+}
+
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, message) = match &self {
-            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
-            AppError::InvalidData(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            AppError::Config(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
-            AppError::Upstream(msg) => (StatusCode::BAD_GATEWAY, msg.clone()),
-            other => {
-                tracing::error!("Internal error: {}", other);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "An internal error occurred".to_string(),
-                )
-            }
-        };
+        if matches!(
+            self,
+            AppError::Database(_) | AppError::Http(_) | AppError::Io(_) | AppError::Json(_)
+        ) {
+            tracing::error!("Internal error: {}", self);
+        }
 
-        let body = serde_json::json!({ "error": message });
-        (status, axum::Json(body)).into_response()
+        let body = serde_json::json!({ "error": self.client_message() });
+        (self.status_code(), axum::Json(body)).into_response()
     }
 }
 

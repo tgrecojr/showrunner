@@ -78,7 +78,7 @@ export const api = {
     }),
   calendar: (start: string, end: string) =>
     request<CalendarResponse>(
-      `/calendar?start=${start}&end=${end}`,
+      `/calendar?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
     ),
   sync: () => request<SyncResponse>('/sync', { method: 'POST' }),
   testNotification: () =>

@@ -16,7 +16,7 @@ use crate::notifications::dispatcher::NotificationDispatcher;
 use crate::notifications::slack::SlackNotifier;
 use crate::notifications::Notifier;
 use crate::state::AppState;
-use axum::http::StatusCode;
+use axum::http::{header, HeaderValue, StatusCode};
 use axum::routing::{get, patch, post};
 use axum::Router;
 use std::net::SocketAddr;
@@ -25,10 +25,46 @@ use std::time::Duration;
 use tower_http::cors::CorsLayer;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::{ServeDir, ServeFile};
+use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::timeout::TimeoutLayer;
 use tracing_subscriber::EnvFilter;
 
 const API_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+// The SPA loads its own JS/CSS bundle and poster images from TMDB's image CDN;
+// nothing else. Scripts are locked to same-origin (no inline/CDN scripts in the
+// production build), framing is denied, and image sources are pinned to TMDB.
+const CONTENT_SECURITY_POLICY: &str = "default-src 'self'; \
+img-src 'self' https://image.tmdb.org data:; \
+script-src 'self'; \
+style-src 'self' 'unsafe-inline'; \
+connect-src 'self'; \
+frame-ancestors 'none'; \
+base-uri 'self'; \
+form-action 'self'; \
+object-src 'none'";
+
+/// Wrap the fully-assembled app (API routes + static fallback) with security
+/// response headers. Applied last so it also covers the static HTML/JS, which
+/// is where the CSP and anti-framing headers actually matter.
+pub fn with_security_headers(app: Router) -> Router {
+    app.layer(SetResponseHeaderLayer::if_not_present(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static(CONTENT_SECURITY_POLICY),
+    ))
+    .layer(SetResponseHeaderLayer::if_not_present(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    ))
+    .layer(SetResponseHeaderLayer::if_not_present(
+        header::X_FRAME_OPTIONS,
+        HeaderValue::from_static("DENY"),
+    ))
+    .layer(SetResponseHeaderLayer::if_not_present(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
+    ))
+}
 
 /// Build the API router with all routes wired up. Public so tests can drive
 /// the same Router used in production.
@@ -155,6 +191,8 @@ pub async fn run() -> anyhow::Result<()> {
         app
     };
 
+    let app = with_security_headers(app);
+
     let addr = SocketAddr::new(
         config.server.host.parse().unwrap_or([0, 0, 0, 0].into()),
         config.server.port,
@@ -213,5 +251,31 @@ mod tests {
     fn cors_invalid_origin_panics() {
         // The current impl explicitly expects a parsable origin.
         let _ = build_cors_layer(&cfg(Some("\u{0}invalid")));
+    }
+
+    #[tokio::test]
+    async fn security_headers_are_applied_to_responses() {
+        use axum::body::Body;
+        use axum::http::Request;
+        use tower::ServiceExt;
+
+        let app = with_security_headers(
+            Router::new().route("/ping", axum::routing::get(|| async { "ok" })),
+        );
+        let resp = app
+            .oneshot(Request::builder().uri("/ping").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        let headers = resp.headers();
+        assert!(headers
+            .get("content-security-policy")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("frame-ancestors 'none'"));
+        assert_eq!(headers.get("x-content-type-options").unwrap(), "nosniff");
+        assert_eq!(headers.get("x-frame-options").unwrap(), "DENY");
+        assert_eq!(headers.get("referrer-policy").unwrap(), "no-referrer");
     }
 }

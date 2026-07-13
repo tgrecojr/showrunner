@@ -22,9 +22,9 @@ jobs:
     env:
       SOCKET_SECURITY_API_KEY: ${{ secrets.SOCKET_SECURITY_API_KEY }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24
           cache: npm
@@ -40,10 +40,12 @@ jobs:
 
       - name: Socket Security scan (frontend)
         if: ${{ env.SOCKET_SECURITY_API_KEY != '' }}
+        # Pinned exact version: `@latest` fetches and executes arbitrary code in
+        # a job that holds SOCKET_SECURITY_API_KEY. Renovate bumps this.
         run: |
           repo_slug="${GITHUB_REPOSITORY##*/}"
           branch_name="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
-          npx -y @socketsecurity/cli@latest scan create \
+          npx -y @socketsecurity/cli@1.1.102 scan create \
             --org grecolabs \
             --repo "${repo_slug}" \
             --branch "${branch_name}" \
@@ -51,15 +53,17 @@ jobs:
             ./frontend
 
       - name: OSV scan (npm + cargo lockfiles)
-        uses: google/osv-scanner-action/osv-scanner-action@v2.3.8
+        uses: google/osv-scanner-action/osv-scanner-action@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
         with:
           scan-args: |-
             --recursive
             ./
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
 
-      - uses: taiki-e/install-action@cargo-audit
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2
+        with:
+          tool: cargo-audit
 
       - name: cargo audit (backend)
         working-directory: backend

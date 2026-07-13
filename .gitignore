@@ -32,6 +32,7 @@ data/
 # Claude local files
 .claude/settings.local.json
 CLAUDE.local.md
+.playwright-mcp/
 
 # IDE
 .idea/

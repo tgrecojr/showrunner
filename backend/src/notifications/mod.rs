@@ -10,8 +10,8 @@ use crate::error::Result;
 pub enum NotificationEvent {
     EpisodeAiringToday {
         show_name: String,
-        season: u16,
-        episode: u16,
+        season: i64,
+        episode: i64,
         title: String,
         where_to_watch: Vec<String>,
     },

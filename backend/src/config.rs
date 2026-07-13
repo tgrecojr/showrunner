@@ -56,6 +56,11 @@ impl Config {
                 .map_err(|_| {
                     AppError::Config("NOTIFICATION_CHECK_INTERVAL_MINUTES must be a u64".into())
                 })?;
+        if notification_check_interval_minutes == 0 {
+            return Err(AppError::Config(
+                "NOTIFICATION_CHECK_INTERVAL_MINUTES must be at least 1".into(),
+            ));
+        }
 
         let tz_name = std::env::var("TIMEZONE").unwrap_or_else(|_| "America/New_York".to_string());
         let timezone = Tz::from_str(&tz_name).map_err(|_| {
@@ -194,6 +199,18 @@ mod tests {
         clear_env();
         set("TMDB_API_KEY", "k");
         set("NOTIFICATION_CHECK_INTERVAL_MINUTES", "not-a-num");
+        let err = Config::from_env().unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("NOTIFICATION_CHECK_INTERVAL_MINUTES"));
+    }
+
+    #[test]
+    #[serial]
+    fn zero_notification_interval_fails() {
+        clear_env();
+        set("TMDB_API_KEY", "k");
+        set("NOTIFICATION_CHECK_INTERVAL_MINUTES", "0");
         let err = Config::from_env().unwrap_err();
         assert!(err
             .to_string()

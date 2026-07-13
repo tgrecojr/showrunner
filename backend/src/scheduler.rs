@@ -36,7 +36,14 @@ pub async fn start(state: AppState, schedule: ScheduleConfig) -> Result<JobSched
 
     // Interval-driven notification check.
     let notify_state = state.clone();
-    let interval = Duration::from_secs(schedule.notification_check_interval_minutes * 60);
+    // `saturating_mul` guards against overflow on absurd configs; the value is
+    // validated to be >= 1 in `Config::from_env`, so `interval` is never zero
+    // (which would panic `tokio::time::interval`).
+    let interval = Duration::from_secs(
+        schedule
+            .notification_check_interval_minutes
+            .saturating_mul(60),
+    );
     tokio::spawn(async move {
         let mut ticker = tokio::time::interval(interval);
         ticker.tick().await; // skip immediate fire
