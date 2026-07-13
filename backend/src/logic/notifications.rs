@@ -74,8 +74,8 @@ pub async fn check_and_notify(
 fn build_event(ep: &NotifiableEpisode) -> NotificationEvent {
     NotificationEvent::EpisodeAiringToday {
         show_name: ep.show_name.clone(),
-        season: ep.season_number as u16,
-        episode: ep.episode_number as u16,
+        season: ep.season_number,
+        episode: ep.episode_number,
         title: ep.episode_name.clone().unwrap_or_default(),
         where_to_watch: ep.watch_providers.clone(),
     }

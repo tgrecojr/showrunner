@@ -34,7 +34,9 @@ pub async fn test_notification(State(state): State<AppState>) -> Result<Json<Tes
         .map(|(channel, res)| ChannelResult {
             channel,
             ok: res.is_ok(),
-            error: res.err().map(|e| e.to_string()),
+            // Client-safe: serialized into the response body, so it must not
+            // carry the webhook URL or other internal detail.
+            error: res.err().map(|e| e.client_message()),
         })
         .collect();
 

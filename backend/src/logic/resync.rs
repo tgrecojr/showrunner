@@ -55,7 +55,9 @@ pub async fn resync_all(pool: &SqlitePool, tmdb: &TmdbClient) -> Result<ResyncRe
                 tracing::warn!(tmdb_id = id, error = %e, "resync failed");
                 errors.push(ResyncError {
                     tmdb_id: *id,
-                    message: e.to_string(),
+                    // Client-safe: this string is serialized into the /sync
+                    // response body, so it must not carry internal detail.
+                    message: e.client_message(),
                 });
             }
         }

@@ -7,6 +7,26 @@ use crate::error::{AppError, Result};
 
 const TMDB_BASE_URL: &str = "https://api.themoviedb.org/3";
 const TMDB_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
+/// Real TMDB responses are well under 1 MiB; this only guards against a
+/// misbehaving or compromised upstream advertising a huge body. Bodies sent
+/// without a `Content-Length` (chunked) aren't capped here, but the request
+/// timeout still bounds them.
+const MAX_TMDB_BODY_BYTES: u64 = 16 * 1024 * 1024;
+
+/// Deserialize a response as JSON, rejecting an oversized advertised body
+/// before buffering it into memory.
+pub(crate) async fn json_within_cap<T: serde::de::DeserializeOwned>(
+    resp: reqwest::Response,
+) -> Result<T> {
+    if let Some(len) = resp.content_length() {
+        if len > MAX_TMDB_BODY_BYTES {
+            return Err(AppError::Upstream(
+                "TMDB response was unexpectedly large".to_string(),
+            ));
+        }
+    }
+    Ok(resp.json().await?)
+}
 
 #[derive(Clone)]
 pub struct TmdbClient {
@@ -68,7 +88,7 @@ impl TmdbClient {
                 resp.status()
             )));
         }
-        Ok(resp.json().await?)
+        json_within_cap(resp).await
     }
 
     pub async fn get_movie(&self, tmdb_id: i64) -> Result<TmdbMovie> {
@@ -101,7 +121,7 @@ impl TmdbClient {
                 resp.status()
             )));
         }
-        Ok(resp.json().await?)
+        json_within_cap(resp).await
     }
 
     pub async fn get_season(&self, tmdb_id: i64, season_number: i64) -> Result<TmdbSeason> {
@@ -120,7 +140,7 @@ impl TmdbClient {
                 resp.status()
             )));
         }
-        Ok(resp.json().await?)
+        json_within_cap(resp).await
     }
 }
 
@@ -511,6 +531,21 @@ mod tests {
         let c = TmdbClient::with_base_url("k".into(), server.uri());
         let err = c.get_movie(9).await.unwrap_err();
         assert!(matches!(err, crate::error::AppError::Upstream(_)));
+    }
+
+    #[tokio::test]
+    async fn transport_error_does_not_leak_api_key() {
+        // Unreachable host → reqwest transport error, which would normally carry
+        // the full request URL (including `?api_key=...`) in its Display. The
+        // key must never survive into the error string handlers surface.
+        let c = TmdbClient::with_base_url("SUPER_SECRET_KEY".into(), "http://127.0.0.1:1".into());
+        let err = c.get_show(42).await.unwrap_err();
+        assert!(matches!(err, crate::error::AppError::Http(_)));
+        let rendered = err.to_string();
+        assert!(
+            !rendered.contains("SUPER_SECRET_KEY"),
+            "api key leaked into error: {rendered}"
+        );
     }
 
     #[tokio::test]

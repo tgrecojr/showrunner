@@ -161,7 +161,7 @@ mod tests {
     #[tokio::test]
     async fn send_returns_http_error_when_unreachable() {
         // Reserved TEST-NET-1 IP — connections fail fast.
-        let n = SlackNotifier::new("http://127.0.0.1:1/nope".into());
+        let n = SlackNotifier::new("http://127.0.0.1:1/webhook-secret-token".into());
         let err = n
             .send(&NotificationEvent::Test {
                 message: "x".into(),
@@ -169,5 +169,16 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, AppError::Http(_)));
+        // The webhook URL IS the Slack secret; it must never survive into the
+        // error's string form, which handlers surface to clients and logs.
+        let rendered = err.to_string();
+        assert!(
+            !rendered.contains("webhook-secret-token"),
+            "webhook URL leaked into error: {rendered}"
+        );
+        assert!(
+            !rendered.contains("127.0.0.1"),
+            "webhook host leaked into error: {rendered}"
+        );
     }
 }

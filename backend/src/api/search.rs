@@ -82,7 +82,7 @@ pub async fn search_shows(
         )));
     }
 
-    let body: TmdbSearchResponse = resp.json().await?;
+    let body: TmdbSearchResponse = crate::datasources::tmdb::json_within_cap(resp).await?;
 
     let mut tv_ids: Vec<i64> = Vec::new();
     let mut movie_ids: Vec<i64> = Vec::new();
