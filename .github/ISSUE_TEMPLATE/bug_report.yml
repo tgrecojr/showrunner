@@ -1,0 +1,76 @@
+name: Bug report
+description: Something in Showrunner isn't working the way it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. The more of the below you can fill in, the faster this gets fixed.
+
+        If you're reporting a **security vulnerability**, please stop and read [SECURITY.md](../blob/main/SECURITY.md) instead — don't file it publicly here.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, and what did Showrunner do instead of what you expected?
+      placeholder: |
+        I marked season 2 of a show as watched via the bulk-watch button, and episode 2x08 stayed unchecked even though it aired last week.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: If it involves a specific show, please include its name and TMDB id — a lot of bugs turn out to be a quirk of one show's data.
+      placeholder: |
+        1. Add "Show Name" (TMDB id 12345)
+        2. Go to the show detail page
+        3. Click "Mark season 2 watched"
+        4. Episode 2x08 remains unchecked
+    validations:
+      required: true
+
+  - type: dropdown
+    id: how-running
+    attributes:
+      label: How are you running Showrunner?
+      options:
+        - Docker Compose with the published GHCR image
+        - Docker Compose built from source
+        - Local development (cargo run + npm run dev)
+        - Other (describe below)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / image tag
+      description: The image tag you're on, or the commit SHA if you built from source.
+      placeholder: "ghcr.io/tgrecojr/showrunner:latest, pulled 2026-07-01"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        Output from `docker compose logs app` around the time of the failure. Setting `RUST_LOG=showrunner_backend=debug` gives more detail.
+
+        **Redact your `TMDB_API_KEY` and `SLACK_WEBHOOK_URL` before pasting.**
+      render: shell
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant configuration
+      description: Any non-default env vars (`TIMEZONE`, `RESYNC_CRON`, `CORS_ALLOWED_ORIGIN`, etc). **Do not paste secrets.**
+      render: shell

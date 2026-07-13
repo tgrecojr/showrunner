@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or setup help
+    url: https://github.com/tgrecojr/showrunner/discussions
+    about: Not sure if it's a bug? Trouble getting it running? Ask here.
+  - name: Report a security vulnerability
+    url: https://github.com/tgrecojr/showrunner/security/advisories/new
+    about: Please report vulnerabilities privately, not as a public issue.
