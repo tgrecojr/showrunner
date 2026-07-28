@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router';
 import Layout from './components/Layout';
 import Watchlist from './pages/Watchlist';
 import Movies from './pages/Movies';

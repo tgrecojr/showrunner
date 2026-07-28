@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router';
 import { api } from '../api/client';
 import type { BulkWatchScope } from '../api/client';
 import type { ShowDetail as ShowDetailType } from '../types';
