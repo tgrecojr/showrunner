@@ -41,6 +41,16 @@ pub async fn get_calendar(
         )));
     }
 
-    let episodes = queries::list_calendar_episodes(&state.pool, &q.start, &q.end).await?;
+    // Bind the *parsed* dates, not the raw query strings. `air_date` is a bare
+    // TEXT column compared bytewise, so the value that reaches SQL has to be the
+    // same canonical zero-padded form the span check above ran against —
+    // otherwise `+009999-10-01` (which chrono accepts as a signed, unbounded
+    // year) passes the cap and then sorts below every stored date.
+    let episodes = queries::list_calendar_episodes(
+        &state.pool,
+        &start.format("%Y-%m-%d").to_string(),
+        &end.format("%Y-%m-%d").to_string(),
+    )
+    .await?;
     Ok(Json(CalendarResponse { episodes }))
 }
