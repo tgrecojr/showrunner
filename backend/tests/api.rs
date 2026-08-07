@@ -918,6 +918,101 @@ async fn delete_movie_removes_and_returns_204() {
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
+// ===== VULN-004 (CWE-1289) — calendar 92-day cap bypass =====
+//
+// The handler validated the parsed NaiveDate but bound the raw query string to
+// SQL. chrono accepts a signed, unbounded-width year, so `+009999-10-01` parses
+// as 9999-10-01 and passes the span check, while SQLite compares the literal
+// `+009999-10-01` bytewise against TEXT air_dates — and '+' (0x2B) sorts below
+// '0' (0x30), so the lower bound under-runs every stored date.
+
+async fn seed_calendar_spread(pool: &SqlitePool) {
+    insert_show(pool, 1, "Show", None, None, true, &[]).await;
+    insert_season(pool, 1, 1, 3).await;
+    // Spread far enough apart that no legal 92-day window contains all three.
+    for (episode, offset) in [(1_i64, -400_i64), (2, 0), (3, 400)] {
+        insert_episode(pool, 1, 1, episode, Some(&iso_offset(offset)), false).await;
+    }
+}
+
+async fn get_calendar(
+    state: showrunner_backend::state::AppState,
+    query: &str,
+) -> (StatusCode, Value) {
+    let resp = build_api_router(state)
+        .oneshot(empty_request(
+            Method::GET,
+            &format!("/api/v1/calendar?{query}"),
+        ))
+        .await
+        .unwrap();
+    let status = resp.status();
+    (status, body_to_value(resp).await)
+}
+
+#[tokio::test]
+async fn calendar_signed_year_does_not_bypass_the_92_day_cap() {
+    let app = build_app(vec![]).await;
+    seed_calendar_spread(&app.pool).await;
+
+    let (status, v) = get_calendar(app.state.clone(), "start=%2B009999-10-01&end=9999-12-31").await;
+
+    if status.is_success() {
+        let episodes = v["episodes"].as_array().unwrap();
+        assert!(
+            episodes.len() < 3,
+            "signed-year range returned all {} episodes — the 92-day cap was bypassed",
+            episodes.len()
+        );
+    } else {
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+}
+
+#[tokio::test]
+async fn calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql() {
+    let app = build_app(vec![]).await;
+    seed_calendar_spread(&app.pool).await;
+
+    let today = Utc::now().date_naive();
+    let start = today - Duration::days(10);
+    let end = today + Duration::days(10);
+    // chrono parses a single-digit month/day; SQLite would compare it bytewise.
+    let query = format!(
+        "start={}-{}-{}&end={}-{}-{}",
+        start.format("%Y"),
+        start.format("%-m"),
+        start.format("%-d"),
+        end.format("%Y"),
+        end.format("%-m"),
+        end.format("%-d")
+    );
+
+    let (status, v) = get_calendar(app.state.clone(), &query).await;
+
+    if status.is_success() {
+        assert_eq!(
+            v["episodes"].as_array().unwrap().len(),
+            1,
+            "expected the one in-window episode — the raw string reached SQL"
+        );
+    } else {
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+}
+
+#[tokio::test]
+async fn calendar_ordinary_range_still_returns_the_in_window_episode() {
+    let app = build_app(vec![]).await;
+    seed_calendar_spread(&app.pool).await;
+
+    let query = format!("start={}&end={}", iso_offset(-10), iso_offset(10));
+    let (status, v) = get_calendar(app.state.clone(), &query).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(v["episodes"].as_array().unwrap().len(), 1);
+}
+
 // ===== VULN-002 (CWE-352) — CSRF on the body-less POSTs =====
 //
 // `POST /sync` and `POST /notifications/test` take only `State`, so a
