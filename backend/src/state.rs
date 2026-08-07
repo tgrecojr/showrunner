@@ -1,10 +1,47 @@
 use chrono::Utc;
 use chrono_tz::Tz;
 use sqlx::SqlitePool;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use crate::datasources::tmdb::TmdbClient;
 use crate::notifications::dispatcher::NotificationDispatcher;
+
+/// Minimum wall-clock gap between two manual `POST /api/v1/sync` runs.
+pub const MANUAL_SYNC_MIN_INTERVAL: Duration = Duration::from_secs(60);
+
+/// Minimum wall-clock gap between two `POST /api/v1/notifications/test` runs.
+/// Shorter than the sync interval: one test message is far cheaper than a full
+/// resync, but unbounded repetition still floods the operator's webhook.
+pub const NOTIFY_TEST_MIN_INTERVAL: Duration = Duration::from_secs(10);
+
+/// Enforces a minimum interval between runs of an expensive operation.
+///
+/// `resync_all` caps how much work a single run can do; this caps how often a
+/// run can be started, so the ceiling can't just be reapplied in a tight loop by
+/// an unauthenticated caller. State is per-`AppState` rather than a process
+/// global so tests and any future multi-instance setup stay independent.
+#[derive(Debug, Default)]
+pub struct RateGate {
+    last_run: Mutex<Option<Instant>>,
+}
+
+impl RateGate {
+    /// Record a run and return true, or return false if one happened less than
+    /// `min_interval` ago. Checking and recording are one critical section, so
+    /// concurrent callers can't both pass.
+    pub fn try_acquire(&self, min_interval: Duration) -> bool {
+        let mut last = self.last_run.lock().expect("sync gate mutex poisoned");
+        let now = Instant::now();
+        match *last {
+            Some(prev) if now.duration_since(prev) < min_interval => false,
+            _ => {
+                *last = Some(now);
+                true
+            }
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct AppState {
@@ -12,6 +49,8 @@ pub struct AppState {
     pub tmdb: Arc<TmdbClient>,
     pub notifier: Arc<NotificationDispatcher>,
     pub tz: Tz,
+    pub sync_gate: Arc<RateGate>,
+    pub notify_test_gate: Arc<RateGate>,
 }
 
 impl AppState {
@@ -26,6 +65,8 @@ impl AppState {
             tmdb: Arc::new(tmdb),
             notifier: Arc::new(notifier),
             tz,
+            sync_gate: Arc::new(RateGate::default()),
+            notify_test_gate: Arc::new(RateGate::default()),
         }
     }
 }

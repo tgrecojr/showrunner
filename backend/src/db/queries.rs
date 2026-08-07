@@ -11,6 +11,19 @@ use crate::models::show::{
 };
 use crate::state::today_in;
 
+/// Server-enforced ceiling on the rows any list query will return.
+///
+/// The list endpoints are reachable without authentication and the row count is
+/// attacker-growable (anyone can POST shows and movies), so response size and
+/// per-request query count would otherwise scale with whatever an attacker
+/// inserted. The ceiling lives here rather than in the handlers so every caller
+/// is bounded, including ones added later.
+///
+/// This is a bound, not pagination: there is no cursor and no way to fetch past
+/// it. 500 is far above any realistic personal watchlist while still capping the
+/// response at a size the process can serialize cheaply.
+pub const MAX_LIST_ROWS: i64 = 500;
+
 /// Insert show + seasons + episodes in one transaction. Skips season 0 (Specials).
 /// `season_episodes` is parallel to the seasons in `show.seasons` after filtering.
 pub async fn insert_show_full(
@@ -124,8 +137,10 @@ pub async fn list_watchlist(pool: &SqlitePool, tz: Tz) -> Result<Vec<WatchlistIt
         "SELECT tmdb_id, name, overview, poster_path, backdrop_path, status,
                 first_air_date, last_air_date, in_production, watch_providers_json,
                 notify_new_episodes, added_at, last_synced_at
-         FROM shows ORDER BY name COLLATE NOCASE",
+         FROM shows ORDER BY name COLLATE NOCASE
+         LIMIT ?",
     )
+    .bind(MAX_LIST_ROWS)
     .fetch_all(pool)
     .await?;
 
@@ -298,8 +313,10 @@ pub async fn list_movies(pool: &SqlitePool) -> Result<Vec<MovieWatchlistItem>> {
         "SELECT tmdb_id, name, overview, poster_path, backdrop_path,
                 release_date, runtime, added_at
          FROM movies
-         ORDER BY added_at DESC, name COLLATE NOCASE",
+         ORDER BY added_at DESC, name COLLATE NOCASE
+         LIMIT ?",
     )
+    .bind(MAX_LIST_ROWS)
     .fetch_all(pool)
     .await?;
 
@@ -688,10 +705,12 @@ pub async fn list_up_next(pool: &SqlitePool, tz: Tz) -> Result<Vec<UpNextItem>> 
         FROM next_eps ne
         JOIN shows s ON s.tmdb_id = ne.show_tmdb_id
         WHERE ne.rn = 1
-        ORDER BY ne.air_date ASC, s.name COLLATE NOCASE",
+        ORDER BY ne.air_date ASC, s.name COLLATE NOCASE
+        LIMIT ?",
     )
     .bind(&today)
     .bind(&today)
+    .bind(MAX_LIST_ROWS)
     .fetch_all(pool)
     .await?;
 
