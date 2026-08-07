@@ -8,6 +8,10 @@ authors = ["tgrecojr"]
 [dependencies]
 # Web framework
 axum = { version = "0.8", features = ["macros"] }
+# `tower` proper (not just tower-http) for ConcurrencyLimitLayer + LoadShedLayer:
+# the router needs an in-flight ceiling, which tower-http doesn't provide.
+# Already in the tree transitively via axum and tower-http.
+tower = { version = "0.5", features = ["limit", "load-shed", "util"] }
 tower-http = { version = "0.7", features = ["cors", "fs", "limit", "set-header", "timeout"] }
 tokio = { version = "1", features = ["full"] }
 

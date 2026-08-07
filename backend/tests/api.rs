@@ -1336,3 +1336,139 @@ async fn named_origin_branch_still_denies_other_origins() {
         "named-origin branch leaked access to {CORS_EVIL_ORIGIN}: {acao:?}"
     );
 }
+
+// ===== VULN-005 (CWE-770) — cooldowns on the secret-spending POSTs =====
+//
+// resync_all caps how much work one run does; these gates cap how often a run
+// can start, so an unauthenticated caller can't reapply that ceiling in a loop.
+
+async fn tmdb_answering_every_show() -> MockServer {
+    let server = MockServer::start().await;
+    Mock::given(wm_method("GET"))
+        .and(wiremock::matchers::path_regex(r"^/tv/\d+$"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({"id": 1, "name": "S", "seasons": []})),
+        )
+        .mount(&server)
+        .await;
+    server
+}
+
+fn sync_request() -> Request<Body> {
+    Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/sync")
+        .header("content-type", "application/json")
+        .body(Body::empty())
+        .unwrap()
+}
+
+#[tokio::test]
+async fn repeated_sync_within_the_cooldown_is_rejected() {
+    let pool = test_pool().await;
+    insert_show(&pool, 1, "Show", None, None, true, &[]).await;
+    let server = tmdb_answering_every_show().await;
+    let state = app_state(pool, server.uri(), vec![], utc_tz());
+
+    let first = build_api_router(state.clone())
+        .oneshot(sync_request())
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::OK, "first sync should succeed");
+
+    let second = build_api_router(state.clone())
+        .oneshot(sync_request())
+        .await
+        .unwrap();
+    assert_eq!(
+        second.status(),
+        StatusCode::TOO_MANY_REQUESTS,
+        "a second sync inside the cooldown must be refused, got {}",
+        second.status()
+    );
+
+    let third = build_api_router(state)
+        .oneshot(sync_request())
+        .await
+        .unwrap();
+    assert_eq!(
+        third.status(),
+        StatusCode::TOO_MANY_REQUESTS,
+        "the cooldown must keep holding across repeated attempts"
+    );
+}
+
+#[tokio::test]
+async fn cooldown_is_per_app_state_not_process_global() {
+    let server = tmdb_answering_every_show().await;
+
+    let pool_a = test_pool().await;
+    insert_show(&pool_a, 1, "A", None, None, true, &[]).await;
+    let state_a = app_state(pool_a, server.uri(), vec![], utc_tz());
+
+    let pool_b = test_pool().await;
+    insert_show(&pool_b, 1, "B", None, None, true, &[]).await;
+    let state_b = app_state(pool_b, server.uri(), vec![], utc_tz());
+
+    let a = build_api_router(state_a)
+        .oneshot(sync_request())
+        .await
+        .unwrap();
+    assert_eq!(a.status(), StatusCode::OK);
+
+    let b = build_api_router(state_b)
+        .oneshot(sync_request())
+        .await
+        .unwrap();
+    assert_eq!(
+        b.status(),
+        StatusCode::OK,
+        "a separate AppState must not inherit another's cooldown"
+    );
+}
+
+#[tokio::test]
+async fn repeated_test_notifications_are_rejected() {
+    let pool = test_pool().await;
+    let (rec, calls) = RecordingNotifier::new("rec");
+    let state = app_state(
+        pool,
+        "http://127.0.0.1:1".into(),
+        vec![Box::new(rec) as Box<dyn showrunner_backend::notifications::Notifier>],
+        utc_tz(),
+    );
+
+    fn notify_request() -> Request<Body> {
+        Request::builder()
+            .method(Method::POST)
+            .uri("/api/v1/notifications/test")
+            .header("content-type", "application/json")
+            .body(Body::empty())
+            .unwrap()
+    }
+
+    let first = build_api_router(state.clone())
+        .oneshot(notify_request())
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::OK);
+
+    for _ in 0..5 {
+        let resp = build_api_router(state.clone())
+            .oneshot(notify_request())
+            .await
+            .unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "repeated test notifications must be refused"
+        );
+    }
+
+    assert_eq!(
+        calls.lock().unwrap().len(),
+        1,
+        "only the first test notification should have reached the notifier"
+    );
+}
