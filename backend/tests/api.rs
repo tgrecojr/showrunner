@@ -1056,3 +1056,188 @@ async fn get_requests_are_unaffected_by_the_content_type_gate() {
 
     assert_eq!(resp.status(), StatusCode::OK);
 }
+
+// ===== VULN-003 (CWE-942) — wildcard CORS grant delta =====
+//
+// `CORS_ALLOWED_ORIGIN=*` must grant no more than the named-origin branch
+// does, differing only in which origins are accepted. The catch-all
+// tower-http constructor additionally sets allow_methods(Any) and
+// expose_headers(Any) — a strictly broader grant than the feature requires.
+
+const CORS_EVIL_ORIGIN: &str = "https://evil.example";
+
+fn cors_cfg(origin: Option<&str>) -> showrunner_backend::config::Config {
+    showrunner_backend::config::Config {
+        server: showrunner_backend::config::ServerConfig {
+            host: "0.0.0.0".into(),
+            port: 3001,
+            cors_allowed_origin: origin.map(|s| s.to_string()),
+        },
+        database_url: "sqlite::memory:".into(),
+        tmdb_api_key: "k".into(),
+        slack_webhook_url: None,
+        schedule: showrunner_backend::config::ScheduleConfig {
+            resync_cron: "0 0 6 * * *".into(),
+            notification_check_interval_minutes: 60,
+        },
+        timezone: utc_tz(),
+    }
+}
+
+/// A cross-origin DELETE preflight, exactly as a browser sends it.
+fn delete_preflight() -> Request<Body> {
+    Request::builder()
+        .method(Method::OPTIONS)
+        .uri("/api/v1/shows/1")
+        .header("origin", CORS_EVIL_ORIGIN)
+        .header("access-control-request-method", "DELETE")
+        .body(Body::empty())
+        .unwrap()
+}
+
+/// The wildcard branch must grant no more than the named-origin branch does.
+/// `permissive()` is strictly broader; the fix makes the two agree on
+/// everything except which origins are accepted.
+#[tokio::test]
+async fn wildcard_branch_grants_no_more_than_the_named_origin_branch() {
+    async fn preflight_headers(origin_cfg: Option<&str>) -> axum::http::HeaderMap {
+        let pool = test_pool().await;
+        let state = app_state(pool, "http://127.0.0.1:1".into(), vec![], utc_tz());
+        let app = build_api_router(state)
+            .layer(showrunner_backend::build_cors_layer(&cors_cfg(origin_cfg)));
+        let req = Request::builder()
+            .method(Method::OPTIONS)
+            .uri("/api/v1/shows")
+            .header("origin", CORS_EVIL_ORIGIN)
+            .header("access-control-request-method", "GET")
+            .header("access-control-request-headers", "x-anything-at-all")
+            .body(Body::empty())
+            .unwrap();
+        app.oneshot(req).await.unwrap().headers().clone()
+    }
+
+    let wildcard = preflight_headers(Some("*")).await;
+    let named = preflight_headers(Some("https://good.example")).await;
+
+    for header in [
+        "access-control-allow-methods",
+        "access-control-allow-headers",
+        "access-control-expose-headers",
+    ] {
+        assert_eq!(
+            wildcard.get(header),
+            named.get(header),
+            "wildcard branch grants a different {header} than the named-origin branch"
+        );
+    }
+}
+
+/// `permissive()` also sets `expose-headers: *`, handing the calling page every
+/// response header. The narrowed layer must not.
+#[tokio::test]
+async fn wildcard_cors_does_not_expose_all_response_headers() {
+    let pool = test_pool().await;
+    let state = app_state(pool, "http://127.0.0.1:1".into(), vec![], utc_tz());
+    let app =
+        build_api_router(state).layer(showrunner_backend::build_cors_layer(&cors_cfg(Some("*"))));
+
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri("/api/v1/shows")
+        .header("origin", CORS_EVIL_ORIGIN)
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let exposed = resp
+        .headers()
+        .get("access-control-expose-headers")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    assert!(
+        !exposed.contains('*'),
+        "wildcard CORS exposed every response header: {exposed:?}"
+    );
+}
+
+/// A wildcard origin must never be paired with credentialed requests — that
+/// combination would turn the cross-origin read into an authenticated one.
+#[tokio::test]
+async fn wildcard_cors_never_allows_credentials() {
+    let pool = test_pool().await;
+    let state = app_state(pool, "http://127.0.0.1:1".into(), vec![], utc_tz());
+    let app =
+        build_api_router(state).layer(showrunner_backend::build_cors_layer(&cors_cfg(Some("*"))));
+
+    let resp = app.oneshot(delete_preflight()).await.unwrap();
+    assert!(
+        resp.headers()
+            .get("access-control-allow-credentials")
+            .is_none(),
+        "wildcard origin must not be combined with allow-credentials"
+    );
+}
+
+/// The documented feature — "allow any origin" — must still work, and the
+/// method list must be the same explicit one the named-origin branch uses.
+#[tokio::test]
+async fn wildcard_cors_still_allows_any_origin_with_the_explicit_method_list() {
+    let pool = test_pool().await;
+    let state = app_state(pool, "http://127.0.0.1:1".into(), vec![], utc_tz());
+    let app =
+        build_api_router(state).layer(showrunner_backend::build_cors_layer(&cors_cfg(Some("*"))));
+
+    let resp = app.oneshot(delete_preflight()).await.unwrap();
+
+    assert_eq!(
+        resp.headers()
+            .get("access-control-allow-origin")
+            .and_then(|v| v.to_str().ok()),
+        Some("*"),
+        "the documented allow-any-origin behavior must be preserved"
+    );
+    let methods = resp
+        .headers()
+        .get("access-control-allow-methods")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_ascii_uppercase();
+    for m in ["GET", "POST", "PUT", "PATCH", "DELETE"] {
+        assert!(
+            methods.contains(m),
+            "expected {m} in allow-methods: {methods}"
+        );
+    }
+    assert!(
+        !methods.contains('*'),
+        "allow-methods must be the explicit list, not a wildcard: {methods}"
+    );
+}
+
+/// Regression guard: the named-origin branch must keep rejecting evil.example.
+#[tokio::test]
+async fn named_origin_branch_still_denies_other_origins() {
+    let pool = test_pool().await;
+    let state = app_state(pool, "http://127.0.0.1:1".into(), vec![], utc_tz());
+    let app = build_api_router(state).layer(showrunner_backend::build_cors_layer(&cors_cfg(Some(
+        "https://good.example",
+    ))));
+
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri("/api/v1/shows")
+        .header("origin", CORS_EVIL_ORIGIN)
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+
+    let acao = resp
+        .headers()
+        .get("access-control-allow-origin")
+        .and_then(|v| v.to_str().ok());
+    assert!(
+        acao != Some(CORS_EVIL_ORIGIN) && acao != Some("*"),
+        "named-origin branch leaked access to {CORS_EVIL_ORIGIN}: {acao:?}"
+    );
+}

@@ -165,7 +165,18 @@ pub fn build_cors_layer(config: &Config) -> CorsLayer {
     match config.server.cors_allowed_origin.as_deref() {
         Some("*") => {
             tracing::warn!("CORS configured to allow all origins");
-            CorsLayer::permissive()
+            // Deliberately built by hand rather than with the tower-http
+            // catch-all constructor: that one also sets allow_methods(Any) and
+            // expose_headers(Any), a strictly broader grant than the
+            // named-origin branch below. Build the same layer that branch does,
+            // differing only in which origins are accepted.
+            // Note the absence of `allow_credentials(true)` — pairing it with a
+            // wildcard origin would turn this into a credentialed cross-origin
+            // read, and the CORS spec forbids the combination outright.
+            CorsLayer::new()
+                .allow_origin(tower_http::cors::Any)
+                .allow_methods(methods)
+                .allow_headers(tower_http::cors::Any)
         }
         Some(origin) => {
             tracing::info!(origin = %origin, "CORS restricted to configured origin");
