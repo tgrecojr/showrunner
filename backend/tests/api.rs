@@ -630,8 +630,16 @@ async fn sync_returns_per_show_results() {
 async fn test_notification_dispatches_to_all_channels() {
     let app = build_app_with_recording_notifier().await;
 
+    // Updated for VULN-002: state-changing POSTs now require
+    // `Content-Type: application/json`, which the React client already sends.
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/notifications/test")
+        .header("content-type", "application/json")
+        .body(Body::empty())
+        .unwrap();
     let resp = build_api_router(app.state.clone())
-        .oneshot(empty_request(Method::POST, "/api/v1/notifications/test"))
+        .oneshot(req)
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -908,4 +916,143 @@ async fn delete_movie_removes_and_returns_204() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+// ===== VULN-002 (CWE-352) — CSRF on the body-less POSTs =====
+//
+// `POST /sync` and `POST /notifications/test` take only `State`, so a
+// cross-origin HTML form is a CORS *simple request*: no preflight fires, the
+// CorsLayer is never consulted, and the action executes. Requiring
+// `application/json` makes the request non-simple, which no form enctype can
+// produce.
+
+const CSRF_EVIL_ORIGIN: &str = "https://evil.example";
+
+/// Exactly what a browser puts on the wire for an auto-submitted
+/// `<form method="POST" enctype="application/x-www-form-urlencoded">`.
+fn cross_origin_form_post(uri: &str) -> Request<Body> {
+    Request::builder()
+        .method(Method::POST)
+        .uri(uri)
+        .header("origin", CSRF_EVIL_ORIGIN)
+        .header("referer", format!("{CSRF_EVIL_ORIGIN}/csrf.html"))
+        .header("content-type", "application/x-www-form-urlencoded")
+        .header("sec-fetch-site", "cross-site")
+        .header("sec-fetch-mode", "no-cors")
+        .body(Body::from("a=1"))
+        .unwrap()
+}
+
+#[tokio::test]
+async fn form_encoded_post_to_notifications_test_is_rejected() {
+    let app = build_app_with_recording_notifier().await;
+    let resp = build_api_router(app.state.clone())
+        .oneshot(cross_origin_form_post("/api/v1/notifications/test"))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::UNSUPPORTED_MEDIA_TYPE,
+        "form-encoded POST must be rejected with 415, got {}",
+        resp.status()
+    );
+    assert_eq!(
+        app.notifier_calls.unwrap().lock().unwrap().len(),
+        0,
+        "forged cross-origin form POST dispatched a notification"
+    );
+}
+
+#[tokio::test]
+async fn form_encoded_post_to_sync_is_rejected() {
+    let app = build_app(vec![]).await;
+    let resp = build_api_router(app.state.clone())
+        .oneshot(cross_origin_form_post("/api/v1/sync"))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::UNSUPPORTED_MEDIA_TYPE,
+        "form-encoded POST to /sync must be rejected with 415, got {}",
+        resp.status()
+    );
+}
+
+/// `text/plain` is the other enctype a form can emit without a preflight.
+#[tokio::test]
+async fn text_plain_post_to_sync_is_rejected() {
+    let app = build_app(vec![]).await;
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/sync")
+        .header("origin", CSRF_EVIL_ORIGIN)
+        .header("content-type", "text/plain")
+        .body(Body::from("hi"))
+        .unwrap();
+    let resp = build_api_router(app.state.clone())
+        .oneshot(req)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::UNSUPPORTED_MEDIA_TYPE,
+        "text/plain POST to /sync must be rejected with 415, got {}",
+        resp.status()
+    );
+}
+
+/// The legitimate same-origin caller — the React client sets this header on
+/// every request — must keep working. Guards against over-tightening.
+#[tokio::test]
+async fn json_content_type_post_to_notifications_test_still_works() {
+    let app = build_app_with_recording_notifier().await;
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/notifications/test")
+        .header("content-type", "application/json")
+        .body(Body::empty())
+        .unwrap();
+    let resp = build_api_router(app.state.clone())
+        .oneshot(req)
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(app.notifier_calls.unwrap().lock().unwrap().len(), 1);
+}
+
+/// A `+json` structured suffix with parameters must be accepted too.
+#[tokio::test]
+async fn json_suffix_and_charset_parameter_are_accepted() {
+    let app = build_app(vec![]).await;
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri("/api/v1/sync")
+        .header(
+            "content-type",
+            "application/merge-patch+json; charset=utf-8",
+        )
+        .body(Body::empty())
+        .unwrap();
+    let resp = build_api_router(app.state.clone())
+        .oneshot(req)
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+/// GET must not be swept up by the content-type gate.
+#[tokio::test]
+async fn get_requests_are_unaffected_by_the_content_type_gate() {
+    let app = build_app(vec![]).await;
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::GET, "/api/v1/shows"))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
 }

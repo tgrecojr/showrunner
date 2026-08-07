@@ -16,7 +16,10 @@ use crate::notifications::dispatcher::NotificationDispatcher;
 use crate::notifications::slack::SlackNotifier;
 use crate::notifications::Notifier;
 use crate::state::AppState;
-use axum::http::{header, HeaderValue, StatusCode};
+use axum::extract::Request;
+use axum::http::{header, HeaderValue, Method, StatusCode};
+use axum::middleware::{self, Next};
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, patch, post};
 use axum::Router;
 use std::net::SocketAddr;
@@ -66,6 +69,42 @@ pub fn with_security_headers(app: Router) -> Router {
     ))
 }
 
+/// Reject state-changing requests that don't carry `Content-Type:
+/// application/json`.
+///
+/// A cross-origin HTML form can only emit `application/x-www-form-urlencoded`,
+/// `multipart/form-data` or `text/plain` — all CORS *simple* content types, so
+/// the browser sends them with no preflight and `CorsLayer` never gets a say.
+/// Requiring `application/json` makes the request non-simple: a forged form
+/// submission is rejected here, and a scripted cross-origin `fetch` has to pass
+/// a preflight first. Routes taking `Json<T>` already get this incidentally;
+/// applying it at the router extends the same protection to body-less handlers
+/// and to any route added later.
+async fn require_json_content_type(req: Request, next: Next) -> Response {
+    let guarded = matches!(*req.method(), Method::POST | Method::PUT | Method::PATCH);
+    if guarded && !is_json_content_type(req.headers().get(header::CONTENT_TYPE)) {
+        return StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response();
+    }
+    next.run(req).await
+}
+
+/// `application/json`, or any `application/<subtype>+json`, ignoring parameters
+/// such as `; charset=utf-8`. Matching axum's own `Json` extractor.
+fn is_json_content_type(value: Option<&HeaderValue>) -> bool {
+    let Some(raw) = value.and_then(|v| v.to_str().ok()) else {
+        return false;
+    };
+    let essence = raw.split(';').next().unwrap_or("").trim();
+    let Some((ty, subtype)) = essence.split_once('/') else {
+        return false;
+    };
+    ty.eq_ignore_ascii_case("application")
+        && (subtype.eq_ignore_ascii_case("json")
+            || subtype
+                .rsplit_once('+')
+                .is_some_and(|(_, suffix)| suffix.eq_ignore_ascii_case("json")))
+}
+
 /// Build the API router with all routes wired up. Public so tests can drive
 /// the same Router used in production.
 pub fn build_api_router(state: AppState) -> Router {
@@ -103,6 +142,7 @@ pub fn build_api_router(state: AppState) -> Router {
             "/api/v1/notifications/test",
             post(api::notifications::test_notification),
         )
+        .layer(middleware::from_fn(require_json_content_type))
         .layer(RequestBodyLimitLayer::new(1024 * 1024))
         .layer(TimeoutLayer::with_status_code(
             StatusCode::REQUEST_TIMEOUT,
