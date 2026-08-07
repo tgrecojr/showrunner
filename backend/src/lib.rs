@@ -80,6 +80,11 @@ pub fn with_security_headers(app: Router) -> Router {
 /// a preflight first. Routes taking `Json<T>` already get this incidentally;
 /// applying it at the router extends the same protection to body-less handlers
 /// and to any route added later.
+///
+/// Residual: this proves a request did not originate from a cross-origin HTML
+/// form. It does not authenticate the caller — any non-browser client (curl, a
+/// script) can still set the header and reach these routes. Closing that is the
+/// deferred auth/authz work, not this layer's job.
 async fn require_json_content_type(req: Request, next: Next) -> Response {
     let guarded = matches!(*req.method(), Method::POST | Method::PUT | Method::PATCH);
     if guarded && !is_json_content_type(req.headers().get(header::CONTENT_TYPE)) {
