@@ -230,3 +230,67 @@ async fn check_and_notify_dispatches_independently_per_channel() {
     assert!(queries::was_notified(&pool, 1, 1, 1, "a").await.unwrap());
     assert!(!queries::was_notified(&pool, 1, 1, 1, "b").await.unwrap());
 }
+
+// ===== VULN-005 (CWE-770) — resync fan-out ceiling =====
+//
+// Each show costs one TMDB call plus one per season, all carrying the
+// operator's api_key, and the show count is attacker-growable via the
+// unauthenticated POST /shows. Capping shows-per-run bounds the multiplier.
+
+/// Comfortably above the ceiling so the cap is observable.
+const OVER_CAP: i64 = 250;
+
+/// The per-run ceiling. Deliberately a literal rather than a reference to
+/// `resync::MAX_SHOWS_PER_RESYNC`: pinning it means raising the constant fails
+/// this test instead of silently redefining what "capped" means.
+const EXPECTED_CAP: usize = 100;
+
+async fn tmdb_answering_every_show() -> MockServer {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(wiremock::matchers::path_regex(r"^/tv/\d+$"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({"id": 1, "name": "S", "seasons": []})),
+        )
+        .mount(&server)
+        .await;
+    server
+}
+
+#[tokio::test]
+async fn resync_all_caps_shows_per_run() {
+    let pool = test_pool().await;
+    for i in 1..=OVER_CAP {
+        insert_show(&pool, i, &format!("Show {i}"), None, None, true, &[]).await;
+    }
+    let server = tmdb_answering_every_show().await;
+    let tmdb = TmdbClient::with_base_url("k".into(), server.uri());
+
+    let report = resync::resync_all(&pool, &tmdb).await.unwrap();
+
+    let touched = report.shows_synced + report.errors.len();
+    assert!(
+        (touched as i64) < OVER_CAP,
+        "resync touched all {touched} shows — no fan-out ceiling"
+    );
+    assert_eq!(
+        touched, EXPECTED_CAP,
+        "expected the run to stop at the shows-per-run ceiling"
+    );
+}
+
+#[tokio::test]
+async fn resync_all_below_the_ceiling_still_syncs_everything() {
+    let pool = test_pool().await;
+    for i in 1..=3 {
+        insert_show(&pool, i, &format!("Show {i}"), None, None, true, &[]).await;
+    }
+    let server = tmdb_answering_every_show().await;
+    let tmdb = TmdbClient::with_base_url("k".into(), server.uri());
+
+    let report = resync::resync_all(&pool, &tmdb).await.unwrap();
+
+    assert_eq!(report.shows_synced, 3);
+    assert!(report.errors.is_empty());
+}

@@ -16,12 +16,16 @@ use crate::notifications::dispatcher::NotificationDispatcher;
 use crate::notifications::slack::SlackNotifier;
 use crate::notifications::Notifier;
 use crate::state::AppState;
+use axum::error_handling::HandleErrorLayer;
 use axum::http::{header, HeaderValue, StatusCode};
 use axum::routing::{get, patch, post};
-use axum::Router;
+use axum::{BoxError, Router};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
+use tower::limit::ConcurrencyLimitLayer;
+use tower::load_shed::LoadShedLayer;
+use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::{ServeDir, ServeFile};
@@ -30,6 +34,11 @@ use tower_http::timeout::TimeoutLayer;
 use tracing_subscriber::EnvFilter;
 
 const API_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Ceiling on API requests in flight at once. Sized generously against the
+/// SQLite pool (5 connections by default) — this bounds a flood, it isn't a
+/// throughput target for a single-user homelab app.
+const MAX_INFLIGHT_REQUESTS: usize = 64;
 
 // The SPA loads its own JS/CSS bundle and poster images from TMDB's image CDN;
 // nothing else. Scripts are locked to same-origin (no inline/CDN scripts in the
@@ -102,6 +111,25 @@ pub fn build_api_router(state: AppState) -> Router {
         .route(
             "/api/v1/notifications/test",
             post(api::notifications::test_notification),
+        )
+        // RequestBodyLimit and Timeout below bound request SIZE and TIME.
+        // Neither bounds how many requests are in flight at once, so add an
+        // explicit ceiling: LoadShed turns the queue ConcurrencyLimit would
+        // otherwise build into an immediate 503, so an unauthenticated flood
+        // sheds instead of accumulating unbounded pending work. HandleError
+        // maps the shed back to a response, since axum needs the stack to be
+        // infallible.
+        .layer(
+            ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(|err: BoxError| async move {
+                    if err.is::<tower::load_shed::error::Overloaded>() {
+                        StatusCode::SERVICE_UNAVAILABLE
+                    } else {
+                        StatusCode::INTERNAL_SERVER_ERROR
+                    }
+                }))
+                .layer(LoadShedLayer::new())
+                .layer(ConcurrencyLimitLayer::new(MAX_INFLIGHT_REQUESTS)),
         )
         .layer(RequestBodyLimitLayer::new(1024 * 1024))
         .layer(TimeoutLayer::with_status_code(

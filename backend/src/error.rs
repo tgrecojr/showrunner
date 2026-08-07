@@ -27,6 +27,9 @@ pub enum AppError {
 
     #[error("Not found: {0}")]
     NotFound(String),
+
+    #[error("Too many requests: {0}")]
+    TooManyRequests(String),
 }
 
 pub type Result<T> = std::result::Result<T, AppError>;
@@ -55,6 +58,7 @@ impl AppError {
             AppError::NotFound(msg)
             | AppError::InvalidData(msg)
             | AppError::Config(msg)
+            | AppError::TooManyRequests(msg)
             | AppError::Upstream(msg) => msg.clone(),
             AppError::Database(_) | AppError::Http(_) | AppError::Io(_) | AppError::Json(_) => {
                 "An internal error occurred".to_string()
@@ -67,6 +71,7 @@ impl AppError {
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::InvalidData(_) => StatusCode::BAD_REQUEST,
             AppError::Upstream(_) => StatusCode::BAD_GATEWAY,
+            AppError::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
