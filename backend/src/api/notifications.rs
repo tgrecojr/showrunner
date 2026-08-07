@@ -2,9 +2,9 @@ use axum::extract::State;
 use axum::Json;
 use serde::Serialize;
 
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use crate::notifications::NotificationEvent;
-use crate::state::AppState;
+use crate::state::{AppState, NOTIFY_TEST_MIN_INTERVAL};
 
 // Fixed text dispatched by `POST /notifications/test`. The endpoint takes no
 // body — accepting a user-controlled message would let any unauthenticated
@@ -24,6 +24,15 @@ pub struct TestResponse {
 }
 
 pub async fn test_notification(State(state): State<AppState>) -> Result<Json<TestResponse>> {
+    // Unauthenticated and outbound-spending: without a floor on how often it can
+    // fire, this endpoint floods the operator's configured webhooks.
+    if !state.notify_test_gate.try_acquire(NOTIFY_TEST_MIN_INTERVAL) {
+        return Err(AppError::TooManyRequests(format!(
+            "a test notification was sent less than {}s ago; try again shortly",
+            NOTIFY_TEST_MIN_INTERVAL.as_secs()
+        )));
+    }
+
     let event = NotificationEvent::Test {
         message: TEST_MESSAGE.to_string(),
     };

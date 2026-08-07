@@ -38,14 +38,36 @@ pub async fn resync_show(pool: &SqlitePool, tmdb: &TmdbClient, tmdb_id: i64) -> 
     Ok(())
 }
 
+/// Ceiling on how many shows one resync run will touch.
+///
+/// Each show costs one TMDB call plus one per season, every one carrying the
+/// operator's api_key. The show count is attacker-growable — POST /shows needs
+/// no authentication — so without a ceiling one /sync request amplifies into
+/// however many calls an attacker seeded. Well above any realistic personal
+/// watchlist; the point is to bound the multiplier, not to ration normal use.
+pub const MAX_SHOWS_PER_RESYNC: usize = 100;
+
 pub async fn resync_all(pool: &SqlitePool, tmdb: &TmdbClient) -> Result<ResyncReport> {
     let started = Instant::now();
-    let ids = queries::list_tracked_show_ids(pool).await?;
+    let all_ids = queries::list_tracked_show_ids(pool).await?;
+
+    let skipped = all_ids.len().saturating_sub(MAX_SHOWS_PER_RESYNC);
+    let ids = &all_ids[..all_ids.len().min(MAX_SHOWS_PER_RESYNC)];
+    if skipped > 0 {
+        tracing::warn!(
+            total = all_ids.len(),
+            limit = MAX_SHOWS_PER_RESYNC,
+            skipped,
+            "resync fan-out ceiling reached; remaining shows deferred to the next run"
+        );
+    }
     tracing::info!(count = ids.len(), "resync starting");
 
     let mut errors = Vec::new();
     let mut synced = 0_usize;
-    for id in &ids {
+    // Deliberately serial: this bounds in-flight TMDB requests to one, which is
+    // the tightest concurrency ceiling available and needs no extra machinery.
+    for id in ids {
         match resync_show(pool, tmdb, *id).await {
             Ok(()) => {
                 synced += 1;
