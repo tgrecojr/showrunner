@@ -559,3 +559,92 @@ async fn bulk_set_unwatched_clears_state() {
         .unwrap();
     assert_eq!(any_watched.0, 0);
 }
+
+// ===== VULN-006 (CWE-400) — unbounded, unpaginated result sets =====
+//
+// Of the 18 SQL statements in queries.rs exactly one carried a LIMIT, so
+// response size and query count on the three list endpoints grew linearly with
+// an attacker-growable row count. The ceiling lives inside the query functions
+// so every caller is bounded.
+
+/// Comfortably above the ceiling so the cap is observable.
+const OVER_CAP: i64 = 600;
+
+/// The ceiling the fix must enforce. Deliberately a literal rather than a
+/// reference to `queries::MAX_LIST_ROWS`: pinning the value means raising the
+/// constant fails this test instead of silently redefining what "capped" means.
+const EXPECTED_CAP: i64 = 500;
+
+#[tokio::test]
+async fn list_watchlist_is_capped() {
+    let pool = test_pool().await;
+    for i in 1..=OVER_CAP {
+        insert_show(&pool, i, &format!("Show {i:04}"), None, None, true, &[]).await;
+    }
+
+    let items = queries::list_watchlist(&pool, utc_tz()).await.unwrap();
+
+    assert!(
+        (items.len() as i64) < OVER_CAP,
+        "list_watchlist returned all {} rows — no server-enforced ceiling",
+        items.len()
+    );
+    assert_eq!(
+        items.len() as i64,
+        EXPECTED_CAP,
+        "expected the result set to be clamped to the server-enforced ceiling"
+    );
+}
+
+#[tokio::test]
+async fn list_movies_is_capped() {
+    let pool = test_pool().await;
+    for i in 1..=OVER_CAP {
+        insert_movie(&pool, i, &format!("Movie {i:04}")).await;
+    }
+
+    let items = queries::list_movies(&pool).await.unwrap();
+
+    assert!(
+        (items.len() as i64) < OVER_CAP,
+        "list_movies returned all {} rows — no server-enforced ceiling",
+        items.len()
+    );
+    assert_eq!(items.len() as i64, EXPECTED_CAP);
+}
+
+#[tokio::test]
+async fn list_up_next_is_capped() {
+    let pool = test_pool().await;
+    for i in 1..=OVER_CAP {
+        insert_show(&pool, i, &format!("Show {i:04}"), None, None, true, &[]).await;
+        insert_season(&pool, i, 1, 1).await;
+        insert_episode(&pool, i, 1, 1, Some("2020-01-01"), false).await;
+    }
+
+    let items = queries::list_up_next(&pool, utc_tz()).await.unwrap();
+
+    assert!(
+        (items.len() as i64) < OVER_CAP,
+        "list_up_next returned all {} rows — no server-enforced ceiling",
+        items.len()
+    );
+    assert_eq!(items.len() as i64, EXPECTED_CAP);
+}
+
+/// A library below the ceiling must be returned in full and in the same order
+/// as before — the cap must not change ordinary behavior.
+#[tokio::test]
+async fn small_library_is_returned_in_full_and_in_order() {
+    let pool = test_pool().await;
+    for (id, name) in [(1_i64, "Charlie"), (2, "alpha"), (3, "Bravo")] {
+        insert_show(&pool, id, name, None, None, true, &[]).await;
+    }
+
+    let items = queries::list_watchlist(&pool, utc_tz()).await.unwrap();
+
+    assert_eq!(items.len(), 3);
+    // ORDER BY name COLLATE NOCASE
+    let names: Vec<&str> = items.iter().map(|i| i.name.as_str()).collect();
+    assert_eq!(names, vec!["alpha", "Bravo", "Charlie"]);
+}
