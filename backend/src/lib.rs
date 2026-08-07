@@ -17,7 +17,10 @@ use crate::notifications::slack::SlackNotifier;
 use crate::notifications::Notifier;
 use crate::state::AppState;
 use axum::error_handling::HandleErrorLayer;
-use axum::http::{header, HeaderValue, StatusCode};
+use axum::extract::Request;
+use axum::http::{header, HeaderValue, Method, StatusCode};
+use axum::middleware::{self, Next};
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, patch, post};
 use axum::{BoxError, Router};
 use std::net::SocketAddr;
@@ -75,6 +78,47 @@ pub fn with_security_headers(app: Router) -> Router {
     ))
 }
 
+/// Reject state-changing requests that don't carry `Content-Type:
+/// application/json`.
+///
+/// A cross-origin HTML form can only emit `application/x-www-form-urlencoded`,
+/// `multipart/form-data` or `text/plain` — all CORS *simple* content types, so
+/// the browser sends them with no preflight and `CorsLayer` never gets a say.
+/// Requiring `application/json` makes the request non-simple: a forged form
+/// submission is rejected here, and a scripted cross-origin `fetch` has to pass
+/// a preflight first. Routes taking `Json<T>` already get this incidentally;
+/// applying it at the router extends the same protection to body-less handlers
+/// and to any route added later.
+///
+/// Residual: this proves a request did not originate from a cross-origin HTML
+/// form. It does not authenticate the caller — any non-browser client (curl, a
+/// script) can still set the header and reach these routes. Closing that is the
+/// deferred auth/authz work, not this layer's job.
+async fn require_json_content_type(req: Request, next: Next) -> Response {
+    let guarded = matches!(*req.method(), Method::POST | Method::PUT | Method::PATCH);
+    if guarded && !is_json_content_type(req.headers().get(header::CONTENT_TYPE)) {
+        return StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response();
+    }
+    next.run(req).await
+}
+
+/// `application/json`, or any `application/<subtype>+json`, ignoring parameters
+/// such as `; charset=utf-8`. Matching axum's own `Json` extractor.
+fn is_json_content_type(value: Option<&HeaderValue>) -> bool {
+    let Some(raw) = value.and_then(|v| v.to_str().ok()) else {
+        return false;
+    };
+    let essence = raw.split(';').next().unwrap_or("").trim();
+    let Some((ty, subtype)) = essence.split_once('/') else {
+        return false;
+    };
+    ty.eq_ignore_ascii_case("application")
+        && (subtype.eq_ignore_ascii_case("json")
+            || subtype
+                .rsplit_once('+')
+                .is_some_and(|(_, suffix)| suffix.eq_ignore_ascii_case("json")))
+}
+
 /// Build the API router with all routes wired up. Public so tests can drive
 /// the same Router used in production.
 pub fn build_api_router(state: AppState) -> Router {
@@ -112,6 +156,7 @@ pub fn build_api_router(state: AppState) -> Router {
             "/api/v1/notifications/test",
             post(api::notifications::test_notification),
         )
+        .layer(middleware::from_fn(require_json_content_type))
         // RequestBodyLimit and Timeout below bound request SIZE and TIME.
         // Neither bounds how many requests are in flight at once, so add an
         // explicit ceiling: LoadShed turns the queue ConcurrencyLimit would
@@ -153,7 +198,18 @@ pub fn build_cors_layer(config: &Config) -> CorsLayer {
     match config.server.cors_allowed_origin.as_deref() {
         Some("*") => {
             tracing::warn!("CORS configured to allow all origins");
-            CorsLayer::permissive()
+            // Deliberately built by hand rather than with the tower-http
+            // catch-all constructor: that one also sets allow_methods(Any) and
+            // expose_headers(Any), a strictly broader grant than the
+            // named-origin branch below. Build the same layer that branch does,
+            // differing only in which origins are accepted.
+            // Note the absence of `allow_credentials(true)` — pairing it with a
+            // wildcard origin would turn this into a credentialed cross-origin
+            // read, and the CORS spec forbids the combination outright.
+            CorsLayer::new()
+                .allow_origin(tower_http::cors::Any)
+                .allow_methods(methods)
+                .allow_headers(tower_http::cors::Any)
         }
         Some(origin) => {
             tracing::info!(origin = %origin, "CORS restricted to configured origin");
