@@ -37,9 +37,9 @@ pub type Result<T> = std::result::Result<T, AppError>;
 impl From<reqwest::Error> for AppError {
     /// Strip the request URL before storing the error. `reqwest::Error`'s
     /// `Display` appends " for url (...)", and our outbound URLs carry secrets
-    /// — the TMDB API key as a query param and the Slack webhook (itself a
-    /// bearer secret). Some handlers surface error strings to clients and logs,
-    /// so the URL must never reach the error object in the first place.
+    /// — the TMDB API key as a query param. Some handlers surface error
+    /// strings to clients and logs, so the URL must never reach the error
+    /// object in the first place.
     fn from(err: reqwest::Error) -> Self {
         AppError::Http(err.without_url())
     }
@@ -51,8 +51,7 @@ impl AppError {
     /// string so sqlx and reqwest internals — including anything the URL-strip
     /// in `From<reqwest::Error>` didn't cover — never reach a response body.
     /// Use this anywhere an error is serialized into a `200 OK` body (e.g. the
-    /// per-item results of `/sync` and `/notifications/test`), not just the
-    /// `IntoResponse` error path.
+    /// per-item results of `/sync`), not just the `IntoResponse` error path.
     pub fn client_message(&self) -> String {
         match self {
             AppError::NotFound(msg)

@@ -5,16 +5,12 @@ pub mod db;
 pub mod error;
 pub mod logic;
 pub mod models;
-pub mod notifications;
 pub mod scheduler;
 pub mod state;
 
 use crate::config::Config;
 use crate::datasources::tmdb::TmdbClient;
 use crate::db::pool::create_pool;
-use crate::notifications::dispatcher::NotificationDispatcher;
-use crate::notifications::slack::SlackNotifier;
-use crate::notifications::Notifier;
 use crate::state::AppState;
 use axum::error_handling::HandleErrorLayer;
 use axum::extract::Request;
@@ -152,10 +148,6 @@ pub fn build_api_router(state: AppState) -> Router {
         .route("/api/v1/calendar", get(api::calendar::get_calendar))
         .route("/api/v1/up-next", get(api::up_next::list_up_next))
         .route("/api/v1/sync", post(api::sync::manual_sync))
-        .route(
-            "/api/v1/notifications/test",
-            post(api::notifications::test_notification),
-        )
         .layer(middleware::from_fn(require_json_content_type))
         // RequestBodyLimit and Timeout below bound request SIZE and TIME.
         // Neither bounds how many requests are in flight at once, so add an
@@ -248,16 +240,7 @@ pub async fn run() -> anyhow::Result<()> {
 
     let tmdb = TmdbClient::new(config.tmdb_api_key.clone());
 
-    let mut notifiers: Vec<Box<dyn Notifier>> = Vec::new();
-    if let Some(url) = config.slack_webhook_url.clone() {
-        tracing::info!("Slack notifier enabled");
-        notifiers.push(Box::new(SlackNotifier::new(url)));
-    } else {
-        tracing::info!("No notifiers configured — notifications disabled");
-    }
-    let notifier = NotificationDispatcher::new(notifiers);
-
-    let state = AppState::new(pool, tmdb, notifier, config.timezone);
+    let state = AppState::new(pool, tmdb, config.timezone);
 
     let _scheduler = scheduler::start(state.clone(), config.schedule.clone()).await?;
 
@@ -304,10 +287,8 @@ mod tests {
             },
             database_url: "sqlite::memory:".into(),
             tmdb_api_key: "k".into(),
-            slack_webhook_url: None,
             schedule: ScheduleConfig {
                 resync_cron: "0 0 6 * * *".into(),
-                notification_check_interval_minutes: 60,
             },
             timezone: UTC,
         }

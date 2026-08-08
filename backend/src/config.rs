@@ -9,7 +9,6 @@ pub struct Config {
     pub server: ServerConfig,
     pub database_url: String,
     pub tmdb_api_key: String,
-    pub slack_webhook_url: Option<String>,
     pub schedule: ScheduleConfig,
     pub timezone: Tz,
 }
@@ -24,7 +23,6 @@ pub struct ServerConfig {
 #[derive(Debug, Clone)]
 pub struct ScheduleConfig {
     pub resync_cron: String,
-    pub notification_check_interval_minutes: u64,
 }
 
 impl Config {
@@ -45,22 +43,8 @@ impl Config {
             return Err(AppError::Config("TMDB_API_KEY is required".into()));
         }
 
-        let slack_webhook_url = optional("SLACK_WEBHOOK_URL");
-
         let resync_cron =
             std::env::var("RESYNC_CRON").unwrap_or_else(|_| "0 0 6 * * *".to_string());
-        let notification_check_interval_minutes: u64 =
-            std::env::var("NOTIFICATION_CHECK_INTERVAL_MINUTES")
-                .unwrap_or_else(|_| "60".to_string())
-                .parse()
-                .map_err(|_| {
-                    AppError::Config("NOTIFICATION_CHECK_INTERVAL_MINUTES must be a u64".into())
-                })?;
-        if notification_check_interval_minutes == 0 {
-            return Err(AppError::Config(
-                "NOTIFICATION_CHECK_INTERVAL_MINUTES must be at least 1".into(),
-            ));
-        }
 
         let tz_name = std::env::var("TIMEZONE").unwrap_or_else(|_| "America/New_York".to_string());
         let timezone = Tz::from_str(&tz_name).map_err(|_| {
@@ -78,11 +62,7 @@ impl Config {
             },
             database_url,
             tmdb_api_key,
-            slack_webhook_url,
-            schedule: ScheduleConfig {
-                resync_cron,
-                notification_check_interval_minutes,
-            },
+            schedule: ScheduleConfig { resync_cron },
             timezone,
         })
     }
@@ -103,9 +83,7 @@ mod tests {
         "CORS_ALLOWED_ORIGIN",
         "DATABASE_URL",
         "TMDB_API_KEY",
-        "SLACK_WEBHOOK_URL",
         "RESYNC_CRON",
-        "NOTIFICATION_CHECK_INTERVAL_MINUTES",
         "TIMEZONE",
     ];
 
@@ -131,9 +109,7 @@ mod tests {
         assert_eq!(cfg.server.cors_allowed_origin, None);
         assert_eq!(cfg.database_url, "sqlite:///data/showrunner.db");
         assert_eq!(cfg.tmdb_api_key, "abc");
-        assert_eq!(cfg.slack_webhook_url, None);
         assert_eq!(cfg.schedule.resync_cron, "0 0 6 * * *");
-        assert_eq!(cfg.schedule.notification_check_interval_minutes, 60);
         assert_eq!(cfg.timezone.name(), "America/New_York");
     }
 
@@ -146,9 +122,7 @@ mod tests {
         set("SERVER_PORT", "8080");
         set("CORS_ALLOWED_ORIGIN", "https://example.com");
         set("DATABASE_URL", "sqlite::memory:");
-        set("SLACK_WEBHOOK_URL", "https://hooks/x");
         set("RESYNC_CRON", "0 30 5 * * *");
-        set("NOTIFICATION_CHECK_INTERVAL_MINUTES", "15");
         set("TIMEZONE", "Europe/London");
 
         let cfg = Config::from_env().unwrap();
@@ -159,9 +133,7 @@ mod tests {
             Some("https://example.com")
         );
         assert_eq!(cfg.database_url, "sqlite::memory:");
-        assert_eq!(cfg.slack_webhook_url.as_deref(), Some("https://hooks/x"));
         assert_eq!(cfg.schedule.resync_cron, "0 30 5 * * *");
-        assert_eq!(cfg.schedule.notification_check_interval_minutes, 15);
         assert_eq!(cfg.timezone.name(), "Europe/London");
     }
 
@@ -195,30 +167,6 @@ mod tests {
 
     #[test]
     #[serial]
-    fn invalid_notification_interval_fails() {
-        clear_env();
-        set("TMDB_API_KEY", "k");
-        set("NOTIFICATION_CHECK_INTERVAL_MINUTES", "not-a-num");
-        let err = Config::from_env().unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("NOTIFICATION_CHECK_INTERVAL_MINUTES"));
-    }
-
-    #[test]
-    #[serial]
-    fn zero_notification_interval_fails() {
-        clear_env();
-        set("TMDB_API_KEY", "k");
-        set("NOTIFICATION_CHECK_INTERVAL_MINUTES", "0");
-        let err = Config::from_env().unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("NOTIFICATION_CHECK_INTERVAL_MINUTES"));
-    }
-
-    #[test]
-    #[serial]
     fn invalid_timezone_fails() {
         clear_env();
         set("TMDB_API_KEY", "k");
@@ -232,10 +180,8 @@ mod tests {
     fn empty_optional_vars_treated_as_absent() {
         clear_env();
         set("TMDB_API_KEY", "k");
-        set("SLACK_WEBHOOK_URL", "");
         set("CORS_ALLOWED_ORIGIN", "   ");
         let cfg = Config::from_env().unwrap();
-        assert_eq!(cfg.slack_webhook_url, None);
         assert_eq!(cfg.server.cors_allowed_origin, None);
     }
 }

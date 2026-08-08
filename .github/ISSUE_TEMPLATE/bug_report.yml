@@ -65,7 +65,7 @@ body:
       description: |
         Output from `docker compose logs app` around the time of the failure. Setting `RUST_LOG=showrunner_backend=debug` gives more detail.
 
-        **Redact your `TMDB_API_KEY` and `SLACK_WEBHOOK_URL` before pasting.**
+        **Redact your `TMDB_API_KEY` before pasting.**
       render: shell
 
   - type: textarea

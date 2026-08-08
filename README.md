@@ -1,6 +1,6 @@
 # Showrunner
 
-**A self-hosted TV & movie tracker for the streaming era.** Search for shows, build a watchlist, mark episodes watched, see what's airing on a calendar, get a "what should I watch next" list, keep a movie to-watch list, and optionally get a Slack ping when a new episode drops.
+**A self-hosted TV & movie tracker for the streaming era.** Search for shows, build a watchlist, mark episodes watched, see what's airing on a calendar, get a "what should I watch next" list, and keep a movie to-watch list.
 
 Built for a homelab: one Docker container, a SQLite file on a volume, no external database, no accounts to manage.
 
@@ -32,8 +32,7 @@ Built for a homelab: one Docker container, a SQLite file on a volume, no externa
 - **Show detail** — collapsible season/episode list with watched checkboxes, "where to watch" providers, and bulk-mark controls (whole show / whole season / through a given episode).
 - **Up Next** — the next unwatched episode for each show, sorted longest-overdue first.
 - **Calendar** — a full month grid of what airs on each day; click an episode to jump to its show.
-- **Notifications** — an optional Slack webhook fires when a watchlisted episode airs today, deduplicated so restarts never re-send.
-- **Movies** — a separate to-watch list for films: add a movie, see its cast, directors, and where to stream, then mark it watched (which removes it from the list). Movies are standalone — they don't appear on the calendar, Up Next, or notifications, which are all episode-based.
+- **Movies** — a separate to-watch list for films: add a movie, see its cast, directors, and where to stream, then mark it watched (which removes it from the list). Movies are standalone — they don't appear on the calendar or Up Next, which are episode-based.
 - **Auto-resync** — a nightly TMDB refresh (configurable) pulls in newly announced episodes automatically. **Your watched/unwatched state is always preserved.**
 
 Your TMDB API key stays on the server — it's never shipped to the browser.
@@ -71,7 +70,6 @@ volumes:
 ```dotenv
 TMDB_API_KEY=your_key_here
 TIMEZONE=America/New_York
-# SLACK_WEBHOOK_URL=
 ```
 
 Then:
@@ -157,22 +155,14 @@ Everything is configured with environment variables. `env.example` in this repo 
 | Variable | Default | Notes |
 |---|---|---|
 | `TMDB_API_KEY` | _(required)_ | TMDB v3 API key. No quotes around the value. |
-| `SLACK_WEBHOOK_URL` | _(blank = disabled)_ | Incoming-webhook URL; when set, a message fires as watchlisted episodes air. |
 | `TIMEZONE` | `America/New_York` | IANA zone name (e.g. `Europe/London`). Drives "today" comparisons and the resync cron. |
 | `RESYNC_CRON` | `0 0 6 * * *` | 6-field cron (`sec min hour dom mon dow`), interpreted in `TIMEZONE`. Default = 6:00 AM local. |
-| `NOTIFICATION_CHECK_INTERVAL_MINUTES` | `60` | How often to scan for episodes airing today. Must be ≥ 1. |
 | `SERVER_HOST` | `0.0.0.0` | Bind address. |
 | `SERVER_PORT` | `3001` | Bind port. |
 | `DATABASE_URL` | `sqlite:///data/showrunner.db` | SQLite path. In Docker this points at the mounted volume. |
 | `DB_MAX_CONNECTIONS` | `5` | SQLite connection pool size. Rarely needs changing. |
 | `CORS_ALLOWED_ORIGIN` | _(same-origin)_ | Set to your external origin if the SPA is served from a different host; `*` allows any origin. |
 | `RUST_LOG` | `info` | `env_logger`/`tracing` filter syntax, e.g. `showrunner_backend=debug`. |
-
-### Slack setup
-
-1. In Slack: **Apps → Incoming Webhooks → Add to Slack**, pick a channel, copy the webhook URL.
-2. Set `SLACK_WEBHOOK_URL` in `.env` and restart the container.
-3. **Settings → Send test notification** to confirm it works.
 
 ### Changing the schedule
 
@@ -230,7 +220,7 @@ To restore, stop the stack and put the file back into the volume before starting
 - ✅ Run it on your LAN, over a private VPN, or behind an SSO/auth proxy.
 - ❌ Never publish it straight to the internet.
 
-What the app *does* protect, even without auth: your TMDB API key never leaves the server, your Slack webhook URL is never returned by the API, all database access uses bound parameters, and the container runs as a non-root user on a distroless base.
+What the app *does* protect, even without auth: your TMDB API key never leaves the server, all database access uses bound parameters, and the container runs as a non-root user on a distroless base.
 
 Full details — including how to report a vulnerability privately — are in [SECURITY.md](SECURITY.md).
 
@@ -250,19 +240,13 @@ The backend fetches each season's episodes from TMDB one at a time. For a 7-seas
 **The calendar is empty**
 Episodes only appear for shows on your watchlist. Add some shows first, then resync from **Settings → Resync** if you added them recently.
 
-**Notifications aren't firing**
-- Confirm the webhook is configured: `GET /api/v1/health` should list `"slack"` in its `notifiers` array.
-- Use **Settings → Send test notification** to check connectivity.
-- Real notifications fire on the interval task — look for `notification check` lines in `docker compose logs app`.
-- The `notification_log` table dedupes per (show, season, episode, channel), so a given episode only notifies once. To re-test with a real episode, clear it: `DELETE FROM notification_log;`.
-
 ---
 
 ## Contributing
 
 Contributions are welcome. **Please open an issue to discuss a change before opening a pull request** — it saves you from building something that turns out to be out of scope or already in progress.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide, including how to add a new notification channel (the app is built for exactly that) and the checks to run before you push.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide, including the checks to run before you push.
 
 Architecture notes, key patterns, and the full API table live in [CLAUDE.md](CLAUDE.md).
 

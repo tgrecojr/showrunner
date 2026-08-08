@@ -1,26 +1,19 @@
-//! Integration tests for `logic::resync` and `logic::notifications`.
+//! Integration tests for `logic::resync`.
 
 mod common;
 
-use chrono::Utc;
 use showrunner_backend::datasources::tmdb::TmdbClient;
 use showrunner_backend::db::queries;
-use showrunner_backend::logic::{notifications, resync};
-use showrunner_backend::notifications::dispatcher::NotificationDispatcher;
-use showrunner_backend::notifications::Notifier;
+use showrunner_backend::logic::resync;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use crate::common::*;
 
-fn iso_today() -> String {
-    Utc::now().date_naive().to_string()
-}
-
 #[tokio::test]
 async fn resync_show_updates_metadata_and_episodes_preserving_watched() {
     let pool = test_pool().await;
-    insert_show(&pool, 42, "OldName", None, None, true, &[]).await;
+    insert_show(&pool, 42, "OldName", None, None, &[]).await;
     insert_season(&pool, 42, 1, 1).await;
     sqlx::query(
         "INSERT INTO episodes (show_tmdb_id, season_number, episode_number, name, watched, watched_at)
@@ -70,7 +63,7 @@ async fn resync_show_updates_metadata_and_episodes_preserving_watched() {
 #[tokio::test]
 async fn resync_show_skips_season_zero() {
     let pool = test_pool().await;
-    insert_show(&pool, 7, "X", None, None, true, &[]).await;
+    insert_show(&pool, 7, "X", None, None, &[]).await;
     insert_season(&pool, 7, 1, 0).await;
 
     let server = MockServer::start().await;
@@ -104,8 +97,8 @@ async fn resync_show_skips_season_zero() {
 #[tokio::test]
 async fn resync_all_reports_per_show_success_and_failure() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "Good", None, None, true, &[]).await;
-    insert_show(&pool, 2, "Bad", None, None, true, &[]).await;
+    insert_show(&pool, 1, "Good", None, None, &[]).await;
+    insert_show(&pool, 2, "Bad", None, None, &[]).await;
 
     let server = MockServer::start().await;
     Mock::given(method("GET"))
@@ -136,99 +129,6 @@ async fn resync_all_with_no_shows_is_a_noop() {
     let report = resync::resync_all(&pool, &tmdb).await.unwrap();
     assert_eq!(report.shows_synced, 0);
     assert!(report.errors.is_empty());
-}
-
-#[tokio::test]
-async fn check_and_notify_with_no_dispatchers_returns_zero() {
-    let pool = test_pool().await;
-    let dispatcher = NotificationDispatcher::new(Vec::new());
-    let sent = notifications::check_and_notify(&pool, &dispatcher, utc_tz())
-        .await
-        .unwrap();
-    assert_eq!(sent, 0);
-}
-
-#[tokio::test]
-async fn check_and_notify_dispatches_today_episodes_and_logs() {
-    let pool = test_pool().await;
-    insert_show(&pool, 1, "Show", None, None, true, &["Hulu"]).await;
-    insert_season(&pool, 1, 1, 1).await;
-    insert_episode(&pool, 1, 1, 1, Some(&iso_today()), false).await;
-
-    let (rec, calls) = RecordingNotifier::new("rec");
-    let dispatcher: NotificationDispatcher =
-        NotificationDispatcher::new(vec![Box::new(rec) as Box<dyn Notifier>]);
-
-    let sent = notifications::check_and_notify(&pool, &dispatcher, utc_tz())
-        .await
-        .unwrap();
-    assert_eq!(sent, 1);
-    assert_eq!(calls.lock().unwrap().len(), 1);
-
-    // Second call: already logged, nothing new sent.
-    let sent2 = notifications::check_and_notify(&pool, &dispatcher, utc_tz())
-        .await
-        .unwrap();
-    assert_eq!(sent2, 0);
-    assert_eq!(calls.lock().unwrap().len(), 1);
-}
-
-#[tokio::test]
-async fn check_and_notify_skips_shows_with_notify_flag_off() {
-    let pool = test_pool().await;
-    insert_show(&pool, 1, "Quiet", None, None, false, &[]).await;
-    insert_season(&pool, 1, 1, 1).await;
-    insert_episode(&pool, 1, 1, 1, Some(&iso_today()), false).await;
-
-    let (rec, calls) = RecordingNotifier::new("rec");
-    let dispatcher = NotificationDispatcher::new(vec![Box::new(rec) as Box<dyn Notifier>]);
-
-    let sent = notifications::check_and_notify(&pool, &dispatcher, utc_tz())
-        .await
-        .unwrap();
-    assert_eq!(sent, 0);
-    assert!(calls.lock().unwrap().is_empty());
-}
-
-#[tokio::test]
-async fn check_and_notify_does_not_log_when_send_fails_so_it_retries() {
-    let pool = test_pool().await;
-    insert_show(&pool, 1, "Show", None, None, true, &[]).await;
-    insert_season(&pool, 1, 1, 1).await;
-    insert_episode(&pool, 1, 1, 1, Some(&iso_today()), false).await;
-
-    let bad = RecordingNotifier::failing("bad");
-    let dispatcher = NotificationDispatcher::new(vec![Box::new(bad) as Box<dyn Notifier>]);
-
-    let sent = notifications::check_and_notify(&pool, &dispatcher, utc_tz())
-        .await
-        .unwrap();
-    assert_eq!(sent, 0);
-    // Not logged because send failed
-    assert!(!queries::was_notified(&pool, 1, 1, 1, "bad").await.unwrap());
-}
-
-#[tokio::test]
-async fn check_and_notify_dispatches_independently_per_channel() {
-    let pool = test_pool().await;
-    insert_show(&pool, 1, "Show", None, None, true, &[]).await;
-    insert_season(&pool, 1, 1, 1).await;
-    insert_episode(&pool, 1, 1, 1, Some(&iso_today()), false).await;
-
-    let (a, a_calls) = RecordingNotifier::new("a");
-    let bad = RecordingNotifier::failing("b");
-    let dispatcher: NotificationDispatcher = NotificationDispatcher::new(vec![
-        Box::new(a) as Box<dyn Notifier>,
-        Box::new(bad) as Box<dyn Notifier>,
-    ]);
-
-    let sent = notifications::check_and_notify(&pool, &dispatcher, utc_tz())
-        .await
-        .unwrap();
-    assert_eq!(sent, 1);
-    assert_eq!(a_calls.lock().unwrap().len(), 1);
-    assert!(queries::was_notified(&pool, 1, 1, 1, "a").await.unwrap());
-    assert!(!queries::was_notified(&pool, 1, 1, 1, "b").await.unwrap());
 }
 
 // ===== VULN-005 (CWE-770) — resync fan-out ceiling =====
@@ -262,7 +162,7 @@ async fn tmdb_answering_every_show() -> MockServer {
 async fn resync_all_caps_shows_per_run() {
     let pool = test_pool().await;
     for i in 1..=OVER_CAP {
-        insert_show(&pool, i, &format!("Show {i}"), None, None, true, &[]).await;
+        insert_show(&pool, i, &format!("Show {i}"), None, None, &[]).await;
     }
     let server = tmdb_answering_every_show().await;
     let tmdb = TmdbClient::with_base_url("k".into(), server.uri());
@@ -284,7 +184,7 @@ async fn resync_all_caps_shows_per_run() {
 async fn resync_all_below_the_ceiling_still_syncs_everything() {
     let pool = test_pool().await;
     for i in 1..=3 {
-        insert_show(&pool, i, &format!("Show {i}"), None, None, true, &[]).await;
+        insert_show(&pool, i, &format!("Show {i}"), None, None, &[]).await;
     }
     let server = tmdb_answering_every_show().await;
     let tmdb = TmdbClient::with_base_url("k".into(), server.uri());

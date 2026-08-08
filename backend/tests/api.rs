@@ -9,7 +9,6 @@ use chrono::{Duration, Utc};
 use http_body_util::BodyExt;
 use serde_json::Value;
 use showrunner_backend::build_api_router;
-use showrunner_backend::notifications::Notifier;
 use sqlx::SqlitePool;
 use tower::ServiceExt;
 use wiremock::matchers::{method as wm_method, path as wm_path, query_param};
@@ -57,38 +56,16 @@ fn empty_request(method: Method, uri: &str) -> Request<Body> {
 struct TestApp {
     pool: SqlitePool,
     tmdb_server: MockServer,
-    notifier_calls: Option<
-        std::sync::Arc<std::sync::Mutex<Vec<showrunner_backend::notifications::NotificationEvent>>>,
-    >,
     state: showrunner_backend::state::AppState,
 }
 
-async fn build_app(notifiers: Vec<Box<dyn Notifier>>) -> TestApp {
+async fn build_app() -> TestApp {
     let pool = test_pool().await;
     let tmdb_server = MockServer::start().await;
-    let state = app_state(pool.clone(), tmdb_server.uri(), notifiers, utc_tz());
+    let state = app_state(pool.clone(), tmdb_server.uri(), utc_tz());
     TestApp {
         pool,
         tmdb_server,
-        notifier_calls: None,
-        state,
-    }
-}
-
-async fn build_app_with_recording_notifier() -> TestApp {
-    let (rec, calls) = RecordingNotifier::new("rec");
-    let pool = test_pool().await;
-    let tmdb_server = MockServer::start().await;
-    let state = app_state(
-        pool.clone(),
-        tmdb_server.uri(),
-        vec![Box::new(rec) as Box<dyn Notifier>],
-        utc_tz(),
-    );
-    TestApp {
-        pool,
-        tmdb_server,
-        notifier_calls: Some(calls),
         state,
     }
 }
@@ -97,7 +74,7 @@ async fn build_app_with_recording_notifier() -> TestApp {
 
 #[tokio::test]
 async fn health_returns_ok_when_db_responsive() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     let resp = build_api_router(app.state.clone())
         .oneshot(empty_request(Method::GET, "/api/v1/health"))
         .await
@@ -106,26 +83,14 @@ async fn health_returns_ok_when_db_responsive() {
     let v = body_to_value(resp).await;
     assert_eq!(v["status"], "ok");
     assert_eq!(v["database"], true);
-    assert_eq!(v["notifiers"].as_array().unwrap().len(), 0);
-}
-
-#[tokio::test]
-async fn health_lists_configured_notifier_channels() {
-    let app = build_app_with_recording_notifier().await;
-    let resp = build_api_router(app.state.clone())
-        .oneshot(empty_request(Method::GET, "/api/v1/health"))
-        .await
-        .unwrap();
-    let v = body_to_value(resp).await;
-    assert_eq!(v["notifiers"], serde_json::json!(["rec"]));
 }
 
 // ============================ Search ============================
 
 #[tokio::test]
 async fn search_returns_mixed_results_with_already_tracked_flag() {
-    let app = build_app(vec![]).await;
-    insert_show(&app.pool, 1, "TrackedShow", None, None, true, &[]).await;
+    let app = build_app().await;
+    insert_show(&app.pool, 1, "TrackedShow", None, None, &[]).await;
     insert_movie(&app.pool, 27205, "Inception").await;
 
     Mock::given(wm_method("GET"))
@@ -179,7 +144,7 @@ async fn search_returns_mixed_results_with_already_tracked_flag() {
 
 #[tokio::test]
 async fn search_rejects_blank_query() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     let resp = build_api_router(app.state.clone())
         .oneshot(empty_request(Method::GET, "/api/v1/search?q=%20%20"))
         .await
@@ -189,7 +154,7 @@ async fn search_rejects_blank_query() {
 
 #[tokio::test]
 async fn search_returns_502_when_tmdb_errors() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     Mock::given(wm_method("GET"))
         .and(wm_path("/search/multi"))
         .respond_with(ResponseTemplate::new(500))
@@ -206,8 +171,8 @@ async fn search_returns_502_when_tmdb_errors() {
 
 #[tokio::test]
 async fn list_shows_returns_watchlist() {
-    let app = build_app(vec![]).await;
-    insert_show(&app.pool, 1, "X", None, None, true, &[]).await;
+    let app = build_app().await;
+    insert_show(&app.pool, 1, "X", None, None, &[]).await;
     insert_season(&app.pool, 1, 1, 1).await;
     insert_episode(&app.pool, 1, 1, 1, Some(&iso_offset(-1)), true).await;
 
@@ -227,7 +192,7 @@ async fn list_shows_returns_watchlist() {
 
 #[tokio::test]
 async fn add_show_fetches_from_tmdb_and_inserts() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     Mock::given(wm_method("GET"))
         .and(wm_path("/tv/55"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -262,8 +227,8 @@ async fn add_show_fetches_from_tmdb_and_inserts() {
 
 #[tokio::test]
 async fn add_show_rejects_duplicate() {
-    let app = build_app(vec![]).await;
-    insert_show(&app.pool, 55, "Already", None, None, true, &[]).await;
+    let app = build_app().await;
+    insert_show(&app.pool, 55, "Already", None, None, &[]).await;
     let resp = build_api_router(app.state.clone())
         .oneshot(json_request(
             Method::POST,
@@ -279,7 +244,7 @@ async fn add_show_rejects_duplicate() {
 
 #[tokio::test]
 async fn add_show_returns_404_when_tmdb_missing() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     Mock::given(wm_method("GET"))
         .and(wm_path("/tv/9"))
         .respond_with(ResponseTemplate::new(404))
@@ -298,7 +263,7 @@ async fn add_show_returns_404_when_tmdb_missing() {
 
 #[tokio::test]
 async fn add_show_rejects_malformed_body() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     let resp = build_api_router(app.state.clone())
         .oneshot(json_request(
             Method::POST,
@@ -314,8 +279,8 @@ async fn add_show_rejects_malformed_body() {
 
 #[tokio::test]
 async fn get_show_returns_detail() {
-    let app = build_app(vec![]).await;
-    insert_show(&app.pool, 1, "X", None, None, true, &[]).await;
+    let app = build_app().await;
+    insert_show(&app.pool, 1, "X", None, None, &[]).await;
     insert_season(&app.pool, 1, 1, 0).await;
 
     let resp = build_api_router(app.state.clone())
@@ -330,7 +295,7 @@ async fn get_show_returns_detail() {
 
 #[tokio::test]
 async fn get_show_returns_404_when_unknown() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     let resp = build_api_router(app.state.clone())
         .oneshot(empty_request(Method::GET, "/api/v1/shows/123"))
         .await
@@ -342,8 +307,8 @@ async fn get_show_returns_404_when_unknown() {
 
 #[tokio::test]
 async fn delete_show_removes_and_returns_204() {
-    let app = build_app(vec![]).await;
-    insert_show(&app.pool, 1, "X", None, None, true, &[]).await;
+    let app = build_app().await;
+    insert_show(&app.pool, 1, "X", None, None, &[]).await;
     let resp = build_api_router(app.state.clone())
         .oneshot(empty_request(Method::DELETE, "/api/v1/shows/1"))
         .await
@@ -353,7 +318,7 @@ async fn delete_show_removes_and_returns_204() {
 
 #[tokio::test]
 async fn delete_show_returns_404_for_unknown() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     let resp = build_api_router(app.state.clone())
         .oneshot(empty_request(Method::DELETE, "/api/v1/shows/1"))
         .await
@@ -365,8 +330,8 @@ async fn delete_show_returns_404_for_unknown() {
 
 #[tokio::test]
 async fn bulk_watch_marks_all_aired_episodes() {
-    let app = build_app(vec![]).await;
-    insert_show(&app.pool, 1, "X", None, None, true, &[]).await;
+    let app = build_app().await;
+    insert_show(&app.pool, 1, "X", None, None, &[]).await;
     insert_season(&app.pool, 1, 1, 2).await;
     insert_episode(&app.pool, 1, 1, 1, Some(&iso_offset(-1)), false).await;
     insert_episode(&app.pool, 1, 1, 2, Some(&iso_offset(5)), false).await;
@@ -397,8 +362,8 @@ async fn bulk_watch_marks_all_aired_episodes() {
 
 #[tokio::test]
 async fn bulk_watch_supports_season_and_through_episode() {
-    let app = build_app(vec![]).await;
-    insert_show(&app.pool, 1, "X", None, None, true, &[]).await;
+    let app = build_app().await;
+    insert_show(&app.pool, 1, "X", None, None, &[]).await;
     insert_season(&app.pool, 1, 1, 2).await;
     insert_season(&app.pool, 1, 2, 2).await;
     insert_episode(&app.pool, 1, 1, 1, Some(&iso_offset(-3)), false).await;
@@ -445,7 +410,7 @@ async fn bulk_watch_supports_season_and_through_episode() {
 
 #[tokio::test]
 async fn bulk_watch_returns_404_when_show_unknown() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     let resp = build_api_router(app.state.clone())
         .oneshot(json_request(
             Method::POST,
@@ -461,8 +426,8 @@ async fn bulk_watch_returns_404_when_show_unknown() {
 
 #[tokio::test]
 async fn patch_episode_toggles_and_returns_show_detail() {
-    let app = build_app(vec![]).await;
-    insert_show(&app.pool, 1, "X", None, None, true, &[]).await;
+    let app = build_app().await;
+    insert_show(&app.pool, 1, "X", None, None, &[]).await;
     insert_season(&app.pool, 1, 1, 1).await;
     insert_episode(&app.pool, 1, 1, 1, Some(&iso_offset(-1)), false).await;
 
@@ -481,8 +446,8 @@ async fn patch_episode_toggles_and_returns_show_detail() {
 
 #[tokio::test]
 async fn patch_episode_404_when_episode_missing() {
-    let app = build_app(vec![]).await;
-    insert_show(&app.pool, 1, "X", None, None, true, &[]).await;
+    let app = build_app().await;
+    insert_show(&app.pool, 1, "X", None, None, &[]).await;
     let resp = build_api_router(app.state.clone())
         .oneshot(json_request(
             Method::PATCH,
@@ -498,8 +463,8 @@ async fn patch_episode_404_when_episode_missing() {
 
 #[tokio::test]
 async fn calendar_returns_episodes_in_range() {
-    let app = build_app(vec![]).await;
-    insert_show(&app.pool, 1, "X", None, None, true, &[]).await;
+    let app = build_app().await;
+    insert_show(&app.pool, 1, "X", None, None, &[]).await;
     insert_season(&app.pool, 1, 1, 1).await;
     insert_episode(&app.pool, 1, 1, 1, Some("2026-05-15"), false).await;
 
@@ -517,7 +482,7 @@ async fn calendar_returns_episodes_in_range() {
 
 #[tokio::test]
 async fn calendar_rejects_invalid_dates() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     let resp = build_api_router(app.state.clone())
         .oneshot(empty_request(
             Method::GET,
@@ -539,7 +504,7 @@ async fn calendar_rejects_invalid_dates() {
 
 #[tokio::test]
 async fn calendar_rejects_inverted_range() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     let resp = build_api_router(app.state.clone())
         .oneshot(empty_request(
             Method::GET,
@@ -554,7 +519,7 @@ async fn calendar_rejects_inverted_range() {
 
 #[tokio::test]
 async fn calendar_rejects_range_exceeding_92_days() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     let resp = build_api_router(app.state.clone())
         .oneshot(empty_request(
             Method::GET,
@@ -569,8 +534,8 @@ async fn calendar_rejects_range_exceeding_92_days() {
 
 #[tokio::test]
 async fn up_next_returns_oldest_unwatched_per_show() {
-    let app = build_app(vec![]).await;
-    insert_show(&app.pool, 1, "X", None, None, true, &[]).await;
+    let app = build_app().await;
+    insert_show(&app.pool, 1, "X", None, None, &[]).await;
     insert_season(&app.pool, 1, 1, 2).await;
     insert_episode(&app.pool, 1, 1, 1, Some(&iso_offset(-5)), false).await;
     insert_episode(&app.pool, 1, 1, 2, Some(&iso_offset(-1)), false).await;
@@ -591,9 +556,9 @@ async fn up_next_returns_oldest_unwatched_per_show() {
 
 #[tokio::test]
 async fn sync_returns_per_show_results() {
-    let app = build_app(vec![]).await;
-    insert_show(&app.pool, 1, "Good", None, None, true, &[]).await;
-    insert_show(&app.pool, 2, "Bad", None, None, true, &[]).await;
+    let app = build_app().await;
+    insert_show(&app.pool, 1, "Good", None, None, &[]).await;
+    insert_show(&app.pool, 2, "Bad", None, None, &[]).await;
 
     Mock::given(wm_method("GET"))
         .and(wm_path("/tv/1"))
@@ -624,114 +589,11 @@ async fn sync_returns_per_show_results() {
     assert_eq!(errors[0]["tmdb_id"], 2);
 }
 
-// ============================ Notifications ============================
-
-#[tokio::test]
-async fn test_notification_dispatches_to_all_channels() {
-    let app = build_app_with_recording_notifier().await;
-
-    // Updated for VULN-002: state-changing POSTs now require
-    // `Content-Type: application/json`, which the React client already sends.
-    let req = Request::builder()
-        .method(Method::POST)
-        .uri("/api/v1/notifications/test")
-        .header("content-type", "application/json")
-        .body(Body::empty())
-        .unwrap();
-    let resp = build_api_router(app.state.clone())
-        .oneshot(req)
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let v = body_to_value(resp).await;
-    let results = v["results"].as_array().unwrap();
-    assert_eq!(results.len(), 1);
-    assert_eq!(results[0]["channel"], "rec");
-    assert_eq!(results[0]["ok"], true);
-
-    let calls = app.notifier_calls.unwrap();
-    let calls = calls.lock().unwrap();
-    assert_eq!(calls.len(), 1);
-}
-
-#[tokio::test]
-async fn test_notification_ignores_user_supplied_message_field() {
-    // The endpoint must NOT accept a caller-supplied message — otherwise any
-    // unauthenticated request could broadcast arbitrary content to Slack.
-    let app = build_app_with_recording_notifier().await;
-    let resp = build_api_router(app.state.clone())
-        .oneshot(json_request(
-            Method::POST,
-            "/api/v1/notifications/test",
-            serde_json::json!({"message": "<malicious payload>"}),
-        ))
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let calls = app.notifier_calls.unwrap();
-    let calls = calls.lock().unwrap();
-    assert_eq!(calls.len(), 1);
-    match &calls[0] {
-        showrunner_backend::notifications::NotificationEvent::Test { message } => {
-            assert!(!message.contains("malicious"));
-        }
-        other => panic!("expected Test event, got {:?}", other),
-    }
-}
-
-#[tokio::test]
-async fn test_notification_reports_per_channel_failures() {
-    let bad = RecordingNotifier::failing("bad");
-    let pool = test_pool().await;
-    let server = MockServer::start().await;
-    let state = app_state(
-        pool.clone(),
-        server.uri(),
-        vec![Box::new(bad) as Box<dyn Notifier>],
-        utc_tz(),
-    );
-
-    let resp = build_api_router(state)
-        .oneshot(json_request(
-            Method::POST,
-            "/api/v1/notifications/test",
-            serde_json::json!({}),
-        ))
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let v = body_to_value(resp).await;
-    let results = v["results"].as_array().unwrap();
-    assert_eq!(results[0]["ok"], false);
-    assert!(results[0]["error"]
-        .as_str()
-        .unwrap()
-        .contains("stub failure"));
-}
-
-#[tokio::test]
-async fn test_notification_with_no_channels_returns_empty_results() {
-    let app = build_app(vec![]).await;
-    let resp = build_api_router(app.state.clone())
-        .oneshot(json_request(
-            Method::POST,
-            "/api/v1/notifications/test",
-            serde_json::json!({}),
-        ))
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let v = body_to_value(resp).await;
-    assert!(v["results"].as_array().unwrap().is_empty());
-}
-
 // ============================ Movies ============================
 
 #[tokio::test]
 async fn list_movies_returns_empty_initially() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     let resp = build_api_router(app.state.clone())
         .oneshot(empty_request(Method::GET, "/api/v1/movies"))
         .await
@@ -743,7 +605,7 @@ async fn list_movies_returns_empty_initially() {
 
 #[tokio::test]
 async fn add_movie_fetches_from_tmdb_and_inserts() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     Mock::given(wm_method("GET"))
         .and(wm_path("/movie/27205"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -787,7 +649,7 @@ async fn add_movie_fetches_from_tmdb_and_inserts() {
 
 #[tokio::test]
 async fn add_movie_rejects_duplicate() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     insert_movie(&app.pool, 1, "Already").await;
     let resp = build_api_router(app.state.clone())
         .oneshot(json_request(
@@ -804,7 +666,7 @@ async fn add_movie_rejects_duplicate() {
 
 #[tokio::test]
 async fn add_movie_returns_404_when_tmdb_missing() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     Mock::given(wm_method("GET"))
         .and(wm_path("/movie/9"))
         .respond_with(ResponseTemplate::new(404))
@@ -823,7 +685,7 @@ async fn add_movie_returns_404_when_tmdb_missing() {
 
 #[tokio::test]
 async fn get_movie_detail_returns_cast_and_providers() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     insert_movie(&app.pool, 27205, "Inception").await;
     Mock::given(wm_method("GET"))
         .and(wm_path("/movie/27205"))
@@ -874,7 +736,7 @@ async fn get_movie_detail_returns_cast_and_providers() {
 
 #[tokio::test]
 async fn get_movie_detail_returns_404_when_not_on_watchlist() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     let resp = build_api_router(app.state.clone())
         .oneshot(empty_request(Method::GET, "/api/v1/movies/999"))
         .await
@@ -884,7 +746,7 @@ async fn get_movie_detail_returns_404_when_not_on_watchlist() {
 
 #[tokio::test]
 async fn get_movie_detail_maps_tmdb_429_to_friendly_message() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     insert_movie(&app.pool, 27205, "Inception").await;
     Mock::given(wm_method("GET"))
         .and(wm_path("/movie/27205"))
@@ -903,7 +765,7 @@ async fn get_movie_detail_maps_tmdb_429_to_friendly_message() {
 
 #[tokio::test]
 async fn delete_movie_removes_and_returns_204() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     insert_movie(&app.pool, 1, "X").await;
     let resp = build_api_router(app.state.clone())
         .oneshot(empty_request(Method::DELETE, "/api/v1/movies/1"))
@@ -927,7 +789,7 @@ async fn delete_movie_removes_and_returns_204() {
 // '0' (0x30), so the lower bound under-runs every stored date.
 
 async fn seed_calendar_spread(pool: &SqlitePool) {
-    insert_show(pool, 1, "Show", None, None, true, &[]).await;
+    insert_show(pool, 1, "Show", None, None, &[]).await;
     insert_season(pool, 1, 1, 3).await;
     // Spread far enough apart that no legal 92-day window contains all three.
     for (episode, offset) in [(1_i64, -400_i64), (2, 0), (3, 400)] {
@@ -952,7 +814,7 @@ async fn get_calendar(
 
 #[tokio::test]
 async fn calendar_signed_year_does_not_bypass_the_92_day_cap() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     seed_calendar_spread(&app.pool).await;
 
     let (status, v) = get_calendar(app.state.clone(), "start=%2B009999-10-01&end=9999-12-31").await;
@@ -971,7 +833,7 @@ async fn calendar_signed_year_does_not_bypass_the_92_day_cap() {
 
 #[tokio::test]
 async fn calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     seed_calendar_spread(&app.pool).await;
 
     let today = Utc::now().date_naive();
@@ -1003,7 +865,7 @@ async fn calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql() {
 
 #[tokio::test]
 async fn calendar_ordinary_range_still_returns_the_in_window_episode() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     seed_calendar_spread(&app.pool).await;
 
     let query = format!("start={}&end={}", iso_offset(-10), iso_offset(10));
@@ -1015,11 +877,10 @@ async fn calendar_ordinary_range_still_returns_the_in_window_episode() {
 
 // ===== VULN-002 (CWE-352) — CSRF on the body-less POSTs =====
 //
-// `POST /sync` and `POST /notifications/test` take only `State`, so a
-// cross-origin HTML form is a CORS *simple request*: no preflight fires, the
-// CorsLayer is never consulted, and the action executes. Requiring
-// `application/json` makes the request non-simple, which no form enctype can
-// produce.
+// `POST /sync` takes only `State`, so a cross-origin HTML form is a CORS
+// *simple request*: no preflight fires, the CorsLayer is never consulted, and
+// the action executes. Requiring `application/json` makes the request
+// non-simple, which no form enctype can produce.
 
 const CSRF_EVIL_ORIGIN: &str = "https://evil.example";
 
@@ -1039,29 +900,8 @@ fn cross_origin_form_post(uri: &str) -> Request<Body> {
 }
 
 #[tokio::test]
-async fn form_encoded_post_to_notifications_test_is_rejected() {
-    let app = build_app_with_recording_notifier().await;
-    let resp = build_api_router(app.state.clone())
-        .oneshot(cross_origin_form_post("/api/v1/notifications/test"))
-        .await
-        .unwrap();
-
-    assert_eq!(
-        resp.status(),
-        StatusCode::UNSUPPORTED_MEDIA_TYPE,
-        "form-encoded POST must be rejected with 415, got {}",
-        resp.status()
-    );
-    assert_eq!(
-        app.notifier_calls.unwrap().lock().unwrap().len(),
-        0,
-        "forged cross-origin form POST dispatched a notification"
-    );
-}
-
-#[tokio::test]
 async fn form_encoded_post_to_sync_is_rejected() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     let resp = build_api_router(app.state.clone())
         .oneshot(cross_origin_form_post("/api/v1/sync"))
         .await
@@ -1078,7 +918,7 @@ async fn form_encoded_post_to_sync_is_rejected() {
 /// `text/plain` is the other enctype a form can emit without a preflight.
 #[tokio::test]
 async fn text_plain_post_to_sync_is_rejected() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     let req = Request::builder()
         .method(Method::POST)
         .uri("/api/v1/sync")
@@ -1099,30 +939,11 @@ async fn text_plain_post_to_sync_is_rejected() {
     );
 }
 
-/// The legitimate same-origin caller — the React client sets this header on
-/// every request — must keep working. Guards against over-tightening.
-#[tokio::test]
-async fn json_content_type_post_to_notifications_test_still_works() {
-    let app = build_app_with_recording_notifier().await;
-    let req = Request::builder()
-        .method(Method::POST)
-        .uri("/api/v1/notifications/test")
-        .header("content-type", "application/json")
-        .body(Body::empty())
-        .unwrap();
-    let resp = build_api_router(app.state.clone())
-        .oneshot(req)
-        .await
-        .unwrap();
-
-    assert_eq!(resp.status(), StatusCode::OK);
-    assert_eq!(app.notifier_calls.unwrap().lock().unwrap().len(), 1);
-}
-
-/// A `+json` structured suffix with parameters must be accepted too.
+/// A `+json` structured suffix with parameters must be accepted too. Guards
+/// against over-tightening the content-type gate for legitimate callers.
 #[tokio::test]
 async fn json_suffix_and_charset_parameter_are_accepted() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     let req = Request::builder()
         .method(Method::POST)
         .uri("/api/v1/sync")
@@ -1143,7 +964,7 @@ async fn json_suffix_and_charset_parameter_are_accepted() {
 /// GET must not be swept up by the content-type gate.
 #[tokio::test]
 async fn get_requests_are_unaffected_by_the_content_type_gate() {
-    let app = build_app(vec![]).await;
+    let app = build_app().await;
     let resp = build_api_router(app.state.clone())
         .oneshot(empty_request(Method::GET, "/api/v1/shows"))
         .await
@@ -1170,10 +991,8 @@ fn cors_cfg(origin: Option<&str>) -> showrunner_backend::config::Config {
         },
         database_url: "sqlite::memory:".into(),
         tmdb_api_key: "k".into(),
-        slack_webhook_url: None,
         schedule: showrunner_backend::config::ScheduleConfig {
             resync_cron: "0 0 6 * * *".into(),
-            notification_check_interval_minutes: 60,
         },
         timezone: utc_tz(),
     }
@@ -1197,7 +1016,7 @@ fn delete_preflight() -> Request<Body> {
 async fn wildcard_branch_grants_no_more_than_the_named_origin_branch() {
     async fn preflight_headers(origin_cfg: Option<&str>) -> axum::http::HeaderMap {
         let pool = test_pool().await;
-        let state = app_state(pool, "http://127.0.0.1:1".into(), vec![], utc_tz());
+        let state = app_state(pool, "http://127.0.0.1:1".into(), utc_tz());
         let app = build_api_router(state)
             .layer(showrunner_backend::build_cors_layer(&cors_cfg(origin_cfg)));
         let req = Request::builder()
@@ -1232,7 +1051,7 @@ async fn wildcard_branch_grants_no_more_than_the_named_origin_branch() {
 #[tokio::test]
 async fn wildcard_cors_does_not_expose_all_response_headers() {
     let pool = test_pool().await;
-    let state = app_state(pool, "http://127.0.0.1:1".into(), vec![], utc_tz());
+    let state = app_state(pool, "http://127.0.0.1:1".into(), utc_tz());
     let app =
         build_api_router(state).layer(showrunner_backend::build_cors_layer(&cors_cfg(Some("*"))));
 
@@ -1261,7 +1080,7 @@ async fn wildcard_cors_does_not_expose_all_response_headers() {
 #[tokio::test]
 async fn wildcard_cors_never_allows_credentials() {
     let pool = test_pool().await;
-    let state = app_state(pool, "http://127.0.0.1:1".into(), vec![], utc_tz());
+    let state = app_state(pool, "http://127.0.0.1:1".into(), utc_tz());
     let app =
         build_api_router(state).layer(showrunner_backend::build_cors_layer(&cors_cfg(Some("*"))));
 
@@ -1279,7 +1098,7 @@ async fn wildcard_cors_never_allows_credentials() {
 #[tokio::test]
 async fn wildcard_cors_still_allows_any_origin_with_the_explicit_method_list() {
     let pool = test_pool().await;
-    let state = app_state(pool, "http://127.0.0.1:1".into(), vec![], utc_tz());
+    let state = app_state(pool, "http://127.0.0.1:1".into(), utc_tz());
     let app =
         build_api_router(state).layer(showrunner_backend::build_cors_layer(&cors_cfg(Some("*"))));
 
@@ -1314,7 +1133,7 @@ async fn wildcard_cors_still_allows_any_origin_with_the_explicit_method_list() {
 #[tokio::test]
 async fn named_origin_branch_still_denies_other_origins() {
     let pool = test_pool().await;
-    let state = app_state(pool, "http://127.0.0.1:1".into(), vec![], utc_tz());
+    let state = app_state(pool, "http://127.0.0.1:1".into(), utc_tz());
     let app = build_api_router(state).layer(showrunner_backend::build_cors_layer(&cors_cfg(Some(
         "https://good.example",
     ))));
@@ -1367,9 +1186,9 @@ fn sync_request() -> Request<Body> {
 #[tokio::test]
 async fn repeated_sync_within_the_cooldown_is_rejected() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "Show", None, None, true, &[]).await;
+    insert_show(&pool, 1, "Show", None, None, &[]).await;
     let server = tmdb_answering_every_show().await;
-    let state = app_state(pool, server.uri(), vec![], utc_tz());
+    let state = app_state(pool, server.uri(), utc_tz());
 
     let first = build_api_router(state.clone())
         .oneshot(sync_request())
@@ -1404,12 +1223,12 @@ async fn cooldown_is_per_app_state_not_process_global() {
     let server = tmdb_answering_every_show().await;
 
     let pool_a = test_pool().await;
-    insert_show(&pool_a, 1, "A", None, None, true, &[]).await;
-    let state_a = app_state(pool_a, server.uri(), vec![], utc_tz());
+    insert_show(&pool_a, 1, "A", None, None, &[]).await;
+    let state_a = app_state(pool_a, server.uri(), utc_tz());
 
     let pool_b = test_pool().await;
-    insert_show(&pool_b, 1, "B", None, None, true, &[]).await;
-    let state_b = app_state(pool_b, server.uri(), vec![], utc_tz());
+    insert_show(&pool_b, 1, "B", None, None, &[]).await;
+    let state_b = app_state(pool_b, server.uri(), utc_tz());
 
     let a = build_api_router(state_a)
         .oneshot(sync_request())
@@ -1425,50 +1244,5 @@ async fn cooldown_is_per_app_state_not_process_global() {
         b.status(),
         StatusCode::OK,
         "a separate AppState must not inherit another's cooldown"
-    );
-}
-
-#[tokio::test]
-async fn repeated_test_notifications_are_rejected() {
-    let pool = test_pool().await;
-    let (rec, calls) = RecordingNotifier::new("rec");
-    let state = app_state(
-        pool,
-        "http://127.0.0.1:1".into(),
-        vec![Box::new(rec) as Box<dyn showrunner_backend::notifications::Notifier>],
-        utc_tz(),
-    );
-
-    fn notify_request() -> Request<Body> {
-        Request::builder()
-            .method(Method::POST)
-            .uri("/api/v1/notifications/test")
-            .header("content-type", "application/json")
-            .body(Body::empty())
-            .unwrap()
-    }
-
-    let first = build_api_router(state.clone())
-        .oneshot(notify_request())
-        .await
-        .unwrap();
-    assert_eq!(first.status(), StatusCode::OK);
-
-    for _ in 0..5 {
-        let resp = build_api_router(state.clone())
-            .oneshot(notify_request())
-            .await
-            .unwrap();
-        assert_eq!(
-            resp.status(),
-            StatusCode::TOO_MANY_REQUESTS,
-            "repeated test notifications must be refused"
-        );
-    }
-
-    assert_eq!(
-        calls.lock().unwrap().len(),
-        1,
-        "only the first test notification should have reached the notifier"
     );
 }

@@ -1,13 +1,11 @@
 import type {
   CalendarResponse,
-  HealthResponse,
   MovieDetail,
   MovieListResponse,
   MovieWatchlistItem,
   SearchResponse,
   ShowDetail,
   SyncResponse,
-  TestNotificationResponse,
   UpNextResponse,
   WatchlistItem,
   WatchlistResponse,
@@ -34,7 +32,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  health: () => request<HealthResponse>('/health'),
   search: (q: string) =>
     request<SearchResponse>(`/search?q=${encodeURIComponent(q)}`),
   listShows: () => request<WatchlistResponse>('/shows'),
@@ -81,8 +78,6 @@ export const api = {
       `/calendar?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
     ),
   sync: () => request<SyncResponse>('/sync', { method: 'POST' }),
-  testNotification: () =>
-    request<TestNotificationResponse>('/notifications/test', { method: 'POST' }),
 };
 
 export type BulkWatchScope =

@@ -24,7 +24,7 @@ sqlx = { version = "0.9", default-features = false, features = [
     "macros",
 ] }
 
-# HTTP client (TMDB, Slack). Use `rustls` instead of the default native-tls
+# HTTP client (TMDB). Use `rustls` instead of the default native-tls
 # so the runtime image doesn't need libssl; reqwest pulls in webpki-roots
 # with this feature, so /etc/ssl/certs isn't needed either. Other features
 # are the reqwest defaults we'd otherwise lose with default-features=false.
@@ -49,8 +49,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Environment
 dotenvy = "0.15"
 
-# Async traits for Notifier
-async-trait = "0.1"
 
 # Scheduler
 tokio-cron-scheduler = "0.15"

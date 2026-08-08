@@ -20,7 +20,6 @@ Once we've agreed on the shape of a change in the issue, open the PR and link it
 Showrunner is a personal TV tracker for a homelab. Things that fit well:
 
 - Bug fixes
-- New notification channels (the `Notifier` trait is designed for exactly this — see `backend/src/notifications/`)
 - Better TMDB data handling, more accurate air dates, edge cases in season/episode structures
 - UI/UX improvements to the existing pages
 - Tests, docs, accessibility
@@ -70,18 +69,6 @@ Notes on the gate:
 - **Keep the commit history readable.** Conventional-commit style (`feat:`, `fix:`, `chore:`, `docs:`) is used throughout this repo; please match it.
 - **Update the docs** when you change behavior — the README config table and `CLAUDE.md` architecture notes should never lie about the code.
 - **Don't commit secrets.** No API keys, no webhook URLs, no `.env` files, no database files. The `.gitignore` covers the usual cases, but check `git diff --cached` before you commit.
-
-## Adding a notification channel
-
-This is the most likely contribution, so here's the shape of it:
-
-1. Add a file in `backend/src/notifications/` implementing the `Notifier` trait.
-2. Register it in the dispatcher (one line).
-3. Add its config to `Config::from_env` in `backend/src/config.rs` — the channel should be disabled when its env var is blank, matching how `SLACK_WEBHOOK_URL` works.
-4. Add it to `env.example` and the README config table.
-5. Add tests. The existing Slack tests use `wiremock` to stub the webhook endpoint; follow that pattern.
-
-The dedupe layer (`notification_log`) is channel-aware and handled centrally, so you don't need to reimplement it.
 
 ## Reporting a security issue
 

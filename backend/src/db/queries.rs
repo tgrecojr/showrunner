@@ -42,8 +42,8 @@ pub async fn insert_show_full(
         INSERT INTO shows (
             tmdb_id, name, overview, poster_path, backdrop_path, status,
             first_air_date, last_air_date, in_production, watch_providers_json,
-            notify_new_episodes, last_synced_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+            last_synced_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(show.id)
@@ -136,7 +136,7 @@ pub async fn list_watchlist(pool: &SqlitePool, tz: Tz) -> Result<Vec<WatchlistIt
     let shows: Vec<ShowRow> = sqlx::query_as(
         "SELECT tmdb_id, name, overview, poster_path, backdrop_path, status,
                 first_air_date, last_air_date, in_production, watch_providers_json,
-                notify_new_episodes, added_at, last_synced_at
+                added_at, last_synced_at
          FROM shows ORDER BY name COLLATE NOCASE
          LIMIT ?",
     )
@@ -173,7 +173,7 @@ pub async fn get_watchlist_item(
     let s: Option<ShowRow> = sqlx::query_as(
         "SELECT tmdb_id, name, overview, poster_path, backdrop_path, status,
                 first_air_date, last_air_date, in_production, watch_providers_json,
-                notify_new_episodes, added_at, last_synced_at
+                added_at, last_synced_at
          FROM shows WHERE tmdb_id = ?",
     )
     .bind(tmdb_id)
@@ -201,7 +201,7 @@ pub async fn get_show_detail(pool: &SqlitePool, tmdb_id: i64) -> Result<Option<S
     let s: Option<ShowRow> = sqlx::query_as(
         "SELECT tmdb_id, name, overview, poster_path, backdrop_path, status,
                 first_air_date, last_air_date, in_production, watch_providers_json,
-                notify_new_episodes, added_at, last_synced_at
+                added_at, last_synced_at
          FROM shows WHERE tmdb_id = ?",
     )
     .bind(tmdb_id)
@@ -446,8 +446,7 @@ fn empty_to_none(s: Option<&str>) -> Option<&str> {
 
 // === Resync upserts ===
 
-/// Update mutable show fields from a fresh TMDB response. Does not touch
-/// notify_new_episodes (that's a user setting).
+/// Update mutable show fields from a fresh TMDB response.
 pub async fn upsert_show_metadata(pool: &SqlitePool, show: &TmdbShow) -> Result<()> {
     let providers_json = serde_json::to_string(&show.us_providers())?;
     let now = Utc::now().to_rfc3339();
@@ -547,111 +546,6 @@ pub async fn list_tracked_show_ids(pool: &SqlitePool) -> Result<Vec<i64>> {
             .fetch_all(pool)
             .await?;
     Ok(rows.into_iter().map(|r| r.0).collect())
-}
-
-// === Notifications ===
-
-#[derive(Debug, Clone)]
-pub struct NotifiableEpisode {
-    pub show_tmdb_id: i64,
-    pub show_name: String,
-    pub season_number: i64,
-    pub episode_number: i64,
-    pub episode_name: Option<String>,
-    pub watch_providers: Vec<String>,
-}
-
-pub async fn list_episodes_airing_on(
-    pool: &SqlitePool,
-    date: &str,
-) -> Result<Vec<NotifiableEpisode>> {
-    #[derive(sqlx::FromRow)]
-    struct Row {
-        show_tmdb_id: i64,
-        show_name: String,
-        watch_providers_json: Option<String>,
-        season_number: i64,
-        episode_number: i64,
-        episode_name: Option<String>,
-    }
-
-    let rows: Vec<Row> = sqlx::query_as(
-        "SELECT
-            s.tmdb_id AS show_tmdb_id,
-            s.name AS show_name,
-            s.watch_providers_json,
-            e.season_number,
-            e.episode_number,
-            e.name AS episode_name
-         FROM episodes e
-         JOIN shows s ON s.tmdb_id = e.show_tmdb_id
-         WHERE e.air_date = ?
-           AND s.notify_new_episodes = 1
-         ORDER BY s.name COLLATE NOCASE, e.season_number, e.episode_number",
-    )
-    .bind(date)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(rows
-        .into_iter()
-        .map(|r| {
-            let providers: Vec<String> = r
-                .watch_providers_json
-                .as_deref()
-                .and_then(|j| serde_json::from_str(j).ok())
-                .unwrap_or_default();
-            NotifiableEpisode {
-                show_tmdb_id: r.show_tmdb_id,
-                show_name: r.show_name,
-                season_number: r.season_number,
-                episode_number: r.episode_number,
-                episode_name: r.episode_name,
-                watch_providers: providers,
-            }
-        })
-        .collect())
-}
-
-pub async fn was_notified(
-    pool: &SqlitePool,
-    show_tmdb_id: i64,
-    season_number: i64,
-    episode_number: i64,
-    channel: &str,
-) -> Result<bool> {
-    let row: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM notification_log
-         WHERE show_tmdb_id = ? AND season_number = ? AND episode_number = ? AND channel = ?",
-    )
-    .bind(show_tmdb_id)
-    .bind(season_number)
-    .bind(episode_number)
-    .bind(channel)
-    .fetch_one(pool)
-    .await?;
-    Ok(row.0 > 0)
-}
-
-pub async fn log_notification(
-    pool: &SqlitePool,
-    show_tmdb_id: i64,
-    season_number: i64,
-    episode_number: i64,
-    channel: &str,
-) -> Result<()> {
-    sqlx::query(
-        "INSERT OR IGNORE INTO notification_log
-            (show_tmdb_id, season_number, episode_number, channel)
-         VALUES (?, ?, ?, ?)",
-    )
-    .bind(show_tmdb_id)
-    .bind(season_number)
-    .bind(episode_number)
-    .bind(channel)
-    .execute(pool)
-    .await?;
-    Ok(())
 }
 
 pub async fn list_up_next(pool: &SqlitePool, tz: Tz) -> Result<Vec<UpNextItem>> {
