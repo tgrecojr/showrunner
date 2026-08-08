@@ -54,12 +54,12 @@ describe('api client', () => {
 
   it('falls back to raw text when error body is not JSON', async () => {
     fetchSpy.mockResolvedValueOnce(textResponse(500, 'plain failure'));
-    await expect(api.health()).rejects.toThrowError('API 500: plain failure');
+    await expect(api.listShows()).rejects.toThrowError('API 500: plain failure');
   });
 
   it('falls back to raw text when JSON has no error field', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse(400, { other: 'noise' }));
-    await expect(api.health()).rejects.toThrowError(/API 400/);
+    await expect(api.listShows()).rejects.toThrowError(/API 400/);
   });
 
   it('listShows hits /shows', async () => {
@@ -136,19 +136,4 @@ describe('api client', () => {
     expect(init?.method).toBe('POST');
   });
 
-  it('testNotification POSTs to /notifications/test with no body', async () => {
-    fetchSpy.mockResolvedValueOnce(jsonResponse(200, { results: [] }));
-    await api.testNotification();
-    const [url, init] = fetchSpy.mock.calls[0] as FetchArgs;
-    expect(url).toBe('/api/v1/notifications/test');
-    expect(init?.method).toBe('POST');
-    expect(init?.body).toBeUndefined();
-  });
-
-  it('health hits /health', async () => {
-    fetchSpy.mockResolvedValueOnce(jsonResponse(200, { status: 'ok' }));
-    await api.health();
-    const [url] = fetchSpy.mock.calls[0] as FetchArgs;
-    expect(url).toBe('/api/v1/health');
-  });
 });

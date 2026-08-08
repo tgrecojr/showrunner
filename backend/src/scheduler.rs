@@ -1,9 +1,8 @@
-use std::time::Duration;
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 use crate::config::ScheduleConfig;
 use crate::error::{AppError, Result};
-use crate::logic::{notifications, resync};
+use crate::logic::resync;
 use crate::state::AppState;
 
 pub async fn start(state: AppState, schedule: ScheduleConfig) -> Result<JobScheduler> {
@@ -34,35 +33,6 @@ pub async fn start(state: AppState, schedule: ScheduleConfig) -> Result<JobSched
         .await
         .map_err(|e| AppError::Config(format!("Failed to add resync job: {}", e)))?;
 
-    // Interval-driven notification check.
-    let notify_state = state.clone();
-    // `saturating_mul` guards against overflow on absurd configs; the value is
-    // validated to be >= 1 in `Config::from_env`, so `interval` is never zero
-    // (which would panic `tokio::time::interval`).
-    let interval = Duration::from_secs(
-        schedule
-            .notification_check_interval_minutes
-            .saturating_mul(60),
-    );
-    tokio::spawn(async move {
-        let mut ticker = tokio::time::interval(interval);
-        ticker.tick().await; // skip immediate fire
-        loop {
-            ticker.tick().await;
-            match notifications::check_and_notify(
-                &notify_state.pool,
-                &notify_state.notifier,
-                notify_state.tz,
-            )
-            .await
-            {
-                Ok(0) => tracing::debug!("notification check: nothing to send"),
-                Ok(sent) => tracing::info!(sent, "notification check: dispatched"),
-                Err(e) => tracing::error!(error = %e, "notification check errored"),
-            }
-        }
-    });
-
     scheduler
         .start()
         .await
@@ -71,7 +41,6 @@ pub async fn start(state: AppState, schedule: ScheduleConfig) -> Result<JobSched
     tracing::info!(
         cron = %schedule.resync_cron,
         timezone = %state.tz,
-        notify_min = schedule.notification_check_interval_minutes,
         "scheduler started"
     );
     Ok(scheduler)
@@ -81,7 +50,6 @@ pub async fn start(state: AppState, schedule: ScheduleConfig) -> Result<JobSched
 mod tests {
     use super::*;
     use crate::datasources::tmdb::TmdbClient;
-    use crate::notifications::dispatcher::NotificationDispatcher;
     use chrono_tz::UTC;
     use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
     use std::str::FromStr;
@@ -98,7 +66,7 @@ mod tests {
             .await
             .unwrap();
         let tmdb = TmdbClient::new("k".into());
-        AppState::new(pool, tmdb, NotificationDispatcher::new(Vec::new()), UTC)
+        AppState::new(pool, tmdb, UTC)
     }
 
     #[tokio::test]
@@ -106,7 +74,6 @@ mod tests {
         let state = fresh_state().await;
         let schedule = ScheduleConfig {
             resync_cron: "0 0 12 * * *".into(),
-            notification_check_interval_minutes: 60,
         };
         let mut scheduler = start(state, schedule).await.unwrap();
         scheduler.shutdown().await.unwrap();
@@ -117,7 +84,6 @@ mod tests {
         let state = fresh_state().await;
         let schedule = ScheduleConfig {
             resync_cron: "this is not a cron".into(),
-            notification_check_interval_minutes: 60,
         };
         let result = start(state, schedule).await;
         match result {

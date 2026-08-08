@@ -5,15 +5,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::datasources::tmdb::TmdbClient;
-use crate::notifications::dispatcher::NotificationDispatcher;
 
 /// Minimum wall-clock gap between two manual `POST /api/v1/sync` runs.
 pub const MANUAL_SYNC_MIN_INTERVAL: Duration = Duration::from_secs(60);
-
-/// Minimum wall-clock gap between two `POST /api/v1/notifications/test` runs.
-/// Shorter than the sync interval: one test message is far cheaper than a full
-/// resync, but unbounded repetition still floods the operator's webhook.
-pub const NOTIFY_TEST_MIN_INTERVAL: Duration = Duration::from_secs(10);
 
 /// Enforces a minimum interval between runs of an expensive operation.
 ///
@@ -47,26 +41,17 @@ impl RateGate {
 pub struct AppState {
     pub pool: SqlitePool,
     pub tmdb: Arc<TmdbClient>,
-    pub notifier: Arc<NotificationDispatcher>,
     pub tz: Tz,
     pub sync_gate: Arc<RateGate>,
-    pub notify_test_gate: Arc<RateGate>,
 }
 
 impl AppState {
-    pub fn new(
-        pool: SqlitePool,
-        tmdb: TmdbClient,
-        notifier: NotificationDispatcher,
-        tz: Tz,
-    ) -> Self {
+    pub fn new(pool: SqlitePool, tmdb: TmdbClient, tz: Tz) -> Self {
         Self {
             pool,
             tmdb: Arc::new(tmdb),
-            notifier: Arc::new(notifier),
             tz,
             sync_gate: Arc::new(RateGate::default()),
-            notify_test_gate: Arc::new(RateGate::default()),
         }
     }
 }

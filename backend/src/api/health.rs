@@ -9,7 +9,6 @@ pub struct HealthResponse {
     pub status: String,
     pub version: String,
     pub database: bool,
-    pub notifiers: Vec<String>,
 }
 
 pub async fn health_check(State(state): State<AppState>) -> Json<HealthResponse> {
@@ -25,11 +24,5 @@ pub async fn health_check(State(state): State<AppState>) -> Json<HealthResponse>
         status: if db_ok { "ok" } else { "degraded" }.to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         database: db_ok,
-        notifiers: state
-            .notifier
-            .channel_names()
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect(),
     })
 }

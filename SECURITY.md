@@ -12,7 +12,7 @@ Please include what the issue is, how to reproduce it, and what an attacker coul
 
 Showrunner **has no authentication**. This is deliberate, not an oversight.
 
-It is designed to run inside a trusted network (a homelab LAN, or behind a reverse proxy / VPN / SSO layer that you control). Every API endpoint is unauthenticated: anyone who can reach the port can read your watchlist, add or remove shows, mark episodes watched, trigger a TMDB resync, and fire a test notification to your configured Slack channel.
+It is designed to run inside a trusted network (a homelab LAN, or behind a reverse proxy / VPN / SSO layer that you control). Every API endpoint is unauthenticated: anyone who can reach the port can read your watchlist, add or remove shows, mark episodes watched, and trigger a TMDB resync.
 
 **Therefore:**
 
@@ -26,7 +26,6 @@ Authentication and multi-user support are a known future design topic. If you ne
 Even without auth, the app is built to avoid handing an attacker anything beyond the app's own data:
 
 - **Your TMDB API key never reaches the browser.** All TMDB calls are proxied through the backend; the key lives only in the server's environment.
-- **Your Slack webhook URL is never exposed by the API.** `/api/v1/health` reports only the *names* of configured channels (e.g. `["slack"]`), never the URL.
 - **All database access uses bound parameters** via `sqlx` — no SQL is built by string concatenation.
 - **The container runs as a non-root user** (uid 65532) on a distroless Chainguard base with no shell and no package manager.
 
@@ -44,4 +43,4 @@ Dependencies are scanned in CI (`cargo audit`, `npm audit`, OSV, Socket) and upd
 
 ## Handling secrets
 
-`TMDB_API_KEY` and `SLACK_WEBHOOK_URL` are secrets. Keep them in your `.env` file, which is gitignored. Never paste them into an issue, a PR, or a log excerpt — redact them first.
+`TMDB_API_KEY` is a secret. Keep it in your `.env` file, which is gitignored. Never paste it into an issue, a PR, or a log excerpt — redact it first.

@@ -18,7 +18,7 @@ pub fn backdrop_url(path: Option<&str>) -> Option<String> {
 
 // Row structs mirror their tables for sqlx::FromRow; some columns aren't
 // surfaced yet but we want to keep the rows complete for forward use
-// (e.g. per-show notify toggle UI, watched_at history view).
+// (e.g. watched_at history view).
 #[allow(dead_code)]
 #[derive(Debug, Clone, FromRow)]
 pub struct ShowRow {
@@ -32,7 +32,6 @@ pub struct ShowRow {
     pub last_air_date: Option<String>,
     pub in_production: i64,
     pub watch_providers_json: Option<String>,
-    pub notify_new_episodes: i64,
     pub added_at: String,
     pub last_synced_at: Option<String>,
 }

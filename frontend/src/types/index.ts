@@ -1,10 +1,3 @@
-export interface HealthResponse {
-  status: string;
-  version: string;
-  database: boolean;
-  notifiers: string[];
-}
-
 export type MediaType = 'tv' | 'movie';
 
 export interface SearchResult {
@@ -98,16 +91,6 @@ export interface SyncError {
 export interface SyncResponse {
   shows_synced: number;
   errors: SyncError[];
-}
-
-export interface NotificationChannelResult {
-  channel: string;
-  ok: boolean;
-  error: string | null;
-}
-
-export interface TestNotificationResponse {
-  results: NotificationChannelResult[];
 }
 
 export interface UpNextItem {

@@ -8,10 +8,6 @@ use showrunner_backend::db::queries::{self, BulkScope};
 
 use crate::common::*;
 
-fn iso_today() -> String {
-    Utc::now().date_naive().to_string()
-}
-
 fn iso_offset(days: i64) -> String {
     (Utc::now().date_naive() + Duration::days(days)).to_string()
 }
@@ -70,7 +66,7 @@ async fn insert_show_full_persists_show_seasons_and_episodes() {
 async fn show_exists_and_delete_show() {
     let pool = test_pool().await;
 
-    insert_show(&pool, 1, "X", None, None, true, &[]).await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
     assert!(queries::show_exists(&pool, 1).await.unwrap());
     assert!(!queries::show_exists(&pool, 99).await.unwrap());
 
@@ -82,7 +78,7 @@ async fn show_exists_and_delete_show() {
 #[tokio::test]
 async fn delete_show_cascades_to_seasons_and_episodes() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "X", None, None, true, &[]).await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
     insert_season(&pool, 1, 1, 2).await;
     insert_episode(&pool, 1, 1, 1, Some(&iso_offset(-3)), false).await;
     insert_episode(&pool, 1, 1, 2, Some(&iso_offset(-2)), false).await;
@@ -100,14 +96,14 @@ async fn delete_show_cascades_to_seasons_and_episodes() {
 #[tokio::test]
 async fn list_watchlist_includes_progress_and_next_air_date() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "Alpha", Some("/a.jpg"), Some("Ended"), true, &[]).await;
+    insert_show(&pool, 1, "Alpha", Some("/a.jpg"), Some("Ended"), &[]).await;
     insert_season(&pool, 1, 1, 3).await;
     // 2 aired (one watched), 1 future
     insert_episode(&pool, 1, 1, 1, Some(&iso_offset(-5)), true).await;
     insert_episode(&pool, 1, 1, 2, Some(&iso_offset(-1)), false).await;
     insert_episode(&pool, 1, 1, 3, Some(&iso_offset(7)), false).await;
 
-    insert_show(&pool, 2, "beta", None, None, true, &[]).await;
+    insert_show(&pool, 2, "beta", None, None, &[]).await;
     insert_season(&pool, 2, 1, 1).await;
     insert_episode(&pool, 2, 1, 1, None, false).await;
 
@@ -149,8 +145,8 @@ async fn get_show_detail_returns_none_for_unknown() {
 async fn get_show_detail_handles_invalid_providers_json() {
     let pool = test_pool().await;
     sqlx::query(
-        "INSERT INTO shows (tmdb_id, name, watch_providers_json, notify_new_episodes)
-         VALUES (1, 'X', 'not-json', 1)",
+        "INSERT INTO shows (tmdb_id, name, watch_providers_json)
+         VALUES (1, 'X', 'not-json')",
     )
     .execute(&pool)
     .await
@@ -162,8 +158,8 @@ async fn get_show_detail_handles_invalid_providers_json() {
 #[tokio::test]
 async fn tracked_tmdb_ids_in_handles_empty_and_subset() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "A", None, None, true, &[]).await;
-    insert_show(&pool, 5, "E", None, None, true, &[]).await;
+    insert_show(&pool, 1, "A", None, None, &[]).await;
+    insert_show(&pool, 5, "E", None, None, &[]).await;
 
     let empty = queries::tracked_tmdb_ids_in(&pool, &[]).await.unwrap();
     assert!(empty.is_empty());
@@ -176,10 +172,9 @@ async fn tracked_tmdb_ids_in_handles_empty_and_subset() {
 }
 
 #[tokio::test]
-async fn upsert_show_metadata_updates_existing_without_touching_notify_flag() {
+async fn upsert_show_metadata_updates_existing() {
     let pool = test_pool().await;
-    // Start with notify off — must not be reset by upsert.
-    insert_show(&pool, 7, "Old", None, Some("Returning"), false, &[]).await;
+    insert_show(&pool, 7, "Old", None, Some("Returning"), &[]).await;
 
     let updated = deser_show(serde_json::json!({
         "id": 7, "name": "New",
@@ -192,21 +187,19 @@ async fn upsert_show_metadata_updates_existing_without_touching_notify_flag() {
         .await
         .unwrap();
 
-    let row: (String, i64, i64) = sqlx::query_as(
-        "SELECT name, in_production, notify_new_episodes FROM shows WHERE tmdb_id = 7",
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let row: (String, i64) =
+        sqlx::query_as("SELECT name, in_production FROM shows WHERE tmdb_id = 7")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(row.0, "New");
     assert_eq!(row.1, 0);
-    assert_eq!(row.2, 0, "notify_new_episodes must be preserved");
 }
 
 #[tokio::test]
 async fn upsert_season_inserts_then_updates_on_conflict() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "X", None, None, true, &[]).await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
 
     let s = deser_season(serde_json::json!({
         "season_number": 2, "name": "S2", "air_date": "2024-01-01",
@@ -236,7 +229,7 @@ async fn upsert_season_inserts_then_updates_on_conflict() {
 #[tokio::test]
 async fn upsert_episode_preserves_watched_state() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "X", None, None, true, &[]).await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
     insert_season(&pool, 1, 1, 1).await;
     // Pre-existing watched episode
     sqlx::query(
@@ -282,75 +275,18 @@ async fn upsert_episode_preserves_watched_state() {
 #[tokio::test]
 async fn list_tracked_show_ids_sorted_case_insensitively() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "Bravo", None, None, true, &[]).await;
-    insert_show(&pool, 2, "alpha", None, None, true, &[]).await;
-    insert_show(&pool, 3, "Charlie", None, None, true, &[]).await;
+    insert_show(&pool, 1, "Bravo", None, None, &[]).await;
+    insert_show(&pool, 2, "alpha", None, None, &[]).await;
+    insert_show(&pool, 3, "Charlie", None, None, &[]).await;
     let ids = queries::list_tracked_show_ids(&pool).await.unwrap();
     assert_eq!(ids, vec![2, 1, 3]);
 }
 
 #[tokio::test]
-async fn list_episodes_airing_on_filters_by_date_and_notify_flag() {
-    let pool = test_pool().await;
-    insert_show(&pool, 1, "On", None, None, true, &["Hulu", "FX"]).await;
-    insert_show(&pool, 2, "Off", None, None, false, &["Netflix"]).await;
-    insert_season(&pool, 1, 1, 2).await;
-    insert_season(&pool, 2, 1, 1).await;
-    insert_episode(&pool, 1, 1, 1, Some("2026-05-09"), false).await;
-    insert_episode(&pool, 1, 1, 2, Some("2026-05-10"), false).await;
-    insert_episode(&pool, 2, 1, 1, Some("2026-05-09"), false).await;
-
-    let on = queries::list_episodes_airing_on(&pool, "2026-05-09")
-        .await
-        .unwrap();
-    assert_eq!(on.len(), 1);
-    assert_eq!(on[0].show_tmdb_id, 1);
-    assert_eq!(on[0].show_name, "On");
-    assert_eq!(on[0].watch_providers, vec!["Hulu", "FX"]);
-
-    let other = queries::list_episodes_airing_on(&pool, "2030-01-01")
-        .await
-        .unwrap();
-    assert!(other.is_empty());
-}
-
-#[tokio::test]
-async fn was_notified_and_log_notification_dedupes_per_channel() {
-    let pool = test_pool().await;
-    insert_show(&pool, 1, "X", None, None, true, &[]).await;
-    insert_season(&pool, 1, 1, 1).await;
-    insert_episode(&pool, 1, 1, 1, Some(&iso_today()), false).await;
-
-    assert!(!queries::was_notified(&pool, 1, 1, 1, "slack")
-        .await
-        .unwrap());
-    queries::log_notification(&pool, 1, 1, 1, "slack")
-        .await
-        .unwrap();
-    assert!(queries::was_notified(&pool, 1, 1, 1, "slack")
-        .await
-        .unwrap());
-    // Different channel still counts as un-notified.
-    assert!(!queries::was_notified(&pool, 1, 1, 1, "email")
-        .await
-        .unwrap());
-
-    // Re-logging is a no-op (INSERT OR IGNORE).
-    queries::log_notification(&pool, 1, 1, 1, "slack")
-        .await
-        .unwrap();
-    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM notification_log")
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-    assert_eq!(count.0, 1);
-}
-
-#[tokio::test]
 async fn list_up_next_picks_oldest_unwatched_aired_per_show() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "Show1", Some("/a.jpg"), None, true, &[]).await;
-    insert_show(&pool, 2, "Show2", None, None, true, &[]).await;
+    insert_show(&pool, 1, "Show1", Some("/a.jpg"), None, &[]).await;
+    insert_show(&pool, 2, "Show2", None, None, &[]).await;
     insert_season(&pool, 1, 1, 4).await;
     insert_season(&pool, 2, 1, 2).await;
 
@@ -377,7 +313,7 @@ async fn list_up_next_picks_oldest_unwatched_aired_per_show() {
 #[tokio::test]
 async fn list_up_next_skips_shows_with_no_unwatched_aired_episodes() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "Done", None, None, true, &[]).await;
+    insert_show(&pool, 1, "Done", None, None, &[]).await;
     insert_season(&pool, 1, 1, 1).await;
     insert_episode(&pool, 1, 1, 1, Some(&iso_offset(-5)), true).await;
 
@@ -388,7 +324,7 @@ async fn list_up_next_skips_shows_with_no_unwatched_aired_episodes() {
 #[tokio::test]
 async fn list_calendar_episodes_filters_by_range() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "C", Some("/p.jpg"), None, true, &[]).await;
+    insert_show(&pool, 1, "C", Some("/p.jpg"), None, &[]).await;
     insert_season(&pool, 1, 1, 4).await;
     insert_episode(&pool, 1, 1, 1, Some("2026-05-01"), true).await;
     insert_episode(&pool, 1, 1, 2, Some("2026-05-15"), false).await;
@@ -412,7 +348,7 @@ async fn list_calendar_episodes_filters_by_range() {
 #[tokio::test]
 async fn set_episode_watched_toggles_state() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "X", None, None, true, &[]).await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
     insert_season(&pool, 1, 1, 1).await;
     insert_episode(&pool, 1, 1, 1, Some(&iso_offset(-1)), false).await;
 
@@ -442,7 +378,7 @@ async fn set_episode_watched_toggles_state() {
 #[tokio::test]
 async fn set_episode_watched_returns_false_when_episode_missing() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "X", None, None, true, &[]).await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
     let updated = queries::set_episode_watched(&pool, 1, 99, 99, true)
         .await
         .unwrap();
@@ -452,7 +388,7 @@ async fn set_episode_watched_returns_false_when_episode_missing() {
 #[tokio::test]
 async fn bulk_set_watched_all_filters_to_aired_only() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "X", None, None, true, &[]).await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
     insert_season(&pool, 1, 1, 3).await;
     insert_episode(&pool, 1, 1, 1, Some(&iso_offset(-2)), false).await;
     insert_episode(&pool, 1, 1, 2, Some(&iso_offset(-1)), false).await;
@@ -474,7 +410,7 @@ async fn bulk_set_watched_all_filters_to_aired_only() {
 #[tokio::test]
 async fn bulk_set_watched_season_scope() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "X", None, None, true, &[]).await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
     insert_season(&pool, 1, 1, 1).await;
     insert_season(&pool, 1, 2, 1).await;
     insert_episode(&pool, 1, 1, 1, Some(&iso_offset(-2)), false).await;
@@ -508,7 +444,7 @@ async fn bulk_set_watched_season_scope() {
 #[tokio::test]
 async fn bulk_set_watched_through_episode_inclusive_and_aired_only() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "X", None, None, true, &[]).await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
     insert_season(&pool, 1, 1, 3).await;
     insert_season(&pool, 1, 2, 3).await;
     // Season 1
@@ -545,7 +481,7 @@ async fn bulk_set_watched_through_episode_inclusive_and_aired_only() {
 #[tokio::test]
 async fn bulk_set_unwatched_clears_state() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "X", None, None, true, &[]).await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
     insert_season(&pool, 1, 1, 2).await;
     insert_episode(&pool, 1, 1, 1, Some(&iso_offset(-2)), true).await;
     insert_episode(&pool, 1, 1, 2, Some(&iso_offset(-1)), true).await;
@@ -579,7 +515,7 @@ const EXPECTED_CAP: i64 = 500;
 async fn list_watchlist_is_capped() {
     let pool = test_pool().await;
     for i in 1..=OVER_CAP {
-        insert_show(&pool, i, &format!("Show {i:04}"), None, None, true, &[]).await;
+        insert_show(&pool, i, &format!("Show {i:04}"), None, None, &[]).await;
     }
 
     let items = queries::list_watchlist(&pool, utc_tz()).await.unwrap();
@@ -617,7 +553,7 @@ async fn list_movies_is_capped() {
 async fn list_up_next_is_capped() {
     let pool = test_pool().await;
     for i in 1..=OVER_CAP {
-        insert_show(&pool, i, &format!("Show {i:04}"), None, None, true, &[]).await;
+        insert_show(&pool, i, &format!("Show {i:04}"), None, None, &[]).await;
         insert_season(&pool, i, 1, 1).await;
         insert_episode(&pool, i, 1, 1, Some("2020-01-01"), false).await;
     }
@@ -638,7 +574,7 @@ async fn list_up_next_is_capped() {
 async fn small_library_is_returned_in_full_and_in_order() {
     let pool = test_pool().await;
     for (id, name) in [(1_i64, "Charlie"), (2, "alpha"), (3, "Bravo")] {
-        insert_show(&pool, id, name, None, None, true, &[]).await;
+        insert_show(&pool, id, name, None, None, &[]).await;
     }
 
     let items = queries::list_watchlist(&pool, utc_tz()).await.unwrap();
