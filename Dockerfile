@@ -1,7 +1,7 @@
 # Stage 1: Build frontend
 # glibc (Debian slim), not alpine/musl: matches the CI environment the committed
 # lockfile is resolved against, so `npm ci` installs exactly the audited tree.
-FROM node:24-slim@sha256:cb4e8f7c443347358b7875e717c29e27bf9befc8f5a26cf18af3c3dec80e58c5 AS frontend-build
+FROM node:24-trixie-slim@sha256:0711b541c1c33a8a530ac4f0d391baa9a15b3d804695b1b24a47daa5fb60e74d AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 # `npm ci` installs strictly from the committed lockfile (the set CI audits),
@@ -14,7 +14,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Build backend
-FROM rust:1.96-slim-bookworm@sha256:e18a79fc84dfcfc3ab5ba72290398a644c135c97eaa881447fddc354ee4701a3 AS backend-build
+FROM rust:1.97-slim-trixie@sha256:3b2879047d42784ca9403ad20c51ed3df361a50f1df96f5777d39b4e33aa65cd AS backend-build
 WORKDIR /app
 
 # Copy manifests first for dependency caching. No glob on Cargo.lock: the
@@ -40,7 +40,7 @@ RUN mkdir -p /rootfs/data && chown -R 65532:65532 /rootfs
 # no libssl (rustls handles TLS). The image's default user is uid 65532
 # (nonroot) and it ships a CA bundle at /etc/ssl/certs/ca-certificates.crt
 # which reqwest's rustls-platform-verifier picks up automatically.
-FROM cgr.dev/chainguard/glibc-dynamic:latest@sha256:7ff79e2caef2b8a137ddaf9940fb790e91148482092363760d6661e4591fd54c
+FROM cgr.dev/chainguard/glibc-dynamic:latest@sha256:eaec65b25f35619be16f4992e7bae1128eafcf63c114f2859b800a7020c1ef70
 
 WORKDIR /app
 

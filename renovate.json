@@ -61,6 +61,12 @@
       "matchDatasources": ["docker"],
       "matchPackageNames": ["postgres", "mariadb", "nginx", "redis", "traefik"],
       "minimumReleaseAge": "1 day"
+    },
+    {
+      "description": "Keep all Docker base images (node/rust builders + chainguard glibc-dynamic runtime) in one PR so builder and runtime never desync — the rust builder's glibc must not get ahead of the runtime's.",
+      "matchDatasources": ["docker"],
+      "groupName": "docker base images",
+      "groupSlug": "docker-base-images"
     }
   ],
   "vulnerabilityAlerts": {
