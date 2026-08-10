@@ -60,7 +60,7 @@ Notes on the gate:
 
 - Clippy runs with `-D warnings`. A warning fails the build.
 - Backend line coverage must stay at or above **85%**. If you add code, add tests.
-- `cargo fmt` and ESLint are not suggestions — formatting differences will fail CI.
+- `cargo fmt` and Biome are not suggestions — formatting differences will fail CI. Run `npm run format` to auto-format the frontend.
 
 ## Pull request expectations
 
