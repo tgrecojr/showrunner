@@ -27,6 +27,8 @@ Containerized web app for tracking TV shows watched across cable and streaming p
 - `cd frontend && npm run dev` — dev server (5173) with API proxy
 - `cd frontend && npm run build` — production build
 - `cd frontend && npx tsc --noEmit` — typecheck
+- `cd frontend && npm run lint` — lint + format check (Biome)
+- `cd frontend && npm run format` — auto-format (Biome)
 
 ### Docker
 - `docker compose up -d` — start (port 3001)
