@@ -46,12 +46,13 @@ export default function MovieDetail() {
 		};
 	}, [id]);
 
-	async function remove(message: string) {
+	async function remove(message: string, mode: "watched" | "remove") {
 		if (!movie) return;
 		if (!confirm(message)) return;
 		setPending(true);
 		try {
-			await api.deleteMovie(movie.tmdb_id);
+			if (mode === "watched") await api.markMovieWatched(movie.tmdb_id);
+			else await api.deleteMovie(movie.tmdb_id);
 			navigate("/movies");
 		} catch (err) {
 			setError(
@@ -112,7 +113,9 @@ export default function MovieDetail() {
 								type="button"
 								className="btn btn-primary"
 								disabled={pending}
-								onClick={() => remove(`Mark "${movie.name}" as watched?`)}
+								onClick={() =>
+									remove(`Mark "${movie.name}" as watched?`, "watched")
+								}
 							>
 								Mark Watched
 							</button>
@@ -120,7 +123,9 @@ export default function MovieDetail() {
 								type="button"
 								className="btn btn-danger"
 								disabled={pending}
-								onClick={() => remove(`Remove "${movie.name}" from your list?`)}
+								onClick={() =>
+									remove(`Remove "${movie.name}" from your list?`, "remove")
+								}
 							>
 								Remove
 							</button>

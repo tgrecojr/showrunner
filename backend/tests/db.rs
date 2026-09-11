@@ -584,3 +584,259 @@ async fn small_library_is_returned_in_full_and_in_order() {
     let names: Vec<&str> = items.iter().map(|i| i.name.as_str()).collect();
     assert_eq!(names, vec!["alpha", "Bravo", "Charlie"]);
 }
+
+// ============================ Watch log ============================
+
+#[derive(sqlx::FromRow, Debug)]
+struct LogRow {
+    media_type: String,
+    action: String,
+    scope: String,
+    tmdb_id: i64,
+    title: String,
+    season_number: Option<i64>,
+    episode_number: Option<i64>,
+    episode_name: Option<String>,
+    episode_count: i64,
+}
+
+async fn log_rows(pool: &sqlx::SqlitePool) -> Vec<LogRow> {
+    sqlx::query_as(
+        "SELECT media_type, action, scope, tmdb_id, title, season_number,
+                episode_number, episode_name, episode_count
+         FROM watch_log ORDER BY id",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap()
+}
+
+#[tokio::test]
+async fn set_episode_watched_logs_watch_and_unwatch() {
+    let pool = test_pool().await;
+    insert_show(&pool, 1, "Severance", Some("/sev.jpg"), None, &[]).await;
+    insert_season(&pool, 1, 2, 1).await;
+    insert_episode(&pool, 1, 2, 5, Some(&iso_offset(-1)), false).await;
+
+    queries::set_episode_watched(&pool, 1, 2, 5, true)
+        .await
+        .unwrap();
+    queries::set_episode_watched(&pool, 1, 2, 5, false)
+        .await
+        .unwrap();
+
+    let rows = log_rows(&pool).await;
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].media_type, "tv");
+    assert_eq!(rows[0].action, "watched");
+    assert_eq!(rows[0].scope, "episode");
+    assert_eq!(rows[0].tmdb_id, 1);
+    assert_eq!(rows[0].title, "Severance");
+    assert_eq!(rows[0].season_number, Some(2));
+    assert_eq!(rows[0].episode_number, Some(5));
+    assert_eq!(rows[0].episode_name.as_deref(), Some("Ep 5"));
+    assert_eq!(rows[0].episode_count, 1);
+    assert_eq!(rows[1].action, "unwatched");
+}
+
+#[tokio::test]
+async fn set_episode_watched_missing_episode_logs_nothing() {
+    let pool = test_pool().await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
+    assert!(!queries::set_episode_watched(&pool, 1, 9, 9, true)
+        .await
+        .unwrap());
+    assert!(log_rows(&pool).await.is_empty());
+}
+
+#[tokio::test]
+async fn bulk_set_watched_logs_one_entry_with_changed_count() {
+    let pool = test_pool().await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
+    insert_season(&pool, 1, 1, 3).await;
+    insert_episode(&pool, 1, 1, 1, Some(&iso_offset(-3)), true).await;
+    insert_episode(&pool, 1, 1, 2, Some(&iso_offset(-2)), false).await;
+    insert_episode(&pool, 1, 1, 3, Some(&iso_offset(-1)), false).await;
+
+    let affected = queries::bulk_set_watched(
+        &pool,
+        1,
+        &BulkScope::Season { season_number: 1 },
+        true,
+        utc_tz(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(affected, 2, "already-watched episode must not count");
+
+    let rows = log_rows(&pool).await;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].scope, "season");
+    assert_eq!(rows[0].action, "watched");
+    assert_eq!(rows[0].season_number, Some(1));
+    assert_eq!(rows[0].episode_number, None);
+    assert_eq!(rows[0].episode_count, 2);
+
+    // Nothing left to change: no new row, count is zero.
+    let again = queries::bulk_set_watched(
+        &pool,
+        1,
+        &BulkScope::Season { season_number: 1 },
+        true,
+        utc_tz(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(again, 0);
+    assert_eq!(log_rows(&pool).await.len(), 1);
+}
+
+#[tokio::test]
+async fn bulk_set_watched_preserves_watched_at_on_already_watched() {
+    let pool = test_pool().await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
+    insert_season(&pool, 1, 1, 2).await;
+    insert_episode(&pool, 1, 1, 1, Some(&iso_offset(-3)), false).await;
+    insert_episode(&pool, 1, 1, 2, Some(&iso_offset(-2)), false).await;
+    sqlx::query(
+        "UPDATE episodes SET watched=1, watched_at='2020-01-01T00:00:00+00:00'
+         WHERE episode_number=1",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    queries::bulk_set_watched(&pool, 1, &BulkScope::All, true, utc_tz())
+        .await
+        .unwrap();
+
+    let row: (String,) = sqlx::query_as("SELECT watched_at FROM episodes WHERE episode_number=1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(row.0, "2020-01-01T00:00:00+00:00");
+}
+
+#[tokio::test]
+async fn bulk_scopes_map_to_log_scopes() {
+    let pool = test_pool().await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
+    insert_season(&pool, 1, 1, 2).await;
+    insert_episode(&pool, 1, 1, 1, Some(&iso_offset(-3)), false).await;
+    insert_episode(&pool, 1, 1, 2, Some(&iso_offset(-2)), false).await;
+
+    queries::bulk_set_watched(
+        &pool,
+        1,
+        &BulkScope::ThroughEpisode {
+            season_number: 1,
+            episode_number: 1,
+        },
+        true,
+        utc_tz(),
+    )
+    .await
+    .unwrap();
+    queries::bulk_set_watched(&pool, 1, &BulkScope::All, false, utc_tz())
+        .await
+        .unwrap();
+
+    let rows = log_rows(&pool).await;
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].scope, "through_episode");
+    assert_eq!(rows[0].season_number, Some(1));
+    assert_eq!(rows[0].episode_number, Some(1));
+    assert_eq!(rows[0].episode_count, 1);
+    assert_eq!(rows[1].scope, "show");
+    assert_eq!(rows[1].action, "unwatched");
+    assert_eq!(rows[1].episode_count, 1);
+}
+
+#[tokio::test]
+async fn mark_movie_watched_deletes_and_logs_snapshot() {
+    let pool = test_pool().await;
+    insert_movie(&pool, 27205, "Inception").await;
+
+    assert!(queries::mark_movie_watched(&pool, 27205).await.unwrap());
+    assert!(!queries::movie_exists(&pool, 27205).await.unwrap());
+
+    let rows = log_rows(&pool).await;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].media_type, "movie");
+    assert_eq!(rows[0].action, "watched");
+    assert_eq!(rows[0].scope, "movie");
+    assert_eq!(rows[0].tmdb_id, 27205);
+    assert_eq!(rows[0].title, "Inception");
+
+    // Second call: nothing to mark, nothing logged.
+    assert!(!queries::mark_movie_watched(&pool, 27205).await.unwrap());
+    assert_eq!(log_rows(&pool).await.len(), 1);
+}
+
+#[tokio::test]
+async fn delete_movie_does_not_log() {
+    let pool = test_pool().await;
+    insert_movie(&pool, 1, "Dune").await;
+    assert!(queries::delete_movie(&pool, 1).await.unwrap());
+    assert!(log_rows(&pool).await.is_empty());
+}
+
+#[tokio::test]
+async fn watch_log_survives_show_removal() {
+    let pool = test_pool().await;
+    insert_show(&pool, 1, "Gone", None, None, &[]).await;
+    insert_season(&pool, 1, 1, 1).await;
+    insert_episode(&pool, 1, 1, 1, Some(&iso_offset(-1)), false).await;
+    queries::set_episode_watched(&pool, 1, 1, 1, true)
+        .await
+        .unwrap();
+    queries::delete_show(&pool, 1).await.unwrap();
+
+    let rows = log_rows(&pool).await;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].title, "Gone");
+}
+
+#[tokio::test]
+async fn list_entries_paginates_newest_first() {
+    use showrunner_backend::db::watch_log;
+
+    let pool = test_pool().await;
+    for i in 1..=5 {
+        insert_movie(&pool, i, &format!("Movie {}", i)).await;
+        queries::mark_movie_watched(&pool, i).await.unwrap();
+    }
+    // Force distinct, ordered timestamps regardless of clock resolution.
+    for i in 1..=5 {
+        sqlx::query("UPDATE watch_log SET occurred_at = ? WHERE tmdb_id = ?")
+            .bind(format!("2026-09-0{}T00:00:00+00:00", i))
+            .bind(i)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+
+    let page1 = watch_log::list_entries(&pool, 1, 2).await.unwrap();
+    assert_eq!(page1.total, 5);
+    assert_eq!(page1.page, 1);
+    assert_eq!(page1.per_page, 2);
+    let titles: Vec<_> = page1.entries.iter().map(|e| e.title.as_str()).collect();
+    assert_eq!(titles, vec!["Movie 5", "Movie 4"]);
+
+    let page3 = watch_log::list_entries(&pool, 3, 2).await.unwrap();
+    let titles: Vec<_> = page3.entries.iter().map(|e| e.title.as_str()).collect();
+    assert_eq!(titles, vec!["Movie 1"]);
+
+    let page4 = watch_log::list_entries(&pool, 4, 2).await.unwrap();
+    assert!(page4.entries.is_empty());
+    assert_eq!(page4.total, 5);
+}
+
+#[tokio::test]
+async fn list_entries_clamps_per_page() {
+    use showrunner_backend::db::watch_log;
+
+    let pool = test_pool().await;
+    let page = watch_log::list_entries(&pool, 1, 10_000).await.unwrap();
+    assert_eq!(page.per_page, watch_log::MAX_PER_PAGE);
+}

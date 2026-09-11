@@ -10,6 +10,7 @@ vi.mock("./pages/UpNext", () => ({ default: () => <div>UpNextPage</div> }));
 vi.mock("./pages/Search", () => ({ default: () => <div>SearchPage</div> }));
 vi.mock("./pages/ShowDetail", () => ({ default: () => <div>DetailPage</div> }));
 vi.mock("./pages/Calendar", () => ({ default: () => <div>CalendarPage</div> }));
+vi.mock("./pages/History", () => ({ default: () => <div>HistoryPage</div> }));
 vi.mock("./pages/Settings", () => ({ default: () => <div>SettingsPage</div> }));
 
 let originalLocation: Location;
@@ -71,6 +72,13 @@ describe("App routing", () => {
 		await renderAt("/calendar");
 		await waitFor(() =>
 			expect(screen.getByText("CalendarPage")).toBeInTheDocument(),
+		);
+	});
+
+	it("renders History at /history", async () => {
+		await renderAt("/history");
+		await waitFor(() =>
+			expect(screen.getByText("HistoryPage")).toBeInTheDocument(),
 		);
 	});
 

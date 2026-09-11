@@ -145,6 +145,11 @@ pub fn build_api_router(state: AppState) -> Router {
             "/api/v1/movies/{tmdb_id}",
             get(api::movies::get_movie_detail).delete(api::movies::delete_movie),
         )
+        .route(
+            "/api/v1/movies/{tmdb_id}/watched",
+            post(api::movies::mark_movie_watched),
+        )
+        .route("/api/v1/watch-log", get(api::watch_log::list_watch_log))
         .route("/api/v1/calendar", get(api::calendar::get_calendar))
         .route("/api/v1/up-next", get(api::up_next::list_up_next))
         .route("/api/v1/sync", post(api::sync::manual_sync))

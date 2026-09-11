@@ -727,3 +727,34 @@ body {
 	margin: 0;
 	line-height: 1.2;
 }
+
+/* History */
+.history-row-unwatched {
+	opacity: 0.6;
+}
+
+.history-time {
+	font-size: 0.8rem;
+	color: #888;
+	white-space: nowrap;
+}
+
+.history-sentence {
+	margin: 0.2rem 0 0 0;
+	font-size: 0.9rem;
+	color: #444;
+}
+
+.pager {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	margin-top: 1rem;
+	flex-wrap: wrap;
+}
+
+.pager-buttons {
+	display: flex;
+	gap: 0.5rem;
+}

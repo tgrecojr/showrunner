@@ -15,6 +15,7 @@ export default function Layout() {
 					<NavLink to="/movies">Movies</NavLink>
 					<NavLink to="/search">Search</NavLink>
 					<NavLink to="/calendar">Calendar</NavLink>
+					<NavLink to="/history">History</NavLink>
 					<NavLink to="/settings">Settings</NavLink>
 				</nav>
 			</header>

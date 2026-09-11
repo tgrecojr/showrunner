@@ -1246,3 +1246,137 @@ async fn cooldown_is_per_app_state_not_process_global() {
         "a separate AppState must not inherit another's cooldown"
     );
 }
+
+// ============================ Watch log ============================
+
+/// POST with no body. The router's JSON content-type guard still applies, so
+/// the header has to be present exactly as the SPA's fetch wrapper sends it.
+fn post_no_body(uri: &str) -> Request<Body> {
+    Request::builder()
+        .method(Method::POST)
+        .uri(uri)
+        .header("content-type", "application/json")
+        .body(Body::empty())
+        .unwrap()
+}
+
+async fn log_count(pool: &SqlitePool) -> i64 {
+    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM watch_log")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    row.0
+}
+
+#[tokio::test]
+async fn mark_movie_watched_returns_204_then_404() {
+    let app = build_app().await;
+    insert_movie(&app.pool, 27205, "Inception").await;
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(post_no_body("/api/v1/movies/27205/watched"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    assert_eq!(log_count(&app.pool).await, 1);
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(post_no_body("/api/v1/movies/27205/watched"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    assert_eq!(log_count(&app.pool).await, 1);
+}
+
+#[tokio::test]
+async fn delete_movie_writes_no_log_entry() {
+    let app = build_app().await;
+    insert_movie(&app.pool, 1, "Dune").await;
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::DELETE, "/api/v1/movies/1"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    assert_eq!(log_count(&app.pool).await, 0);
+}
+
+#[tokio::test]
+async fn watch_log_returns_page_shape() {
+    let app = build_app().await;
+    insert_show(&app.pool, 1, "Severance", Some("/sev.jpg"), None, &[]).await;
+    insert_season(&app.pool, 1, 2, 1).await;
+    insert_episode(&app.pool, 1, 2, 5, Some(&iso_offset(-1)), false).await;
+    insert_movie(&app.pool, 27205, "Inception").await;
+
+    build_api_router(app.state.clone())
+        .oneshot(json_request(
+            Method::PATCH,
+            "/api/v1/episodes/1/2/5",
+            serde_json::json!({"watched": true}),
+        ))
+        .await
+        .unwrap();
+    build_api_router(app.state.clone())
+        .oneshot(post_no_body("/api/v1/movies/27205/watched"))
+        .await
+        .unwrap();
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::GET, "/api/v1/watch-log"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v = body_to_value(resp).await;
+    assert_eq!(v["page"], 1);
+    assert_eq!(v["per_page"], 50);
+    assert_eq!(v["total"], 2);
+    let entries = v["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 2);
+    // Newest first: the movie was marked after the episode.
+    assert_eq!(entries[0]["media_type"], "movie");
+    assert_eq!(entries[0]["title"], "Inception");
+    assert_eq!(entries[0]["scope"], "movie");
+    assert_eq!(entries[1]["media_type"], "tv");
+    assert_eq!(entries[1]["title"], "Severance");
+    assert_eq!(entries[1]["scope"], "episode");
+    assert_eq!(entries[1]["season_number"], 2);
+    assert_eq!(entries[1]["episode_number"], 5);
+    assert_eq!(entries[1]["episode_name"], "Ep 5");
+    assert_eq!(
+        entries[1]["poster_url"],
+        "https://image.tmdb.org/t/p/w185/sev.jpg"
+    );
+    assert!(entries[1]["occurred_at"].as_str().unwrap().contains('T'));
+}
+
+#[tokio::test]
+async fn watch_log_rejects_bad_page_and_clamps_per_page() {
+    let app = build_app().await;
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::GET, "/api/v1/watch-log?page=0"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::GET, "/api/v1/watch-log?per_page=0"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(
+            Method::GET,
+            "/api/v1/watch-log?page=2&per_page=5000",
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v = body_to_value(resp).await;
+    assert_eq!(v["page"], 2);
+    assert_eq!(v["per_page"], 100);
+    assert_eq!(v["total"], 0);
+    assert!(v["entries"].as_array().unwrap().is_empty());
+}

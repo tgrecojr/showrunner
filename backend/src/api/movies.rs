@@ -83,7 +83,24 @@ pub async fn add_movie(
     Ok((StatusCode::CREATED, Json(item)))
 }
 
-// Handles both "mark watched" and "remove" — both delete the row.
+/// "Mark watched": deletes the row like `delete_movie`, but also records the
+/// action in the watch log. The two are separate routes so the log only ever
+/// contains things the user actually watched.
+pub async fn mark_movie_watched(
+    State(state): State<AppState>,
+    Path(tmdb_id): Path<i64>,
+) -> Result<impl IntoResponse> {
+    let marked = queries::mark_movie_watched(&state.pool, tmdb_id).await?;
+    if !marked {
+        return Err(AppError::NotFound(format!(
+            "movie {} not on watchlist",
+            tmdb_id
+        )));
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// "Remove" — deletes the row without logging anything.
 pub async fn delete_movie(
     State(state): State<AppState>,
     Path(tmdb_id): Path<i64>,

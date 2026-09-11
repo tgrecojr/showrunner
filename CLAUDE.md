@@ -56,7 +56,7 @@ showrunner/
 │       ├── App.tsx              # React Router
 │       ├── api/client.ts        # Fetch wrapper
 │       ├── types/index.ts       # TS interfaces matching Rust models
-│       ├── pages/               # Watchlist, UpNext, ShowDetail, Search, Calendar, Settings
+│       ├── pages/               # Watchlist, UpNext, ShowDetail, Search, Calendar, History, Settings
 │       └── components/
 ├── Dockerfile                   # Multi-stage: Node → Rust → slim runtime
 └── docker-compose.yml           # app + sqlite volume
@@ -77,7 +77,9 @@ showrunner/
 | GET | /api/v1/movies | List movie to-watch list |
 | POST | /api/v1/movies | Add movie by TMDB id |
 | GET | /api/v1/movies/:tmdb_id | Movie detail (cast, directors, providers) |
-| DELETE | /api/v1/movies/:tmdb_id | Remove movie (also the "mark watched" action) |
+| DELETE | /api/v1/movies/:tmdb_id | Remove movie (not logged) |
+| POST | /api/v1/movies/:tmdb_id/watched | Mark movie watched (deletes row + writes watch log) |
+| GET | /api/v1/watch-log?page=&per_page= | Paginated watched/unwatched history, newest first |
 | GET | /api/v1/up-next | Per-show earliest unwatched aired episode |
 | GET | /api/v1/calendar?start=&end= | Episodes airing in date range |
 | POST | /api/v1/sync | Force TMDB resync (returns per-show success/failure) |
@@ -85,7 +87,8 @@ showrunner/
 ## Key Patterns
 
 - **TMDB on-demand** — search proxied through backend (API key never leaves server). Adding a show fetches full season/episode tree once; nightly resync refreshes.
-- **Movies are a separate, simpler track** — a flat to-watch list (`movies` table, no episodes/seasons). Search (`search/multi`) returns both TV and movies; adding a movie stores basic metadata, and both "mark watched" and "remove" map to `DELETE /movies/:tmdb_id` (the row is deleted either way — there's no watched-movie history). Movies are intentionally absent from resync, the calendar, and Up Next, which are all episode-driven.
+- **Movies are a separate, simpler track** — a flat to-watch list (`movies` table, no episodes/seasons). Search (`search/multi`) returns both TV and movies; adding a movie stores basic metadata. "Mark watched" is `POST /movies/:tmdb_id/watched` and "remove" is `DELETE /movies/:tmdb_id` — both delete the row (there's no watched-movie state), but only the former writes a watch-log entry. Movies are intentionally absent from resync, the calendar, and Up Next, which are all episode-driven.
+- **Watch log (History page)** — append-only `watch_log` table written in the same transaction as every watched/unwatched mutation (`set_episode_watched`, `bulk_set_watched`, `mark_movie_watched` in `db/queries.rs`; inserts live in `db/watch_log.rs`). Rows snapshot title/poster and have no foreign keys so history survives removing a show or movie. Bulk actions log one row with `scope` (`show`/`season`/`through_episode`) and `episode_count` = episodes actually changed (the bulk UPDATEs filter `watched != ?`, which also preserves `watched_at` on already-watched episodes). `GET /watch-log` is offset-paginated, newest first, `per_page` capped at 100. The page is read-only by design — undo happens on the show/movie pages.
 - **Secrets never reach clients or logs** — outbound TMDB URLs carry the `api_key` query param. `From<reqwest::Error>` strips the URL via `.without_url()`, and `AppError::client_message()` collapses internal variants (DB/HTTP/IO/JSON) to a generic string wherever an error is serialized into a response body (`IntoResponse`, and the per-item results of `/sync`).
 - **Resync preserves user state** — `upsert_episode_preserving_watched` uses `ON CONFLICT … DO UPDATE` that writes the new TMDB metadata but **never** touches `watched`/`watched_at`.
 - **Bulk-watch scopes** — three actions: mark whole show, mark season N, mark through episode SxEy. All filter to aired episodes (`air_date <= today`) so accidental marks don't apply to future airings. Single-episode `PATCH` does no filtering — escape hatch.
