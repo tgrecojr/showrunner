@@ -6,13 +6,14 @@ import type { MovieDetail as MovieDetailType } from "../types";
 import MovieDetail from "./MovieDetail";
 
 vi.mock("../api/client", () => ({
-	api: { getMovie: vi.fn(), deleteMovie: vi.fn() },
+	api: { getMovie: vi.fn(), deleteMovie: vi.fn(), markMovieWatched: vi.fn() },
 }));
 
 import { api } from "../api/client";
 
 const mockGet = vi.mocked(api.getMovie);
 const mockDelete = vi.mocked(api.deleteMovie);
+const mockMarkWatched = vi.mocked(api.markMovieWatched);
 
 function movie(overrides: Partial<MovieDetailType> = {}): MovieDetailType {
 	return {
@@ -47,6 +48,7 @@ function renderPage() {
 beforeEach(() => {
 	mockGet.mockReset();
 	mockDelete.mockReset();
+	mockMarkWatched.mockReset();
 	vi.spyOn(window, "confirm").mockReturnValue(true);
 });
 
@@ -86,10 +88,10 @@ describe("MovieDetail", () => {
 		);
 	});
 
-	it("Mark Watched calls deleteMovie and navigates to /movies", async () => {
+	it("Mark Watched calls markMovieWatched and navigates to /movies", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(movie());
-		mockDelete.mockResolvedValueOnce(undefined as never);
+		mockMarkWatched.mockResolvedValueOnce(undefined as never);
 		renderPage();
 		await waitFor(() =>
 			expect(screen.getByText("Inception")).toBeInTheDocument(),
@@ -97,7 +99,8 @@ describe("MovieDetail", () => {
 
 		await user.click(screen.getByRole("button", { name: "Mark Watched" }));
 
-		await waitFor(() => expect(mockDelete).toHaveBeenCalledWith(27205));
+		await waitFor(() => expect(mockMarkWatched).toHaveBeenCalledWith(27205));
+		expect(mockDelete).not.toHaveBeenCalled();
 		await waitFor(() =>
 			expect(screen.getByText("Movies List")).toBeInTheDocument(),
 		);
@@ -115,15 +118,16 @@ describe("MovieDetail", () => {
 		await user.click(screen.getByRole("button", { name: "Remove" }));
 
 		await waitFor(() => expect(mockDelete).toHaveBeenCalledWith(27205));
+		expect(mockMarkWatched).not.toHaveBeenCalled();
 		await waitFor(() =>
 			expect(screen.getByText("Movies List")).toBeInTheDocument(),
 		);
 	});
 
-	it("shows banner error and stays on page when delete fails", async () => {
+	it("shows banner error and stays on page when marking fails", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(movie());
-		mockDelete.mockRejectedValueOnce(new Error("boom"));
+		mockMarkWatched.mockRejectedValueOnce(new Error("boom"));
 		renderPage();
 		await waitFor(() =>
 			expect(screen.getByText("Inception")).toBeInTheDocument(),

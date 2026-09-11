@@ -7,6 +7,7 @@ import type {
 	ShowDetail,
 	SyncResponse,
 	UpNextResponse,
+	WatchLogPage,
 	WatchlistItem,
 	WatchlistResponse,
 } from "../types";
@@ -53,6 +54,8 @@ export const api = {
 	getMovie: (tmdb_id: number) => request<MovieDetail>(`/movies/${tmdb_id}`),
 	deleteMovie: (tmdb_id: number) =>
 		request<void>(`/movies/${tmdb_id}`, { method: "DELETE" }),
+	markMovieWatched: (tmdb_id: number) =>
+		request<void>(`/movies/${tmdb_id}/watched`, { method: "POST" }),
 	setEpisodeWatched: (
 		tmdb_id: number,
 		season_number: number,
@@ -76,6 +79,8 @@ export const api = {
 			`/calendar?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
 		),
 	sync: () => request<SyncResponse>("/sync", { method: "POST" }),
+	watchLog: (page: number, perPage: number) =>
+		request<WatchLogPage>(`/watch-log?page=${page}&per_page=${perPage}`),
 };
 
 export type BulkWatchScope =

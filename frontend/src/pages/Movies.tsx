@@ -25,11 +25,16 @@ export default function Movies() {
 		};
 	}, []);
 
-	async function removeMovie(tmdbId: number, message: string) {
+	async function removeMovie(
+		tmdbId: number,
+		message: string,
+		mode: "watched" | "remove",
+	) {
 		if (!confirm(message)) return;
 		setPending((prev) => ({ ...prev, [tmdbId]: true }));
 		try {
-			await api.deleteMovie(tmdbId);
+			if (mode === "watched") await api.markMovieWatched(tmdbId);
+			else await api.deleteMovie(tmdbId);
 			setMovies((prev) =>
 				prev ? prev.filter((m) => m.tmdb_id !== tmdbId) : prev,
 			);
@@ -108,7 +113,11 @@ export default function Movies() {
 										className="btn btn-primary btn-sm"
 										disabled={isPending}
 										onClick={() =>
-											removeMovie(m.tmdb_id, `Mark "${m.name}" as watched?`)
+											removeMovie(
+												m.tmdb_id,
+												`Mark "${m.name}" as watched?`,
+												"watched",
+											)
 										}
 									>
 										Mark Watched
@@ -121,6 +130,7 @@ export default function Movies() {
 											removeMovie(
 												m.tmdb_id,
 												`Remove "${m.name}" from your list?`,
+												"remove",
 											)
 										}
 									>

@@ -28,6 +28,10 @@ describe("Layout", () => {
 		expect(screen.getByRole("link", { name: "Up Next" })).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "Search" })).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "Calendar" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "History" })).toHaveAttribute(
+			"href",
+			"/history",
+		);
 		expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
 	});
 

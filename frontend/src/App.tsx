@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router";
 import Layout from "./components/Layout";
 import Calendar from "./pages/Calendar";
+import History from "./pages/History";
 import MovieDetail from "./pages/MovieDetail";
 import Movies from "./pages/Movies";
 import Search from "./pages/Search";
@@ -21,6 +22,7 @@ export default function App() {
 					<Route path="/search" element={<Search />} />
 					<Route path="/shows/:tmdbId" element={<ShowDetail />} />
 					<Route path="/calendar" element={<Calendar />} />
+					<Route path="/history" element={<History />} />
 					<Route path="/settings" element={<Settings />} />
 				</Route>
 			</Routes>

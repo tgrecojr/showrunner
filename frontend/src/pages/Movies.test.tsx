@@ -6,13 +6,14 @@ import type { MovieWatchlistItem } from "../types";
 import Movies from "./Movies";
 
 vi.mock("../api/client", () => ({
-	api: { listMovies: vi.fn(), deleteMovie: vi.fn() },
+	api: { listMovies: vi.fn(), deleteMovie: vi.fn(), markMovieWatched: vi.fn() },
 }));
 
 import { api } from "../api/client";
 
 const mockListMovies = vi.mocked(api.listMovies);
 const mockDeleteMovie = vi.mocked(api.deleteMovie);
+const mockMarkWatched = vi.mocked(api.markMovieWatched);
 
 function buildMovie(
 	overrides: Partial<MovieWatchlistItem> = {},
@@ -41,6 +42,7 @@ function renderPage() {
 beforeEach(() => {
 	mockListMovies.mockReset();
 	mockDeleteMovie.mockReset();
+	mockMarkWatched.mockReset();
 	vi.spyOn(window, "confirm").mockReturnValue(true);
 });
 
@@ -109,12 +111,12 @@ describe("Movies", () => {
 		);
 	});
 
-	it("Mark Watched removes the movie from the list", async () => {
+	it("Mark Watched calls markMovieWatched and removes the movie", async () => {
 		const user = userEvent.setup();
 		mockListMovies.mockResolvedValueOnce({
 			movies: [buildMovie({ tmdb_id: 1, name: "Inception" })],
 		});
-		mockDeleteMovie.mockResolvedValueOnce(undefined as never);
+		mockMarkWatched.mockResolvedValueOnce(undefined as never);
 		renderPage();
 		await waitFor(() =>
 			expect(screen.getByText("Inception")).toBeInTheDocument(),
@@ -122,7 +124,8 @@ describe("Movies", () => {
 
 		await user.click(screen.getByRole("button", { name: "Mark Watched" }));
 
-		await waitFor(() => expect(mockDeleteMovie).toHaveBeenCalledWith(1));
+		await waitFor(() => expect(mockMarkWatched).toHaveBeenCalledWith(1));
+		expect(mockDeleteMovie).not.toHaveBeenCalled();
 		await waitFor(() =>
 			expect(screen.queryByText("Inception")).not.toBeInTheDocument(),
 		);
@@ -140,6 +143,7 @@ describe("Movies", () => {
 		await user.click(screen.getByRole("button", { name: "Remove" }));
 
 		await waitFor(() => expect(mockDeleteMovie).toHaveBeenCalledWith(5));
+		expect(mockMarkWatched).not.toHaveBeenCalled();
 		await waitFor(() =>
 			expect(screen.queryByText("Dune")).not.toBeInTheDocument(),
 		);
@@ -159,6 +163,7 @@ describe("Movies", () => {
 		await user.click(screen.getByRole("button", { name: "Mark Watched" }));
 
 		expect(mockDeleteMovie).not.toHaveBeenCalled();
+		expect(mockMarkWatched).not.toHaveBeenCalled();
 		expect(screen.getByText("Inception")).toBeInTheDocument();
 	});
 

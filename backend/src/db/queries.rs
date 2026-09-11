@@ -3,12 +3,14 @@ use chrono_tz::Tz;
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
 use crate::datasources::tmdb::{TmdbEpisode, TmdbMovie, TmdbSeason, TmdbShow};
+use crate::db::watch_log;
 use crate::error::Result;
 use crate::models::movie::{MovieRow, MovieWatchlistItem};
 use crate::models::show::{
     backdrop_url, poster_url, CalendarEpisode, EpisodeDetail, EpisodeRow, SeasonDetail, SeasonRow,
     ShowDetail, ShowRow, UpNextItem, WatchlistItem,
 };
+use crate::models::watch_log::{action_str, NewWatchLogEntry};
 use crate::state::today_in;
 
 /// Server-enforced ceiling on the rows any list query will return.
@@ -364,6 +366,47 @@ pub async fn delete_movie(pool: &SqlitePool, tmdb_id: i64) -> Result<bool> {
     Ok(result.rows_affected() > 0)
 }
 
+/// "Mark watched" for a movie: deletes the row (there is no watched-movie
+/// state) and records a `watch_log` entry with the title snapshot, in one
+/// transaction. Returns whether the movie was on the list.
+pub async fn mark_movie_watched(pool: &SqlitePool, tmdb_id: i64) -> Result<bool> {
+    let mut tx = pool.begin().await?;
+
+    let movie: Option<(String, Option<String>)> =
+        sqlx::query_as("SELECT name, poster_path FROM movies WHERE tmdb_id = ?")
+            .bind(tmdb_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let Some((name, poster_path)) = movie else {
+        return Ok(false);
+    };
+
+    sqlx::query("DELETE FROM movies WHERE tmdb_id = ?")
+        .bind(tmdb_id)
+        .execute(&mut *tx)
+        .await?;
+
+    watch_log::insert_entry(
+        &mut tx,
+        &NewWatchLogEntry {
+            media_type: "movie",
+            action: "watched",
+            scope: "movie",
+            tmdb_id,
+            title: &name,
+            poster_path: poster_path.as_deref(),
+            season_number: None,
+            episode_number: None,
+            episode_name: None,
+            episode_count: 1,
+        },
+    )
+    .await?;
+
+    tx.commit().await?;
+    Ok(true)
+}
+
 pub async fn tracked_movie_tmdb_ids_in(pool: &SqlitePool, ids: &[i64]) -> Result<Vec<i64>> {
     if ids.is_empty() {
         return Ok(Vec::new());
@@ -684,7 +727,8 @@ pub async fn list_calendar_episodes(
 // === Episode mutations ===
 
 /// Toggle a single episode's watched state. No air_date filtering — caller's
-/// explicit choice. Returns whether the row existed.
+/// explicit choice. Returns whether the row existed. Writes a `watch_log`
+/// entry in the same transaction.
 pub async fn set_episode_watched(
     pool: &SqlitePool,
     show_tmdb_id: i64,
@@ -698,7 +742,26 @@ pub async fn set_episode_watched(
         None
     };
 
-    let result = sqlx::query(
+    let mut tx = pool.begin().await?;
+
+    // Snapshot the names first: the log row must describe the episode even
+    // after the show is later removed.
+    let snapshot: Option<(String, Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT s.name, s.poster_path, e.name
+         FROM episodes e JOIN shows s ON s.tmdb_id = e.show_tmdb_id
+         WHERE e.show_tmdb_id = ? AND e.season_number = ? AND e.episode_number = ?",
+    )
+    .bind(show_tmdb_id)
+    .bind(season_number)
+    .bind(episode_number)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let Some((show_name, poster_path, episode_name)) = snapshot else {
+        return Ok(false);
+    };
+
+    sqlx::query(
         "UPDATE episodes SET watched = ?, watched_at = ?
          WHERE show_tmdb_id = ? AND season_number = ? AND episode_number = ?",
     )
@@ -707,10 +770,28 @@ pub async fn set_episode_watched(
     .bind(show_tmdb_id)
     .bind(season_number)
     .bind(episode_number)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
-    Ok(result.rows_affected() > 0)
+    watch_log::insert_entry(
+        &mut tx,
+        &NewWatchLogEntry {
+            media_type: "tv",
+            action: action_str(watched),
+            scope: "episode",
+            tmdb_id: show_tmdb_id,
+            title: &show_name,
+            poster_path: poster_path.as_deref(),
+            season_number: Some(season_number),
+            episode_number: Some(episode_number),
+            episode_name: episode_name.as_deref(),
+            episode_count: 1,
+        },
+    )
+    .await?;
+
+    tx.commit().await?;
+    Ok(true)
 }
 
 #[derive(Debug, Clone)]
@@ -727,6 +808,9 @@ pub enum BulkScope {
 
 /// Bulk update watched state. Always restricted to aired episodes
 /// (`air_date <= today`) so accidental marks don't apply to future airings.
+/// Only rows whose state actually changes are touched, so the returned count
+/// (and the single `watch_log` entry written when it is non-zero) reflects
+/// real changes, and `watched_at` on already-watched episodes is preserved.
 pub async fn bulk_set_watched(
     pool: &SqlitePool,
     show_tmdb_id: i64,
@@ -742,32 +826,45 @@ pub async fn bulk_set_watched(
     };
     let watched_int: i64 = if watched { 1 } else { 0 };
 
+    let mut tx = pool.begin().await?;
+
+    let show: Option<(String, Option<String>)> =
+        sqlx::query_as("SELECT name, poster_path FROM shows WHERE tmdb_id = ?")
+            .bind(show_tmdb_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    let Some((show_name, poster_path)) = show else {
+        return Ok(0);
+    };
+
     let result = match scope {
         BulkScope::All => {
             sqlx::query(
                 "UPDATE episodes SET watched = ?, watched_at = ?
-                 WHERE show_tmdb_id = ?
+                 WHERE show_tmdb_id = ? AND watched != ?
                    AND air_date IS NOT NULL AND air_date <= ?",
             )
             .bind(watched_int)
             .bind(&watched_at)
             .bind(show_tmdb_id)
+            .bind(watched_int)
             .bind(&today)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?
         }
         BulkScope::Season { season_number } => {
             sqlx::query(
                 "UPDATE episodes SET watched = ?, watched_at = ?
-                 WHERE show_tmdb_id = ? AND season_number = ?
+                 WHERE show_tmdb_id = ? AND season_number = ? AND watched != ?
                    AND air_date IS NOT NULL AND air_date <= ?",
             )
             .bind(watched_int)
             .bind(&watched_at)
             .bind(show_tmdb_id)
             .bind(*season_number)
+            .bind(watched_int)
             .bind(&today)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?
         }
         BulkScope::ThroughEpisode {
@@ -776,7 +873,7 @@ pub async fn bulk_set_watched(
         } => {
             sqlx::query(
                 "UPDATE episodes SET watched = ?, watched_at = ?
-                 WHERE show_tmdb_id = ?
+                 WHERE show_tmdb_id = ? AND watched != ?
                    AND air_date IS NOT NULL AND air_date <= ?
                    AND (season_number < ?
                         OR (season_number = ? AND episode_number <= ?))",
@@ -784,14 +881,48 @@ pub async fn bulk_set_watched(
             .bind(watched_int)
             .bind(&watched_at)
             .bind(show_tmdb_id)
+            .bind(watched_int)
             .bind(&today)
             .bind(*season_number)
             .bind(*season_number)
             .bind(*episode_number)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?
         }
     };
 
-    Ok(result.rows_affected())
+    let changed = result.rows_affected();
+    if changed > 0 {
+        let (log_scope, season_number, episode_number) = match scope {
+            BulkScope::All => ("show", None, None),
+            BulkScope::Season { season_number } => ("season", Some(*season_number), None),
+            BulkScope::ThroughEpisode {
+                season_number,
+                episode_number,
+            } => (
+                "through_episode",
+                Some(*season_number),
+                Some(*episode_number),
+            ),
+        };
+        watch_log::insert_entry(
+            &mut tx,
+            &NewWatchLogEntry {
+                media_type: "tv",
+                action: action_str(watched),
+                scope: log_scope,
+                tmdb_id: show_tmdb_id,
+                title: &show_name,
+                poster_path: poster_path.as_deref(),
+                season_number,
+                episode_number,
+                episode_name: None,
+                episode_count: changed as i64,
+            },
+        )
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok(changed)
 }

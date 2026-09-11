@@ -137,3 +137,33 @@ export interface ShowDetail {
 	watch_providers: string[];
 	seasons: SeasonDetail[];
 }
+
+export type WatchLogAction = "watched" | "unwatched";
+export type WatchLogScope =
+	| "episode"
+	| "season"
+	| "show"
+	| "through_episode"
+	| "movie";
+
+export interface WatchLogEntry {
+	id: number;
+	occurred_at: string;
+	media_type: MediaType;
+	action: WatchLogAction;
+	scope: WatchLogScope;
+	tmdb_id: number;
+	title: string;
+	poster_url: string | null;
+	season_number: number | null;
+	episode_number: number | null;
+	episode_name: string | null;
+	episode_count: number;
+}
+
+export interface WatchLogPage {
+	entries: WatchLogEntry[];
+	page: number;
+	per_page: number;
+	total: number;
+}

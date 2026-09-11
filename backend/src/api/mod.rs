@@ -6,3 +6,4 @@ pub mod search;
 pub mod shows;
 pub mod sync;
 pub mod up_next;
+pub mod watch_log;
