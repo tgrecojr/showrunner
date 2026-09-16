@@ -57,7 +57,7 @@ tokio-cron-scheduler = "0.15"
 wiremock = "0.6"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
-serial_test = "3"
+serial_test = "4"
 tempfile = "3"
 
 [profile.release]
