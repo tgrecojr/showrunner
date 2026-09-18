@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Each page is exercised in its own test file. Here we just confirm the
 // router wires the right path → component mapping.
@@ -13,27 +13,13 @@ vi.mock("./pages/Calendar", () => ({ default: () => <div>CalendarPage</div> }));
 vi.mock("./pages/History", () => ({ default: () => <div>HistoryPage</div> }));
 vi.mock("./pages/Settings", () => ({ default: () => <div>SettingsPage</div> }));
 
-let originalLocation: Location;
-
-beforeEach(() => {
-	originalLocation = window.location;
-});
-
 afterEach(() => {
-	Object.defineProperty(window, "location", {
-		value: originalLocation,
-		writable: true,
-		configurable: true,
-	});
+	window.history.replaceState({}, "", "/");
 	vi.resetModules();
 });
 
 async function renderAt(path: string) {
-	Object.defineProperty(window, "location", {
-		value: { ...originalLocation, pathname: path, search: "", hash: "" },
-		writable: true,
-		configurable: true,
-	});
+	window.history.replaceState({}, "", path);
 	// Dynamically import so BrowserRouter picks up the new pathname.
 	const { default: App } = await import("./App");
 	return render(<App />);

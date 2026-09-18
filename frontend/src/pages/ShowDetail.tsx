@@ -227,26 +227,25 @@ export default function ShowDetail() {
 												{ep.air_date && (
 													<span className="ep-date">{ep.air_date}</span>
 												)}
-												<button
-													type="button"
-													className="ep-through-btn"
-													onClick={(e) => {
-														e.preventDefault();
-														bulk(
-															{
-																type: "through_episode",
-																season_number: season.season_number,
-																episode_number: ep.episode_number,
-															},
-															true,
-														);
-													}}
-													disabled={mutating}
-													title="Mark all episodes from start through this one as watched"
-												>
-													Mark through here
-												</button>
 											</label>
+											<button
+												type="button"
+												className="ep-through-btn"
+												onClick={() =>
+													bulk(
+														{
+															type: "through_episode",
+															season_number: season.season_number,
+															episode_number: ep.episode_number,
+														},
+														true,
+													)
+												}
+												disabled={mutating}
+												title="Mark all episodes from start through this one as watched"
+											>
+												Mark through here
+											</button>
 										</li>
 									))}
 								</ul>
