@@ -118,6 +118,7 @@ pub struct UpNextItem {
     pub show_tmdb_id: i64,
     pub show_name: String,
     pub poster_url: Option<String>,
+    pub networks: Vec<String>,
     pub season_number: i64,
     pub episode_number: i64,
     pub episode_name: Option<String>,
