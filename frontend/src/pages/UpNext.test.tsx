@@ -19,6 +19,7 @@ function item(overrides: Partial<UpNextItem> = {}): UpNextItem {
 		show_tmdb_id: 1,
 		show_name: "Show 1",
 		poster_url: "/p.jpg",
+		networks: ["NBC", "Peacock"],
 		season_number: 2,
 		episode_number: 5,
 		episode_name: "The Episode",
@@ -54,6 +55,20 @@ describe("UpNext", () => {
 		expect(screen.getByText("The Episode")).toBeInTheDocument();
 		expect(screen.getByText("3 remaining")).toBeInTheDocument();
 		expect(screen.getByText("aired 2026-04-01")).toBeInTheDocument();
+	});
+
+	it("renders a pill per network, and none when the list is empty", async () => {
+		mockUpNext.mockResolvedValueOnce({
+			items: [
+				item(),
+				item({ show_tmdb_id: 2, show_name: "Show 2", networks: [] }),
+			],
+		});
+		const { container } = renderPage();
+		await waitFor(() => expect(screen.getByText("Show 2")).toBeInTheDocument());
+		expect(screen.getByText("NBC")).toBeInTheDocument();
+		expect(screen.getByText("Peacock")).toBeInTheDocument();
+		expect(container.querySelectorAll(".network-pill")).toHaveLength(2);
 	});
 
 	it("handles missing poster and missing episode name", async () => {

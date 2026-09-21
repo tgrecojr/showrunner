@@ -95,7 +95,7 @@ showrunner/
 - **Configurable schedule** — `RESYNC_CRON` (cron expr, fires in `TIMEZONE`) drives `tokio-cron-scheduler`.
 - **Local timezone for "today"** — `Config.timezone` (default `America/New_York`, override via `TIMEZONE`) is plumbed through `AppState.tz` to all date-comparison queries (`list_watchlist`, `bulk_set_watched`, `list_up_next`) and to the cron scheduler. Stored timestamps (`watched_at`, `last_synced_at`) remain UTC RFC3339.
 - **Calendar** — full month grid, episodes shown by air date. Watched episodes get faded styling.
-- **Up Next** — per-show earliest unwatched aired episode, sorted by air_date ASC (longest-overdue first). SQL uses `ROW_NUMBER() OVER (PARTITION BY show ORDER BY air_date)`.
+- **Up Next** — per-show earliest unwatched aired episode, sorted by air_date ASC (longest-overdue first). SQL uses `ROW_NUMBER() OVER (PARTITION BY show ORDER BY air_date)`. Each row shows the show's networks as pills (TMDB `networks` — broadcast/cable channels and streaming originals alike — stored in `shows.networks_json`, written on add and refreshed by resync) so it's obvious where to go watch. Watch providers are deliberately not shown here: TMDB's provider list is too noisy to read at a glance.
 - **Progress display** — `12/27` format (watched / aired), no percentage.
 - Axum serves React SPA static files with fallback to index.html for client-side routing.
 

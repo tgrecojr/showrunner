@@ -34,6 +34,7 @@ pub async fn insert_show_full(
     seasons: &[TmdbSeason],
 ) -> Result<()> {
     let providers_json = serde_json::to_string(&show.us_providers())?;
+    let networks_json = serde_json::to_string(&show.network_names())?;
     let now = Utc::now().to_rfc3339();
 
     let mut tx = pool.begin().await?;
@@ -44,8 +45,8 @@ pub async fn insert_show_full(
         INSERT INTO shows (
             tmdb_id, name, overview, poster_path, backdrop_path, status,
             first_air_date, last_air_date, in_production, watch_providers_json,
-            last_synced_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            networks_json, last_synced_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(show.id)
@@ -58,6 +59,7 @@ pub async fn insert_show_full(
     .bind(empty_to_none(show.last_air_date.as_deref()))
     .bind(if show.in_production { 1_i64 } else { 0_i64 })
     .bind(&providers_json)
+    .bind(&networks_json)
     .bind(&now)
     .execute(&mut *tx)
     .await?;
@@ -492,6 +494,7 @@ fn empty_to_none(s: Option<&str>) -> Option<&str> {
 /// Update mutable show fields from a fresh TMDB response.
 pub async fn upsert_show_metadata(pool: &SqlitePool, show: &TmdbShow) -> Result<()> {
     let providers_json = serde_json::to_string(&show.us_providers())?;
+    let networks_json = serde_json::to_string(&show.network_names())?;
     let now = Utc::now().to_rfc3339();
 
     sqlx::query(
@@ -505,6 +508,7 @@ pub async fn upsert_show_metadata(pool: &SqlitePool, show: &TmdbShow) -> Result<
             last_air_date = ?,
             in_production = ?,
             watch_providers_json = ?,
+            networks_json = ?,
             last_synced_at = ?
          WHERE tmdb_id = ?",
     )
@@ -517,6 +521,7 @@ pub async fn upsert_show_metadata(pool: &SqlitePool, show: &TmdbShow) -> Result<
     .bind(empty_to_none(show.last_air_date.as_deref()))
     .bind(if show.in_production { 1_i64 } else { 0_i64 })
     .bind(&providers_json)
+    .bind(&networks_json)
     .bind(&now)
     .bind(show.id)
     .execute(pool)
@@ -599,6 +604,7 @@ pub async fn list_up_next(pool: &SqlitePool, tz: Tz) -> Result<Vec<UpNextItem>> 
         show_tmdb_id: i64,
         show_name: String,
         poster_path: Option<String>,
+        networks_json: Option<String>,
         season_number: i64,
         episode_number: i64,
         episode_name: Option<String>,
@@ -629,6 +635,7 @@ pub async fn list_up_next(pool: &SqlitePool, tz: Tz) -> Result<Vec<UpNextItem>> 
             s.tmdb_id AS show_tmdb_id,
             s.name AS show_name,
             s.poster_path,
+            s.networks_json,
             ne.season_number,
             ne.episode_number,
             ne.episode_name,
@@ -657,6 +664,11 @@ pub async fn list_up_next(pool: &SqlitePool, tz: Tz) -> Result<Vec<UpNextItem>> 
             show_tmdb_id: r.show_tmdb_id,
             show_name: r.show_name,
             poster_url: poster_url(r.poster_path.as_deref()),
+            networks: r
+                .networks_json
+                .as_deref()
+                .and_then(|j| serde_json::from_str(j).ok())
+                .unwrap_or_default(),
             season_number: r.season_number,
             episode_number: r.episode_number,
             episode_name: r.episode_name,

@@ -311,6 +311,47 @@ async fn list_up_next_picks_oldest_unwatched_aired_per_show() {
 }
 
 #[tokio::test]
+async fn list_up_next_includes_networks_and_resync_backfills_them() {
+    let pool = test_pool().await;
+
+    // Added via TMDB: networks are captured at insert time.
+    let show = deser_show(serde_json::json!({
+        "id": 10, "name": "Bear",
+        "networks": [{"id": 453, "name": "Hulu"}, {"id": 88, "name": "FX"}]
+    }));
+    let season = deser_season(serde_json::json!({
+        "season_number": 1,
+        "episodes": [{"id": 1, "episode_number": 1, "air_date": iso_offset(-5)}]
+    }));
+    queries::insert_show_full(&pool, &show, &[season])
+        .await
+        .unwrap();
+
+    // Pre-existing row (networks_json NULL) until a resync fills it in.
+    insert_show(&pool, 20, "Legacy", None, None, &[]).await;
+    insert_season(&pool, 20, 1, 1).await;
+    insert_episode(&pool, 20, 1, 1, Some(&iso_offset(-3)), false).await;
+
+    let items = queries::list_up_next(&pool, utc_tz()).await.unwrap();
+    assert_eq!(items.len(), 2);
+    assert_eq!(
+        items[0].networks,
+        vec!["Hulu".to_string(), "FX".to_string()]
+    );
+    assert!(items[1].networks.is_empty());
+
+    let refreshed = deser_show(serde_json::json!({
+        "id": 20, "name": "Legacy", "networks": [{"id": 6, "name": "NBC"}]
+    }));
+    queries::upsert_show_metadata(&pool, &refreshed)
+        .await
+        .unwrap();
+
+    let items = queries::list_up_next(&pool, utc_tz()).await.unwrap();
+    assert_eq!(items[1].networks, vec!["NBC".to_string()]);
+}
+
+#[tokio::test]
 async fn list_up_next_skips_shows_with_no_unwatched_aired_episodes() {
     let pool = test_pool().await;
     insert_show(&pool, 1, "Done", None, None, &[]).await;

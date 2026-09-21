@@ -160,8 +160,15 @@ pub struct TmdbShow {
     pub in_production: bool,
     #[serde(default)]
     pub seasons: Vec<TmdbSeasonSummary>,
+    #[serde(default)]
+    pub networks: Vec<TmdbNetwork>,
     #[serde(rename = "watch/providers", default)]
     pub watch_providers: Option<TmdbWatchProvidersWrapper>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TmdbNetwork {
+    pub name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -258,6 +265,19 @@ impl TmdbShow {
     pub fn us_providers(&self) -> Vec<String> {
         us_providers_from(self.watch_providers.as_ref())
     }
+
+    /// Network names (broadcast/cable channels and streaming originals alike),
+    /// in TMDB's order, without blanks or duplicates.
+    pub fn network_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = Vec::new();
+        for n in &self.networks {
+            let name = n.name.trim();
+            if !name.is_empty() && !names.iter().any(|existing| existing == name) {
+                names.push(name.to_string());
+            }
+        }
+        names
+    }
 }
 
 impl TmdbMovie {
@@ -313,6 +333,29 @@ mod tests {
             "id": 1, "name": "x"
         }));
         assert!(show.us_providers().is_empty());
+    }
+
+    #[test]
+    fn network_names_keeps_order_and_drops_blanks_and_duplicates() {
+        let show = show_with_region(serde_json::json!({
+            "id": 1, "name": "X",
+            "networks": [
+                {"id": 6, "name": "NBC"},
+                {"id": 0, "name": " "},
+                {"id": 3353, "name": "Peacock"},
+                {"id": 6, "name": "NBC"}
+            ]
+        }));
+        assert_eq!(
+            show.network_names(),
+            vec!["NBC".to_string(), "Peacock".to_string()]
+        );
+    }
+
+    #[test]
+    fn network_names_is_empty_when_field_missing() {
+        let show = show_with_region(serde_json::json!({"id": 1, "name": "X"}));
+        assert!(show.network_names().is_empty());
     }
 
     #[test]

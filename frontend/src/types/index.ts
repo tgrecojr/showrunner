@@ -97,6 +97,7 @@ export interface UpNextItem {
 	show_tmdb_id: number;
 	show_name: string;
 	poster_url: string | null;
+	networks: string[];
 	season_number: number;
 	episode_number: number;
 	episode_name: string | null;

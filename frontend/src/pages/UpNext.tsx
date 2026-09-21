@@ -110,6 +110,15 @@ export default function UpNext() {
 									{item.show_name}
 								</Link>
 							</h3>
+							{item.networks.length > 0 && (
+								<div className="meta-row">
+									{item.networks.map((network) => (
+										<span key={network} className="network-pill">
+											{network}
+										</span>
+									))}
+								</div>
+							)}
 							<div className="meta-row">
 								<span className="ep-num">
 									S{pad(item.season_number)}E{pad(item.episode_number)}
