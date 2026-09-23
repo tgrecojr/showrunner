@@ -4,7 +4,19 @@
 
 Built for a homelab: one Docker container, a SQLite file on a volume, no external database, no accounts to manage.
 
-<!-- Add screenshots here — the Watchlist grid and the Calendar page make the strongest first impression. -->
+![Showrunner watchlist](docs/screenshots/watchlist.png)
+<p align="center"><em>Watchlist — every tracked show with watched/aired progress, status, and next air date</em></p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/calendar.png" alt="Showrunner calendar month view"></td>
+    <td width="50%"><img src="docs/screenshots/up-next.png" alt="Showrunner Up Next list"></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Calendar — everything airing this month, with today highlighted</em></td>
+    <td align="center"><em>Up Next — the next unwatched episode per show, oldest first</em></td>
+  </tr>
+</table>
 
 ---
 
