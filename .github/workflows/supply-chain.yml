@@ -52,7 +52,98 @@ jobs:
             --report \
             ./frontend
 
-      - name: OSV scan (npm + cargo lockfiles)
+      # --- OSV scanning -------------------------------------------------------
+      # Two modes, chosen by event:
+      #   * pull_request: DIFF mode. Scan the base branch's lockfiles and the
+      #     PR's lockfiles, then fail only on vulnerabilities the PR *introduces*.
+      #     An advisory that lands against a dependency already on main no
+      #     longer blocks unrelated PRs (what stalled #128/#130 on
+      #     GHSA-68fv-2mgg-jv7q).
+      #   * push to main / schedule: ABSOLUTE mode. Fail on any known
+      #     vulnerability so main's state stays visible. ci.yml calls this
+      #     workflow on a weekly schedule for exactly that purpose.
+      #
+      # Both lockfiles (frontend/package-lock.json, backend/Cargo.lock) are
+      # listed explicitly rather than scanned with --recursive, because the
+      # base-branch copies live under .osv-base/ inside the workspace and a
+      # recursive scan of ./ would pick those up too. The copies keep their
+      # directory layout so OSV-Scanner finds the sibling osv-scanner.toml
+      # ignore list for each lockfile, same as on the PR side.
+      #
+      # Both scanner invocations exit non-zero when they find vulnerabilities,
+      # so they run with continue-on-error and the reporter step decides the
+      # verdict. A scan that fails outright writes no JSON; the "both scans
+      # completed" check refuses to compare in that case rather than passing a
+      # broken scan as clean. All files live in the workspace: the scanner and
+      # reporter are Docker actions that mount only $GITHUB_WORKSPACE.
+
+      - name: Fetch base-branch lockfiles (PR diff mode)
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "${BASE_REF}"
+          mkdir -p .osv-base/frontend .osv-base/backend
+          git show "FETCH_HEAD:frontend/package-lock.json" > .osv-base/frontend/package-lock.json
+          git show "FETCH_HEAD:backend/Cargo.lock" > .osv-base/backend/Cargo.lock
+          # Per-lockfile ignore lists; tolerate their absence on the base branch.
+          git show "FETCH_HEAD:frontend/osv-scanner.toml" > .osv-base/frontend/osv-scanner.toml 2>/dev/null || rm -f .osv-base/frontend/osv-scanner.toml
+          git show "FETCH_HEAD:backend/osv-scanner.toml" > .osv-base/backend/osv-scanner.toml 2>/dev/null || rm -f .osv-base/backend/osv-scanner.toml
+
+      - name: OSV scan base lockfiles (PR diff mode)
+        id: scan-old
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output-file=osv-old.json
+            --lockfile=.osv-base/frontend/package-lock.json
+            --lockfile=.osv-base/backend/Cargo.lock
+
+      - name: OSV scan PR lockfiles (PR diff mode)
+        id: scan-new
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output-file=osv-new.json
+            --lockfile=frontend/package-lock.json
+            --lockfile=backend/Cargo.lock
+
+      - name: Check that both scans completed (PR diff mode)
+        if: ${{ github.event_name == 'pull_request' && (steps.scan-old.outcome == 'failure' || steps.scan-new.outcome == 'failure') }}
+        env:
+          OLD_RESULTS: osv-old.json
+          NEW_RESULTS: osv-new.json
+        run: |
+          status=0
+          if [ ! -s "${OLD_RESULTS}" ]; then
+            echo "::error::OSV-Scanner failed on the base lockfiles without writing results."
+            status=1
+          fi
+          if [ ! -s "${NEW_RESULTS}" ]; then
+            echo "::error::OSV-Scanner failed on this PR's lockfiles without writing results."
+            status=1
+          fi
+          exit "${status}"
+
+      - name: Report vulnerabilities introduced by this PR
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: google/osv-scanner-action/osv-reporter-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+        with:
+          scan-args: |-
+            --output=osv-results.sarif
+            --old=osv-old.json
+            --new=osv-new.json
+            --gh-annotations=true
+            --fail-on-vuln=true
+
+      - name: OSV scan (absolute, main / scheduled)
+        if: ${{ github.event_name != 'pull_request' }}
         uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
         with:
           scan-args: |-
