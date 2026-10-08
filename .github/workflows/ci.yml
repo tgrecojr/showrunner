@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Weekly absolute supply-chain scan of main. PR scans run in OSV diff mode
+  # (only vulnerabilities a PR introduces fail it), so this is what surfaces an
+  # advisory that lands against already-merged dependencies.
+  schedule:
+    - cron: "0 13 * * 1" # Mondays 09:00 America/New_York (13:00 UTC)
 
 # Least privilege: CI only needs to read the repo. Renovate keeps the pinned
 # action SHAs below current (helpers:pinGitHubActionDigests).
@@ -14,6 +19,7 @@ permissions:
 jobs:
   backend:
     name: Backend (Rust)
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -53,6 +59,7 @@ jobs:
 
   frontend:
     name: Frontend (React/TypeScript)
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -85,3 +92,12 @@ jobs:
           name: frontend-lcov
           path: frontend/coverage/lcov.info
           if-no-files-found: ignore
+
+  # Schedule-only: on push and pull_request the scan already runs via
+  # docker-publish.yml, so gating here avoids a duplicate check.
+  supply-chain:
+    name: Supply chain
+    if: ${{ github.event_name == 'schedule' }}
+    uses: ./.github/workflows/supply-chain.yml
+    secrets:
+      SOCKET_SECURITY_API_KEY: ${{ secrets.SOCKET_SECURITY_API_KEY }}
