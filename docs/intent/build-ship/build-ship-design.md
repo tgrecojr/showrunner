@@ -15,9 +15,9 @@ Showrunner ships as one container image. This segment owns how that image is bui
 
 1. **`frontend-build`** on `node:24-trixie-slim` (digest-pinned). Copies `package.json` and `package-lock.json`, runs `npm ci --ignore-scripts --no-audit --no-fund`, then `npm run build`. glibc Debian rather than Alpine so the lockfile resolves to the same tree CI audited (:2-3); `--ignore-scripts` because the toolchain ships platform binaries, not install hooks (:7-11).
 2. **`backend-build`** on `rust:1.98-slim-trixie` (digest-pinned). Copies `Cargo.toml` and `Cargo.lock` without a glob so a missing lockfile fails the build (:20-23), warms a dependency layer with a placeholder `main.rs`, then `cargo build --release --locked`. It also pre-creates `/rootfs/data` owned by uid 65532, because the runtime has no shell to `mkdir` or `chown` (:34-37).
-3. **Runtime** on `cgr.dev/chainguard/glibc-dynamic:latest` (digest-pinned). No shell, no package manager, no libssl; TLS is rustls using the image's CA bundle (:39-42). It receives only the binary, the built `dist/` as `/app/static`, and `/data`, all owned by 65532, and runs as that uid by image default. `ENV STATIC_DIR=/app/static`, `EXPOSE 3001`, entrypoint is the binary. There is no `HEALTHCHECK`.
+3. **Runtime** on `cgr.dev/chainguard/glibc-dynamic:latest` (digest-pinned). No shell, no package manager, no libssl; TLS is rustls using the image's CA bundle (:39-42). It receives only the binary, the built `dist/` as `/app/static`, and `/data`, all owned by 65532, and runs as that uid by image default. `ENV STATIC_DIR=/app/static`, `EXPOSE 3001`, entrypoint is the binary. `HEALTHCHECK` runs the binary's own `--healthcheck` mode (`app`) every 30 s with a 5 s timeout, a 10 s start period, and 3 retries, so the container reports `unhealthy` once the database probe has failed three times in a row.
 
-`docker-compose.yml` builds locally, restarts unless stopped, publishes `3001:3001`, mounts the named volume `showrunner_data` at `/data`, and passes `SERVER_HOST`, `SERVER_PORT`, `DATABASE_URL`, `TMDB_API_KEY` (no default), `RESYNC_CRON`, `TIMEZONE`, `CORS_ALLOWED_ORIGIN`, and `RUST_LOG` with defaults, plus a hard-coded `STATIC_DIR`. `DB_MAX_CONNECTIONS` is not passed. `.dockerignore` keeps `.git`, dotenv files, build outputs, `node_modules`, `dist`, Markdown, `.claude/`, `data/`, and `*.db` out of the context.
+`docker-compose.yml` builds locally, restarts unless stopped, publishes `3001:3001`, mounts the named volume `showrunner_data` at `/data`, and passes `SERVER_HOST`, `SERVER_PORT`, `DATABASE_URL`, `TMDB_API_KEY` (no default), `RESYNC_CRON`, `TIMEZONE`, `CORS_ALLOWED_ORIGIN`, and `RUST_LOG` with defaults, plus a hard-coded `STATIC_DIR`. `DB_MAX_CONNECTIONS` is not passed. The compose file declares no `healthcheck` of its own and inherits the image's; `docker compose ps` shows the state. Docker does not restart a container for being unhealthy, so the status is for operators and orchestrators to act on. `.dockerignore` keeps `.git`, dotenv files, build outputs, `node_modules`, `dist`, Markdown, `.claude/`, `data/`, and `*.db` out of the context.
 
 ## Merge gates (`ci.yml`)
 
@@ -62,15 +62,16 @@ On push to `main`, on `v*` tags, and on pull requests: the supply-chain scan run
 | Image trust | Keyless cosign signature, SPDX SBOM attestation, SLSA provenance | Unsigned; key-based signing | Verifiable with the workflow identity and no key to protect (SECURITY.md:34-40, README.md:102-118). |
 | Retention | `latest` + 5 tagged, untagged pruned, weekly | Keep everything | Bounded registry use with rollback headroom (ghcr-retention.yml:19-21). |
 | Platforms | `linux/amd64` only | Multi-arch | `[inferred]` Matches the homelab host. |
-| Health check | Intended: a container check against `/api/v1/health` (`SHIP-IMAGE-006`); today none | Rely on the process staying up | A dead database with a live process should fail the container's health, not hide behind a 200; the distroless image has no curl, so the check needs a probe mode in the binary or a compose-level test. |
+| Health check | `HEALTHCHECK` in the image invoking the binary's `--healthcheck` mode | No check; curl in the image; a compose `healthcheck` command | A dead database with a live process should fail the container's health, not hide behind a 200. The distroless image has no shell or curl, and a compose `healthcheck` also executes inside the container, so the binary's own probe is the only command that can run there; declaring it in the image means every consumer of the image gets it, not only this compose file. |
+| Health check cadence | 30 s interval, 5 s timeout, 10 s start period, 3 retries | Docker defaults (30 s / 30 s / 0 s / 3) | The probe's own 3 s limit fits inside 5 s; the start period covers migrations on first boot; three failures filter a single slow `SELECT 1`. |
 
 ## Open Questions & Future Decisions
 
 ### Resolved
-1. ✅ **The container declares a health check.** It probes `/api/v1/health`, which `app` will make return 503 when degraded (`APP-HEALTH-002`). Not yet implemented; tracked as `SHIP-IMAGE-006`.
+*(none yet)*
 
 ### Deferred
-1. **Health check mechanism.** With no shell or curl in the image, the check must be either a `--healthcheck` probe mode in the binary invoked by `HEALTHCHECK`, or a compose-level `healthcheck` from the host; which is preferred?
+1. **Unhealthy does not restart.** `restart: unless-stopped` acts on exit, not on health; recovering from a wedged database needs an operator or an external watcher.
 2. **Publish does not depend on CI.** `docker-publish.yml:23` needs only the scan; a `main` push failing clippy or tests would still publish `latest` if it ever bypassed branch protection.
 3. **Inconsistent `npm ci` hardening.** `ci.yml:77` runs lifecycle scripts; the Dockerfile and the scan do not.
 4. **No `concurrency:` groups** on CI or publish; rapid pushes can race to tag `latest`.

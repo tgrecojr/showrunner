@@ -111,7 +111,7 @@ arrows:
     blocks: [build-ship]
     blockedBy: []
     detail: app.md
-    next: "Confirm [inferred] decisions; implement APP-HEALTH-002 (503 when degraded)"
+    next: "Confirm [inferred] decisions; fold STATIC_DIR and DB_MAX_CONNECTIONS into Config"
     drift: null
 
   build-ship:
@@ -123,7 +123,7 @@ arrows:
     blocks: []
     blockedBy: [app]
     detail: build-ship.md
-    next: "Confirm [inferred] decisions; implement SHIP-IMAGE-006 (container health check) after APP-HEALTH-002; choose the probe mechanism"
+    next: "Confirm [inferred] decisions; make publish depend on CI; add concurrency groups"
     drift: null
 
 # Items found during mapping that don't yet belong to a segment.

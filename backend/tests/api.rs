@@ -72,6 +72,7 @@ async fn build_app() -> TestApp {
 
 // ============================ Health ============================
 
+// @spec APP-HEALTH-001, APP-HEALTH-002
 #[tokio::test]
 async fn health_returns_ok_when_db_responsive() {
     let app = build_app().await;
@@ -83,6 +84,22 @@ async fn health_returns_ok_when_db_responsive() {
     let v = body_to_value(resp).await;
     assert_eq!(v["status"], "ok");
     assert_eq!(v["database"], true);
+}
+
+// @spec APP-HEALTH-002
+#[tokio::test]
+async fn health_returns_503_degraded_when_db_unreachable() {
+    let app = build_app().await;
+    app.pool.close().await;
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::GET, "/api/v1/health"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let v = body_to_value(resp).await;
+    assert_eq!(v["status"], "degraded");
+    assert_eq!(v["database"], false);
+    assert!(v["version"].is_string());
 }
 
 // ============================ Search ============================

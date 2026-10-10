@@ -89,7 +89,10 @@ Then:
 ```bash
 docker compose up -d
 docker compose logs -f app     # watch it start
+docker compose ps              # STATUS shows (healthy) once the database probe passes
 ```
+
+The image declares its own health check: every 30 seconds the binary probes `GET /api/v1/health`, which answers 503 when the database is unreachable. Three consecutive failures mark the container `unhealthy`. Docker does not restart an unhealthy container on its own, so treat that status as a prompt to look at the logs.
 
 Open **<http://localhost:3001>** and start adding shows.
 

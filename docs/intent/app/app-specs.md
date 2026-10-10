@@ -29,7 +29,8 @@ Prefix `APP`. Facets: `CONFIG` (startup configuration), `HTTP` (the API perimete
 ## Health
 
 - [x] **APP-HEALTH-001**: `GET /api/v1/health` shall probe the database with `SELECT 1` under a 2-second timeout and respond with `{ status: "ok", version, database: true }` when the probe succeeds and `{ status: "degraded", version, database: false }` when it fails or times out.
-- [ ] **APP-HEALTH-002**: When the health probe reports `degraded`, `GET /api/v1/health` shall respond with HTTP 503; when it reports `ok` it shall respond with HTTP 200.
+- [x] **APP-HEALTH-002**: When the health probe reports `degraded`, `GET /api/v1/health` shall respond with HTTP 503; when it reports `ok` it shall respond with HTTP 200.
+- [x] **APP-HEALTH-003**: When the backend binary is started with the single argument `--healthcheck`, it shall request `GET /api/v1/health` on `SERVER_PORT` (default 3001) at `SERVER_HOST` (default and unspecified addresses resolving to loopback) with a 3-second timeout, exit 0 when the response is HTTP 200, and exit 1 when the response is any other status, the connection fails, or the timeout elapses, without reading `.env`, loading `Config`, or opening the database.
 
 ## SPA
 
