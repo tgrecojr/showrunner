@@ -57,6 +57,7 @@ tokio-cron-scheduler = "0.15"
 
 [dev-dependencies]
 wiremock = "0.6"
+tokio = { version = "1", features = ["test-util"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 serial_test = "4"

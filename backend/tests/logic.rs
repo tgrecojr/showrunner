@@ -274,3 +274,146 @@ async fn resync_all_skips_recently_synced_ended_shows() {
             .unwrap();
     assert_eq!(ended_ts, recent, "ended show must not have been resynced");
 }
+
+// @spec RESYNC-SHOW-004
+#[tokio::test]
+async fn resync_show_never_deletes_seasons_or_episodes_tmdb_dropped() {
+    let pool = test_pool().await;
+    insert_show(&pool, 42, "Kept", None, None, &[]).await;
+    insert_season(&pool, 42, 1, 2).await;
+    insert_season(&pool, 42, 2, 1).await;
+    insert_episode(&pool, 42, 1, 1, Some("2024-01-01"), true).await;
+    insert_episode(&pool, 42, 1, 2, Some("2024-01-08"), false).await;
+    insert_episode(&pool, 42, 2, 1, Some("2025-01-01"), false).await;
+
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/tv/42"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "id": 42, "name": "Kept", "seasons": [{"season_number": 1}]
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/tv/42/season/1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "season_number": 1, "episodes": [
+                {"id": 100, "episode_number": 1, "name": "Only one now"}
+            ]
+        })))
+        .mount(&server)
+        .await;
+
+    let tmdb = TmdbClient::with_base_url("k".into(), server.uri());
+    resync::resync_show(&pool, &tmdb, 42).await.unwrap();
+
+    let (seasons,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM seasons WHERE show_tmdb_id = 42")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let (episodes,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM episodes WHERE show_tmdb_id = 42")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!((seasons, episodes), (2, 3));
+}
+
+// @spec RESYNC-SHOW-005
+#[tokio::test]
+async fn resync_all_never_touches_movies() {
+    let pool = test_pool().await;
+    insert_show(&pool, 1, "Show", None, None, &[]).await;
+    insert_movie(&pool, 27205, "Inception").await;
+    let server = tmdb_answering_every_show().await;
+    let tmdb = TmdbClient::with_base_url("k".into(), server.uri());
+
+    let report = resync::resync_all(&pool, &tmdb).await.unwrap();
+    assert_eq!(report.shows_synced, 1);
+
+    let (count, name, added_at): (i64, String, String) =
+        sqlx::query_as("SELECT COUNT(*), MIN(name), MIN(added_at) FROM movies")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        (count, name.as_str(), added_at.as_str()),
+        (1, "Inception", "2026-05-13T00:00:00Z")
+    );
+    let movie_requests = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.url.path().starts_with("/movie"))
+        .count();
+    assert_eq!(movie_requests, 0);
+}
+
+/// Captures formatted tracing output so a test can assert on a log line.
+#[derive(Clone, Default)]
+struct LogBuf(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl std::io::Write for LogBuf {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for LogBuf {
+    type Writer = LogBuf;
+    fn make_writer(&'a self) -> LogBuf {
+        self.clone()
+    }
+}
+
+/// One process-wide capture, installed once. A per-test scoped subscriber
+/// would rebuild tracing's global callsite-interest cache while sibling tests
+/// on other threads are emitting, and the race drops events; a single global
+/// subscriber registers once and every callsite sees it from then on.
+static LOG_CAPTURE: std::sync::LazyLock<LogBuf> = std::sync::LazyLock::new(LogBuf::default);
+
+fn install_log_capture() -> &'static LogBuf {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        tracing_subscriber::fmt()
+            .with_writer(LOG_CAPTURE.clone())
+            .with_ansi(false)
+            .try_init()
+            .ok();
+    });
+    &LOG_CAPTURE
+}
+
+// @spec RESYNC-RUN-002
+#[tokio::test]
+async fn resync_all_warns_with_counts_when_the_ceiling_skips_shows() {
+    let logs = install_log_capture();
+    let already = logs.0.lock().unwrap().len();
+
+    let pool = test_pool().await;
+    for i in 1..=OVER_CAP {
+        insert_show(&pool, i, &format!("Show {i}"), None, None, &[]).await;
+    }
+    let server = tmdb_answering_every_show().await;
+    let tmdb = TmdbClient::with_base_url("k".into(), server.uri());
+
+    resync::resync_all(&pool, &tmdb).await.unwrap();
+
+    let out = String::from_utf8(logs.0.lock().unwrap()[already..].to_vec()).unwrap();
+    let warn = out
+        .lines()
+        .find(|l| l.contains("resync fan-out ceiling reached"))
+        .unwrap_or_else(|| panic!("no ceiling warning in logs:\n{out}"));
+    assert!(warn.contains("WARN"), "{warn}");
+    assert!(warn.contains(&format!("total={OVER_CAP}")), "{warn}");
+    assert!(warn.contains("limit=100"), "{warn}");
+    assert!(
+        warn.contains(&format!("skipped={}", OVER_CAP as usize - 100)),
+        "{warn}"
+    );
+}

@@ -23,7 +23,7 @@ Showrunner has no authentication by design: anyone who can reach the port can re
 | `TIMEZONE` | `America/New_York` | must be an IANA zone, else `TIMEZONE '<x>' is not a valid IANA zone (…)` |
 | `CORS_ALLOWED_ORIGIN` | unset | blank or whitespace reads as unset; an unparsable header value panics at startup (lib.rs:217) |
 
-Two more are read outside `Config`: `DB_MAX_CONNECTIONS` (default 5; an unparsable value silently falls back) in backend/src/db/pool.rs:8-11, and `STATIC_DIR` (default `./static`) in lib.rs:254. `RUST_LOG` drives the tracing filter with `info` as the default (lib.rs:237-239). Every configuration failure is an `AppError::Config` that aborts startup before the socket is bound.
+Two more are read outside `Config`: `DB_MAX_CONNECTIONS` (default 5; an unparsable value silently falls back) in backend/src/db/pool.rs:8-11, and `STATIC_DIR` (default `./static`) in lib.rs:254. `RUST_LOG` drives the tracing filter with `info` as the default (`log_filter` in lib.rs). Every configuration failure is an `AppError::Config` that aborts startup before the socket is bound.
 
 `create_pool` (pool.rs:7-36) opens SQLite with create-if-missing, foreign keys on, WAL journal, `synchronous=NORMAL`, a 30 s busy timeout, and the configured pool size, then runs the migrations embedded at build time from `backend/src/db/migrations`; a migration failure is also a startup `Config` error.
 
@@ -40,7 +40,7 @@ Two more are read outside `Config`: `DB_MAX_CONNECTIONS` (default 5; an unparsab
 
 `with_security_headers` (lib.rs:55-75) wraps the whole app last so static HTML gets them too: a CSP that locks scripts and connections to same-origin, allows images from `https://image.tmdb.org` and `data:`, permits inline styles, denies framing; plus `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`. Each is added only if not already present.
 
-**Static delivery** (lib.rs:254-264): if `STATIC_DIR/index.html` exists, every non-API path is served from that directory with `index.html` as the not-found fallback so client-side routes resolve; otherwise the process logs a warning and runs API-only.
+**Static delivery** (`with_static_fallback` in lib.rs): if `STATIC_DIR/index.html` exists, every non-API path is served from that directory with `index.html` as the not-found fallback so client-side routes resolve; otherwise the process logs a warning and runs API-only.
 
 ## Error responses
 
