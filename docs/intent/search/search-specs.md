@@ -13,7 +13,7 @@ Prefix `SEARCH`. Facets: `API` (the `GET /api/v1/search` handler) and `UI` (the 
 - [x] **SEARCH-API-007**: The system shall return `overview`, `date`, and `poster_url` as `null` when TMDB supplies an empty string, and shall build `poster_url` by prefixing `poster_path` with the w185 TMDB image base.
 - [x] **SEARCH-API-008**: If TMDB responds to a search with a non-2xx status other than 429 or 5xx, then the system shall respond 502 with the error `TMDB returned <status>`.
 - [x] **SEARCH-API-009**: The system shall return search results in TMDB's order, from TMDB's first result page only, without ranking, deduplication, or pagination of its own.
-- [ ] **SEARCH-API-010**: The system shall make the search request through the TMDB client, so that a 429 or 5xx from TMDB surfaces as HTTP 502 carrying the user-readable sentence defined by TMDB-ERR-002 or TMDB-ERR-003 rather than the raw status text.
+- [x] **SEARCH-API-010**: The system shall make the search request through the TMDB client, so that a 429 or 5xx from TMDB surfaces as HTTP 502 carrying the user-readable sentence defined by TMDB-ERR-002 or TMDB-ERR-003 rather than the raw status text.
 
 ## UI
 

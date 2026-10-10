@@ -41,32 +41,28 @@ TMDB multi-search proxied through the backend, plus the Search page with its per
 
 | Category | Spec IDs | Implemented | Deferred | Gaps |
 |----------|----------|-------------|----------|------|
-| API | SEARCH-API-001 to 010 | 9 | 0 | 1 |
+| API | SEARCH-API-001 to 010 | 10 | 0 | 0 |
 | UI | SEARCH-UI-001 to 012 | 12 | 0 | 0 |
 
-**Summary:** 21 of 22 active specs implemented; 1 gap (`SEARCH-API-010`, friendly 429 text for search).
+**Summary:** 22 of 22 active specs implemented; no gaps.
 
 ## Key Findings
 
-1. **The only TMDB call outside `TmdbClient`** — backend/src/api/search.rs:65-76 builds the request from `base_url()`, `http()`, and `api_key()` accessors instead of a client method. The API key leaves the client struct here (:71).
-2. **No rate-limit mapping** — a TMDB 429 surfaces as `Upstream("TMDB returned 429 Too Many Requests")` with HTTP 502 (search.rs:78-83). The movie-detail path maps 429 to a friendly sentence (backend/src/datasources/tmdb.rs:112-117); search does not.
-3. **Non tv/movie results are dropped silently** — `person` and any unknown `media_type` are filtered at search.rs:90-94 and :110-114, pinned by api.rs:112.
-4. **Add crosses the segment boundary** — Search.tsx:66-70 calls `api.addMovie` / `api.addShow`, whose endpoints belong to `movies` and `shows`. The Search page owns only the button states.
-5. **Debounce without cancellation** — Search.tsx:25-50 clears the timer and ignores late results via a `cancelled` flag, but no `AbortController`; previous results stay visible while a new search runs (:120 shows "Searching…" above them), and `loading` is only set once the 350 ms timer fires (:26).
-6. **Per-result add errors render without the `Error:` prefix** every other page uses (Search.tsx:155; contrast UpNext.tsx and Watchlist.tsx).
-7. **`q` is trimmed and required but has no length cap** (search.rs:58-63); it is a query parameter, so the 1 MiB body limit does not apply.
-8. **Poster base URL duplicated** — search.rs:11 defines `POSTER_BASE` separately from `models::show::poster_url` (backend/src/models/show.rs:4).
+1. **Non tv/movie results are dropped silently** — `person` and any unknown `media_type` are filtered at search.rs:90-94 and :110-114, pinned by api.rs:112.
+2. **Add crosses the segment boundary** — Search.tsx:66-70 calls `api.addMovie` / `api.addShow`, whose endpoints belong to `movies` and `shows`. The Search page owns only the button states.
+3. **Debounce without cancellation** — Search.tsx:25-50 clears the timer and ignores late results via a `cancelled` flag, but no `AbortController`; previous results stay visible while a new search runs (:120 shows "Searching…" above them), and `loading` is only set once the 350 ms timer fires (:26).
+4. **Per-result add errors render without the `Error:` prefix** every other page uses (Search.tsx:155; contrast UpNext.tsx and Watchlist.tsx).
+5. **`q` is trimmed and required but has no length cap** (search.rs:58-63); it is a query parameter, so the 1 MiB body limit does not apply.
+6. **Poster base URL duplicated** — search.rs defines `POSTER_BASE` separately from `models::show::poster_url` (backend/src/models/show.rs:4).
 
 ## Work Required
 
 ### Must Fix
-1. Confirm or refute the `[inferred]` decisions in the LLD (why search bypasses `TmdbClient`; why add stays on the Search page rather than navigating).
+1. Confirm or refute the `[inferred]` decisions in the LLD (why add stays on the Search page rather than navigating).
 
 ### Should Fix
-2. Decide whether search should share the friendly 429/5xx mapping (cross-segment with `tmdb` and `app`; tracked as an open question in all three).
-3. Encapsulate the search request in `TmdbClient` so the key never leaves `tmdb`.
 
 ### Nice to Have
-4. Cap `q` length server-side.
-5. Abort in-flight searches on query change.
-6. Reuse `models::show::poster_url` instead of a local base constant.
+2. Cap `q` length server-side.
+3. Abort in-flight searches on query change.
+4. Reuse `models::show::poster_url` instead of a local base constant.

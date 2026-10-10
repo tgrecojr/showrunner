@@ -27,49 +27,45 @@ The adapter for the only external data source: the HTTP client, the TMDB respons
 - backend/src/datasources/tmdb.rs
 - backend/src/error.rs:37-46 (`From<reqwest::Error>`)
 - backend/src/models/show.rs:1-15, backend/src/models/movie.rs:1-9 (image URL helpers)
-- Consumers: backend/src/api/search.rs (accessors), backend/src/api/shows.rs, backend/src/api/movies.rs, backend/src/logic/resync.rs
+- Consumers: backend/src/api/search.rs (`search_multi`), backend/src/api/shows.rs, backend/src/api/movies.rs, backend/src/logic/resync.rs
 
 ## Architecture
 
 **Purpose:** Talk to TMDB on the user's behalf without leaking the key, and hand the rest of the app small, stable shapes.
 
 **Key Components:**
-1. `TmdbClient` — three request methods plus accessors used only by search.
+1. `TmdbClient` — four request methods (show, movie, season, search) over one private `get` that is the only place the key is used.
 2. `json_within_cap` and the minimal deserialized shapes with empty-collection defaults.
 3. Reductions — US providers, network names, directors, image URL helpers.
-4. Error conversion — URL stripped at the `reqwest::Error` boundary; status mapping per method.
+4. Error conversion — URL stripped at the `reqwest::Error` boundary; one shared status mapper (429 and 5xx sentences, raw status otherwise) after each method's 404 rule.
 
 ## Spec Coverage
 
 | Category | Spec IDs | Implemented | Deferred | Gaps |
 |----------|----------|-------------|----------|------|
-| Client | TMDB-CLIENT-001 to 006 | 6 | 0 | 0 |
+| Client | TMDB-CLIENT-001 to 007 | 7 | 0 | 0 |
 | Shape | TMDB-SHAPE-001 to 004 | 4 | 0 | 0 |
-| Errors | TMDB-ERR-001 to 005 | 3 | 0 | 2 |
+| Errors | TMDB-ERR-001 to 005 | 5 | 0 | 0 |
 
-**Summary:** 13 of 15 active specs implemented; 2 gaps (`TMDB-ERR-002` friendly 429 on every call, `TMDB-ERR-003` friendly 5xx on every call).
+**Summary:** 16 of 16 active specs implemented; no gaps.
 
 ## Key Findings
 
-1. **Friendly rate-limit text exists on one method only** — `get_movie` (backend/src/datasources/tmdb.rs:112-117); `get_show`, `get_season`, and the search handler surface raw `TMDB returned 429`. Intended: `TMDB-ERR-002`, `TMDB-ERR-003`.
-2. **Search bypasses the client** — backend/src/api/search.rs:65-76 uses `base_url()`, `http()`, `api_key()`; the key leaves this module there.
-3. **`get_season` has no 404 mapping** (tmdb.rs:136-142); a missing season is a 502.
-4. **Chunked responses are not size-capped** (tmdb.rs:10-13); only the timeout bounds them.
-5. **No retry, backoff, User-Agent, or caching** anywhere in the client.
-6. **`Config` derives `Debug` with the key in a plain `String`** (backend/src/config.rs:7-14); nothing formats it today.
-7. **Credential naming mismatch in docs** — README.md:59 names the v4 "Read Access Token"; the code uses a v3 key (`api_key` query param).
-8. **Three copies of the w185 image base** (models/show.rs:4, models/movie.rs:4, api/search.rs:11).
+1. **`get_season` has no 404 mapping** (tmdb.rs:136-142); a missing season is a 502.
+2. **Chunked responses are not size-capped** (tmdb.rs:10-13); only the timeout bounds them.
+3. **No retry, backoff, User-Agent, or caching** anywhere in the client.
+4. **`Config` derives `Debug` with the key in a plain `String`** (backend/src/config.rs:7-14); nothing formats it today.
+5. **Credential naming mismatch in docs** — README.md:59 names the v4 "Read Access Token"; the code uses a v3 key (`api_key` query param).
+6. **Three copies of the w185 image base** (models/show.rs, models/movie.rs, api/search.rs).
 
 ## Work Required
 
 ### Must Fix
 1. Confirm or refute the `[inferred]` decisions (v3 key, 10 s timeout, US-only providers and tiers, no retries, season-404-as-upstream).
-2. Implement `TMDB-ERR-002` and `TMDB-ERR-003` across `get_show`, `get_season`, and `get_movie`.
 
 ### Should Fix
-3. Add a `search_multi` client method and retire the `api_key()` accessor (cascade to `search`).
-4. Fix README.md:59 to name the v3 API key.
+2. Fix README.md:59 to name the v3 API key.
 
 ### Nice to Have
-5. Map season 404 to not-found.
-6. Consolidate the image base constants.
+3. Map season 404 to not-found.
+4. Consolidate the image base constants.

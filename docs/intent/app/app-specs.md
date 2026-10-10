@@ -38,4 +38,4 @@ Prefix `APP`. Facets: `CONFIG` (startup configuration), `HTTP` (the API perimete
 - [x] **APP-SPA-003**: The API client shall prefix every path with `/api/v1`, send `Content-Type: application/json` on every request, send no credentials, resolve a 204 response to no value, and parse any other successful response as JSON.
 - [x] **APP-SPA-004**: If an API response is not successful, then the API client shall reject with an `ApiError` (an `Error` subclass) whose `status` is the HTTP status code and whose message is the body's `error` field when the body is JSON with that field and the raw body text otherwise, with no prefix.
 - [x] **APP-SPA-005**: The API client shall URL-encode query parameter values it sends.
-- [ ] **APP-SPA-006**: When a page displays an API error to the user, it shall show the error's message exactly as the API client delivered it, without rewriting, prefixing, or interpreting it, on every page.
+- [x] **APP-SPA-006**: When a page displays an API error to the user, it shall show the error's message exactly as the API client delivered it, without rewriting, prefixing, or interpreting it, on every page.

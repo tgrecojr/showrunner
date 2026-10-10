@@ -27,7 +27,7 @@ arrows:
     blocks: []
     blockedBy: [shows, movies, tmdb]
     detail: search.md
-    next: "Confirm [inferred] decisions; decide whether to move the search request into TmdbClient (SEARCH-API-010)"
+    next: "Confirm [inferred] decisions; cap q length; consider aborting in-flight searches"
     drift: null
 
   shows:
@@ -51,7 +51,7 @@ arrows:
     blocks: [search, watch-log]
     blockedBy: [tmdb, watch-log]
     detail: movies.md
-    next: "Confirm [inferred] decisions; move friendlyError into the shared fetch wrapper with app"
+    next: "Confirm [inferred] decisions; add routing and client tests for the movie endpoints"
     drift: null
 
   up-next-calendar:
@@ -99,7 +99,7 @@ arrows:
     blocks: [search, shows, movies, resync]
     blockedBy: []
     detail: tmdb.md
-    next: "Confirm [inferred] decisions; implement TMDB-ERR-002/003 (friendly 429 and 5xx on every call)"
+    next: "Confirm [inferred] decisions; fix README credential naming; decide season-404 mapping"
     drift: null
 
   app:
@@ -111,7 +111,7 @@ arrows:
     blocks: [build-ship]
     blockedBy: []
     detail: app.md
-    next: "Confirm [inferred] decisions; implement APP-HEALTH-002 (503 when degraded) and APP-SPA-006 (strip API prefix everywhere)"
+    next: "Confirm [inferred] decisions; implement APP-HEALTH-002 (503 when degraded)"
     drift: null
 
   build-ship:
