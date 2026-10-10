@@ -61,7 +61,7 @@ On push to `main`, on `v*` tags, and on pull requests, under a workflow-level `p
 | Socket secret | Optional; step self-skips | Required | Bot PRs run without secrets and would hard-fail the call (supply-chain.yml, the `workflow_call` secret's `required: false` declaration). |
 | Image trust | Keyless cosign signature, SPDX SBOM attestation, SLSA provenance | Unsigned; key-based signing | Verifiable with the workflow identity and no key to protect (SECURITY.md, "Supply chain"; README.md, "Verifying the image"). |
 | Retention | `latest` + 5 tagged, untagged pruned, weekly | Keep everything | Bounded registry use with rollback headroom (ghcr-retention.yml, step `Prune GHCR (keep latest + 5 most recent tagged)`). |
-| Platforms | `linux/amd64` only | Multi-arch | `[inferred]` Matches the homelab host. |
+| Platforms | `linux/amd64` only | Multi-arch | Matches the homelab host. |
 | Health check | `HEALTHCHECK` in the image invoking the binary's `--healthcheck` mode | No check; curl in the image; a compose `healthcheck` command | A dead database with a live process should fail the container's health, not hide behind a 200. The distroless image has no shell or curl, and a compose `healthcheck` also executes inside the container, so the binary's own probe is the only command that can run there; declaring it in the image means every consumer of the image gets it, not only this compose file. |
 | Health check cadence | 30 s interval, 5 s timeout, 10 s start period, 3 retries | Docker defaults (30 s / 30 s / 0 s / 3) | The probe's own 3 s limit fits inside 5 s; the start period covers migrations on first boot; three failures filter a single slow `SELECT 1`. |
 

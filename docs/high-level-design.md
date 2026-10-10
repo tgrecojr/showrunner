@@ -115,6 +115,7 @@ Each decision names the segment design where its rationale and alternatives are 
 - **Private helpers are annotated when they alone own the behavior.** The aired predicate lives in `episode_counts`, so that is where `SHOWS-PROGRESS-001` sits even though the function is private.
 - **Never annotate SQL migrations.** sqlx checksums every applied migration; a comment added later makes the app refuse to start against an existing volume. Cite the Rust module that owns the table instead.
 - **Build and CI files carry `#` annotations.** A CI gate step is both the specified behavior and its own check, so `SHIP-CI`, `SHIP-SUPPLY`, and `SHIP-RELEASE` specs are covered by the step itself. Specs about the built image (`SHIP-IMAGE`) need a separate check: the pull-request image build covers `SHIP-IMAGE-001` (the build itself), and the rest are counted as untested until an image-inspection job exists.
+- **Verified by review:** a spec that states a compile-time property with no runtime observable (`TMDB-CLIENT-008`, the client's private key and HTTP fields) has no test; the coherence script carries it on a named allowlist with the reason.
 - **Not annotated:** properties inside the `api` object literal, CSS rules, and JSON files (which cannot carry comments). `SHIP-SUPPLY-004` (Renovate rules) therefore has no code anchor; its LLD section is the only home.
 
 ## Success Metrics

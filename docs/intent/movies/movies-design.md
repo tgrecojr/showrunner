@@ -45,12 +45,12 @@ Errors on this page are shown as the API client delivered them, like every other
 |----------|--------|------------------------|-----------|
 | Watched state | Row existence; marking watched deletes the row | A `watched` column with filtering | A to-watch list only needs to know what is left (migration header comment, add_movies.sql). |
 | Watched vs remove | Two routes; only `watched` logs | One delete with a `log` flag | The log should contain only things actually watched (movies.rs, doc comment on `mark_movie_watched`). |
-| Credits and providers | Fetched live on every detail view, never stored | Persist at add; refresh on resync | `[inferred]` Keeps the table to eight columns and the data current without adding movies to resync; the cost is a TMDB dependency for every detail view. |
-| Cast size | Top 12 by TMDB `order` | Full cast | `[inferred]` A detail page, not a credits database. |
+| Credits and providers | Fetched live on every detail view, never stored | Persist at add; refresh on resync | Keeps the table to eight columns and the data current without adding movies to resync; the cost is a TMDB dependency for every detail view. |
+| Cast size | Top 12 by TMDB `order` | Full cast | A detail page, not a credits database. |
 | Episode-driven views | Movies excluded from resync, calendar, Up Next | Show release dates on the calendar | Those views are driven by episode air dates (CLAUDE.md). |
-| List order | Newest added first, then name | Alphabetical like shows | `[inferred]` A queue reads newest-first. |
-| After mutation on the list page | Filter locally, no refetch | Refetch the list | `[inferred]` One fewer request; the server response is 204 anyway. |
-| After mutation on the detail page | Navigate to `/movies` | Stay with a confirmation | `[inferred]` The movie no longer exists on the list. |
+| List order | Newest added first, then name | Alphabetical like shows | A queue reads newest-first. |
+| After mutation on the list page | Filter locally, no refetch | Refetch the list | One fewer request; the server response is 204 anyway. |
+| After mutation on the detail page | Navigate to `/movies` | Stay with a confirmation | The movie no longer exists on the list. |
 
 ## Open Questions & Future Decisions
 

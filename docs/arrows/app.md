@@ -4,7 +4,7 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 
 ## Status
 
-**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 24 specs are implemented, annotated in code, and cited by at least one test; what remains open is confirming the six `[inferred]` decisions in the LLD and the small design items it already lists as deferred.
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 24 specs are implemented, annotated in code, and cited by at least one test; what remains open is the small design items the LLD lists as deferred.
 
 ## References
 
@@ -84,13 +84,12 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 ## Work Required
 
 ### Must Fix
-1. Confirm or refute the `[inferred]` decisions in the LLD table (request bounds, CORS default, SQLite mode, home route, data layer, styling).
 
 ### Should Fix
-2. Fold `STATIC_DIR` and `DB_MAX_CONNECTIONS` into `Config`; document `STATIC_DIR` in env.example and README, and pass `DB_MAX_CONNECTIONS` through docker-compose.yml.
+1. Fold `STATIC_DIR` and `DB_MAX_CONNECTIONS` into `Config`; document `STATIC_DIR` in env.example and README, and pass `DB_MAX_CONNECTIONS` through docker-compose.yml.
 
 ### Nice to Have
-3. Return a `Config` error for a bad CORS origin instead of panicking.
-4. Add a not-found route and a shared data-loading hook.
-5. Add `/movies` and `/movies/:tmdbId` cases to frontend/src/App.test.tsx.
-6. Split backend/src/lib.rs (perimeter middleware and startup are separable) to get under the 300-line guideline.
+2. Return a `Config` error for a bad CORS origin instead of panicking.
+3. Add a not-found route and a shared data-loading hook.
+4. Add `/movies` and `/movies/:tmdbId` cases to frontend/src/App.test.tsx.
+5. Split backend/src/lib.rs (perimeter middleware and startup are separable) to get under the 300-line guideline.

@@ -4,7 +4,7 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 
 ## Status
 
-**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 17 specs implemented and annotated; the two `[inferred]` decisions in the LLD (scan-only publish gate, amd64-only) are still unconfirmed, and the LLD's twelve Deferred items remain open.
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 17 specs implemented and annotated; the publish gate is being changed to require the CI jobs (decided, pending), and the LLD's remaining Deferred items stay open.
 
 ## References
 
@@ -79,7 +79,7 @@ All nine are recorded as Deferred items in the LLD (Open Questions & Future Deci
 ## Work Required
 
 ### Must Fix
-1. Confirm or refute the `[inferred]` rows in the LLD decisions table (scan-only publish gate, amd64-only).
+1. Require the CI jobs as branch-protection status checks on `main` and make the publish job depend on them (decided; the LLD's rationale that protection already does this was false).
 
 ### Should Fix
 2. Add `--ignore-scripts` to ci.yml's `Install dependencies` step (Finding 2).
@@ -87,6 +87,5 @@ All nine are recorded as Deferred items in the LLD (Open Questions & Future Deci
 4. Add `concurrency:` groups to CI and publish (Finding 3).
 
 ### Nice to Have
-5. Make publish depend on CI, or record branch protection as the guarantee in the LLD (Finding 1).
-6. Clean up the Renovate rules and the ignore-file example name (Findings 8, 9).
-7. Decide whether CI should pin the Rust toolchain to the image's version (Finding 7).
+5. Clean up the Renovate rules and the ignore-file example name (Findings 8, 9).
+6. Decide whether CI should pin the Rust toolchain to the image's version (Finding 7).

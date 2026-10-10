@@ -81,10 +81,10 @@ The verb is `unwatched` for `unwatched` rows; missing season or episode numbers 
 | Pagination | Offset, 1-based, `per_page` capped at 100 | Cursor | A single-user history is small; the cap bounds an unauthenticated response (doc comment on `list_watch_log` in backend/src/api/watch_log.rs). |
 | Order | Newest first by `occurred_at`, then `id` | Oldest first | Recent mistakes are what the page is for; `id` breaks same-instant ties (index definition). |
 | Undo | None on this page | Inline undo button | Undo is the show or movie page's job; keeping History read-only keeps it a record (the intro `status` paragraph in History.tsx, CLAUDE.md). |
-| Vocabulary columns | Free TEXT with documented values | CHECK constraints or lookup tables | `[inferred]` Writers are few and in one file; constraints were not judged worth a migration. |
-| Movie titles | Plain text, not linked | Link to `/movies/{id}` | `[inferred]` The movie row is gone once watched, so the link would 404. |
-| Page in URL | `?page=` search param | Component state | `[inferred]` Back button and bookmarks. |
-| Time display | Browser locale and zone | Server `TIMEZONE`; raw UTC | `[inferred]` `occurred_at` is an instant, so the reader's local time is the natural rendering. |
+| Vocabulary columns | Free TEXT with documented values | CHECK constraints or lookup tables | Writers are few and in one file; constraints were not judged worth a migration. |
+| Movie titles | Plain text, not linked | Link to `/movies/{id}` | The movie row is gone once watched, so the link would 404. |
+| Page in URL | `?page=` search param | Component state | Back button and bookmarks. |
+| Time display | Browser locale and zone | Server `TIMEZONE`; raw UTC | `occurred_at` is an instant, so the reader's local time is the natural rendering. |
 
 ## Open Questions & Future Decisions
 
