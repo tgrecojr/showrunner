@@ -193,6 +193,7 @@ function checkSpecIntegrity() {
 // Each entry needs a reason; a spec that merely lacks a test does not belong here.
 const UNCITABLE = new Set([
   'SHIP-SUPPLY-004', // Renovate rules live in renovate.json; JSON cannot carry a comment
+  'SHIP-CI-005',     // branch protection is a repository setting, not a file in the tree
 ]);
 
 // Implemented specs that are compile-time properties with no runtime observable;

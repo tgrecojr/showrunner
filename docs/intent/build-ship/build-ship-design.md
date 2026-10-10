@@ -21,7 +21,7 @@ Showrunner ships as one container image. This segment owns how that image is bui
 
 ## Merge gates (`ci.yml`)
 
-On push to `main` and on pull requests, two jobs under `permissions: contents: read`:
+On pull requests directly, and as a workflow called from `docker-publish.yml` on every push to `main` or `v*` tag, two jobs under `permissions: contents: read`. Branch protection on `main` lists both as required checks, so a pull request cannot merge while either is red:
 
 | Job | Steps |
 |---|---|
@@ -38,7 +38,7 @@ OSV runs in **diff mode** on pull requests: the base branch's lockfiles are fetc
 
 ## Publish (`docker-publish.yml`)
 
-On push to `main`, on `v*` tags, and on pull requests, under a workflow-level `permissions: contents: read` that the publish job alone widens (packages, id-token, attestations, artifact-metadata): the supply-chain scan runs first, then `build-and-push`. Pull requests build only. Pushes log in to GHCR with the workflow token, derive tags (`latest` on the default branch, semver `X.Y.Z` and `X.Y` from `v*` tags, `sha-<short>` always), build with GitHub Actions cache, push, then `cosign sign --yes` keyless against the digest, generate an SPDX SBOM from the pushed digest, and attach SBOM and SLSA build-provenance attestations to the registry. The build is single-platform (the runner's `linux/amd64`). The publish job depends on the scan but not on `ci.yml`.
+On push to `main`, on `v*` tags, and on pull requests, under a workflow-level `permissions: contents: read` that the publish job alone widens (packages, id-token, attestations, artifact-metadata): the supply-chain scan and, on pushes and tags, the CI gates (`ci.yml` as a called workflow) run first, then `build-and-push`, which requires both. Pull requests build only. Pushes log in to GHCR with the workflow token, derive tags (`latest` on the default branch, semver `X.Y.Z` and `X.Y` from `v*` tags, `sha-<short>` always), build with GitHub Actions cache, push, then `cosign sign --yes` keyless against the digest, generate an SPDX SBOM from the pushed digest, and attach SBOM and SLSA build-provenance attestations to the registry. The build is single-platform (the runner's `linux/amd64`). The publish job depends on the scan but not on `ci.yml`.
 
 ## Retention and dependency updates
 
@@ -56,7 +56,7 @@ On push to `main`, on `v*` tags, and on pull requests, under a workflow-level `p
 | Pinning | Every image and action by digest, moved by Renovate | Floating tags | Reproducible builds; updates arrive as reviewed PRs (renovate.json, the `helpers:pinGitHubActionDigests` preset and the `matchCategories: ["docker"]` rule's `pinDigests`). |
 | Base-image updates | All Docker bases in one PR | Independent PRs | Builder and runtime glibc must move together (renovate.json, the rule described `Keep all Docker base images … in one PR`). |
 | What gates a merge | fmt, clippy `-D warnings`, 85% backend line coverage, tsc, Biome, vitest thresholds | Lint only | CONTRIBUTING.md, "Before you push"; the PR template restates the same commands. |
-| What gates a publish | The supply-chain scan | Also the CI lint/test jobs | `[inferred]` Branch protection on PR merges is relied on to keep untested code off `main`. |
+| What gates a publish | The supply-chain scan and the CI gates, and branch protection requires the CI checks on pull requests | Scan only, relying on branch protection | Protection alone left two holes: a direct push to `main` and a merge with red checks (protection required no checks until SHIP-CI-005). Calling `ci.yml` from the publish run closes both without running the gates twice. |
 | OSV on PRs | Diff mode, fail only on introduced vulnerabilities | Absolute on every PR | An advisory against a dependency already on `main` must not block unrelated PRs (supply-chain.yml, the `OSV scanning` comment above the `(PR diff mode)` steps). |
 | Socket secret | Optional; step self-skips | Required | Bot PRs run without secrets and would hard-fail the call (supply-chain.yml, the `workflow_call` secret's `required: false` declaration). |
 | Image trust | Keyless cosign signature, SPDX SBOM attestation, SLSA provenance | Unsigned; key-based signing | Verifiable with the workflow identity and no key to protect (SECURITY.md, "Supply chain"; README.md, "Verifying the image"). |
@@ -72,17 +72,16 @@ On push to `main`, on `v*` tags, and on pull requests, under a workflow-level `p
 
 ### Deferred
 1. **Unhealthy does not restart.** `restart: unless-stopped` acts on exit, not on health; recovering from a wedged database needs an operator or an external watcher.
-2. **Publish does not depend on CI.** `docker-publish.yml`'s `build-and-push` job `needs` only the scan; a `main` push failing clippy or tests would still publish `latest` if it ever bypassed branch protection.
-3. **Inconsistent `npm ci` hardening.** `ci.yml`'s `frontend` job (step `Install dependencies`) runs lifecycle scripts; the Dockerfile and the scan do not.
-4. **No `concurrency:` groups** on CI or publish; rapid pushes can race to tag `latest`.
-5. **Semver tags are pruned** by the keep-5 rule once enough `sha-*` tags accrue, while README.md ("Updating") suggests pinning `0.1`.
-6. **README backup procedure** (`docker compose exec app sqlite3 …`, README.md, "Backup & restore") cannot run in a shell-less image.
-7. **Compose and docs disagree on variables.** `DB_MAX_CONNECTIONS` is documented but not passed; `STATIC_DIR` is passed but undocumented; overriding `SERVER_PORT` breaks the hard-coded `3001:3001` mapping.
-8. **Toolchain drift.** CI uses floating `stable` Rust; the image pins 1.98.
-9. **Renovate residue.** Overlapping automerge rules for Docker (branch vs grouped PR), a stable-image list naming services this repo does not use, and `:enablePreCommit` with no pre-commit config.
-10. **Ignore-file naming.** Both ignore files negate a dot-prefixed example file; the committed template is `env.example` without the dot.
-11. **OSV SARIF** is written but never uploaded to code scanning; annotations are the only surfacing.
-12. **Socket org** is hard-coded to `grecolabs`.
+2. **Inconsistent `npm ci` hardening.** `ci.yml`'s `frontend` job (step `Install dependencies`) runs lifecycle scripts; the Dockerfile and the scan do not.
+3. **No `concurrency:` groups** on CI or publish; rapid pushes can race to tag `latest`.
+4. **Semver tags are pruned** by the keep-5 rule once enough `sha-*` tags accrue, while README.md ("Updating") suggests pinning `0.1`.
+5. **README backup procedure** (`docker compose exec app sqlite3 …`, README.md, "Backup & restore") cannot run in a shell-less image.
+6. **Compose and docs disagree on variables.** `DB_MAX_CONNECTIONS` is documented but not passed; `STATIC_DIR` is passed but undocumented; overriding `SERVER_PORT` breaks the hard-coded `3001:3001` mapping.
+7. **Toolchain drift.** CI uses floating `stable` Rust; the image pins 1.98.
+8. **Renovate residue.** Overlapping automerge rules for Docker (branch vs grouped PR), a stable-image list naming services this repo does not use, and `:enablePreCommit` with no pre-commit config.
+9. **Ignore-file naming.** Both ignore files negate a dot-prefixed example file; the committed template is `env.example` without the dot.
+10. **OSV SARIF** is written but never uploaded to code scanning; annotations are the only surfacing.
+11. **Socket org** is hard-coded to `grecolabs`.
 
 ## References
 

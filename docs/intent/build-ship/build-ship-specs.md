@@ -13,10 +13,11 @@ Prefix `SHIP`. Facets: `IMAGE` (Dockerfile and compose), `CI` (merge gates), `SU
 
 ## CI
 
-- [x] **SHIP-CI-001**: On every push to `main` and every pull request targeting `main`, CI shall fail unless `cargo fmt --check` passes, `cargo clippy --all-targets -- -D warnings` passes, backend tests pass with at least 85% line coverage, `tsc --noEmit` passes, `biome ci` passes, and frontend tests pass with coverage at or above the configured thresholds.
+- [x] **SHIP-CI-001**: On every pull request targeting `main`, and inside every publish run for a push to `main` or a `v*` tag, CI shall fail unless `cargo fmt --check` passes, `cargo clippy --all-targets -- -D warnings` passes, backend tests pass with at least 85% line coverage, `tsc --noEmit` passes, `biome ci` passes, and frontend tests pass with coverage at or above the configured thresholds.
 - [x] **SHIP-CI-002**: CI shall upload the backend and frontend coverage reports as artifacts even when a job fails.
 - [x] **SHIP-CI-003**: Every workflow shall declare least-privilege permissions and reference every action by commit SHA with a version comment.
 - [x] **SHIP-CI-004**: Every Monday at 13:00 UTC, CI shall run the supply-chain scan against `main` in absolute mode so that advisories against already-merged dependencies are surfaced.
+- [x] **SHIP-CI-005**: Branch protection on `main` shall require the `Backend (Rust)` and `Frontend (React/TypeScript)` checks to pass before a pull request can merge, so a merge with red CI cannot reach `main`.
 
 ## Supply
 
@@ -27,6 +28,6 @@ Prefix `SHIP`. Facets: `IMAGE` (Dockerfile and compose), `CI` (merge gates), `SU
 
 ## Release
 
-- [x] **SHIP-RELEASE-001**: When a push to `main` or a `v*` tag occurs and the supply-chain scan has passed, the publish workflow shall build the image and push it to `ghcr.io/tgrecojr/showrunner` tagged `sha-<short sha>`, plus `latest` for the default branch and `X.Y.Z` and `X.Y` for a semver tag; for pull requests it shall build without pushing.
+- [x] **SHIP-RELEASE-001**: When a push to `main` or a `v*` tag occurs and both the supply-chain scan and the CI gates (SHIP-CI-001) have passed, the publish workflow shall build the image and push it to `ghcr.io/tgrecojr/showrunner` tagged `sha-<short sha>`, plus `latest` for the default branch and `X.Y.Z` and `X.Y` for a semver tag; for pull requests it shall build without pushing.
 - [x] **SHIP-RELEASE-002**: When an image is pushed, the publish workflow shall sign it with keyless cosign by digest, generate an SPDX SBOM from the pushed digest, and push SBOM and SLSA build-provenance attestations to the registry.
 - [x] **SHIP-RELEASE-003**: Every Monday at 06:00 UTC and on manual dispatch, the retention workflow shall keep the `latest` tag and the five most recent tagged versions, and delete all untagged manifests.
