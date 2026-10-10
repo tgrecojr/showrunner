@@ -1,0 +1,132 @@
+schema_version: 2
+last_updated: 2026-10-10
+
+# Taxonomy groups segments by domain cluster. Purely organizational.
+taxonomy:
+  titles:
+    - search
+    - shows
+    - movies
+    - up-next-calendar
+    - watch-log
+  freshness:
+    - resync
+    - tmdb
+  platform:
+    - app
+    - build-ship
+
+# Flat depth-2 design tree: every segment is a root-level leaf under the HLD.
+arrows:
+  search:
+    status: MAPPED
+    parent: null
+    sampled: 2026-10-10
+    audited: null
+    audited_sha: null
+    blocks: []
+    blockedBy: [shows, movies, tmdb]
+    detail: search.md
+    next: "Confirm [inferred] decisions; decide whether to move the search request into TmdbClient (SEARCH-API-010)"
+    drift: null
+
+  shows:
+    status: MAPPED
+    parent: null
+    sampled: 2026-10-10
+    audited: null
+    audited_sha: null
+    blocks: [search, up-next-calendar, resync, watch-log]
+    blockedBy: [tmdb, watch-log]
+    detail: shows.md
+    next: "Confirm [inferred] decisions; implement SHOWS-WATCHED-010 (idempotent PATCH) and SHOWS-UI-006/013 (aired-based header progress)"
+    drift: null
+
+  movies:
+    status: MAPPED
+    parent: null
+    sampled: 2026-10-10
+    audited: null
+    audited_sha: null
+    blocks: [search, watch-log]
+    blockedBy: [tmdb, watch-log]
+    detail: movies.md
+    next: "Confirm [inferred] decisions; implement MOVIES-UI-010 (keep list on failed mark/remove)"
+    drift: null
+
+  up-next-calendar:
+    status: MAPPED
+    parent: null
+    sampled: 2026-10-10
+    audited: null
+    audited_sha: null
+    blocks: []
+    blockedBy: [shows]
+    detail: up-next-calendar.md
+    next: "Confirm [inferred] decisions; resolve whose today the calendar highlights and the malformed-date contract"
+    drift: null
+
+  watch-log:
+    status: MAPPED
+    parent: null
+    sampled: 2026-10-10
+    audited: null
+    audited_sha: null
+    blocks: [shows, movies]
+    blockedBy: []
+    detail: watch-log.md
+    next: "Confirm [inferred] decisions; add a client test for watchLog; decide on CHECK constraints"
+    drift: null
+
+  resync:
+    status: MAPPED
+    parent: null
+    sampled: 2026-10-10
+    audited: null
+    audited_sha: null
+    blocks: []
+    blockedBy: [tmdb, shows]
+    detail: resync.md
+    next: "Implement RESYNC-RUN-005 (rotate least-recently-synced) and RESYNC-RUN-006 (skip Ended/Canceled); confirm status vocabulary"
+    drift: null
+
+  tmdb:
+    status: MAPPED
+    parent: null
+    sampled: 2026-10-10
+    audited: null
+    audited_sha: null
+    blocks: [search, shows, movies, resync]
+    blockedBy: []
+    detail: tmdb.md
+    next: "Confirm [inferred] decisions; implement TMDB-ERR-002/003 (friendly 429 and 5xx on every call)"
+    drift: null
+
+  app:
+    status: MAPPED
+    parent: null
+    sampled: 2026-10-10
+    audited: null
+    audited_sha: null
+    blocks: [build-ship]
+    blockedBy: []
+    detail: app.md
+    next: "Confirm [inferred] decisions; implement APP-HEALTH-002 (503 when degraded) and APP-SPA-006 (strip API prefix everywhere)"
+    drift: null
+
+  build-ship:
+    status: MAPPED
+    parent: null
+    sampled: 2026-10-10
+    audited: null
+    audited_sha: null
+    blocks: []
+    blockedBy: [app]
+    detail: build-ship.md
+    next: "Confirm [inferred] decisions; implement SHIP-IMAGE-006 (container health check) after APP-HEALTH-002; choose the probe mechanism"
+    drift: null
+
+# Items found during mapping that don't yet belong to a segment.
+unmapped:
+  docs:
+    intent: []

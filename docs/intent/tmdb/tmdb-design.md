@@ -1,0 +1,72 @@
+---
+parent: high-level-design
+prefix: TMDB
+---
+
+# TMDB access
+
+## Context and Design Philosophy
+
+TMDB is the only external data source. This segment is the adapter: one HTTP client, the subset of TMDB's response shapes the app reads, the helpers that reduce those shapes to what the app stores (US providers, network names, directors, image URLs), and the handling that keeps the API key out of anything a user or log could see. Every outbound request carries the operator's key, so the adapter also owns the rules that keep upstream trouble from turning into either a leak or an unreadable error.
+
+## Client
+
+`TmdbClient` (backend/src/datasources/tmdb.rs:31-145) wraps one `reqwest::Client` with a 10 s timeout, the API key, and a base URL that defaults to `https://api.themoviedb.org/3` and is overridable only through `with_base_url` (used by tests with a mock server; no environment override exists). The key is sent as the `api_key` query parameter on every request, which is TMDB's v3 authentication.
+
+| Method | Request | Not found | Rate limited | Other non-2xx |
+|---|---|---|---|---|
+| `get_show(id)` (:67) | `GET /tv/{id}?append_to_response=watch/providers` | 404 → `NotFound("show N not found on TMDB")` | raw `Upstream("TMDB returned 429 …")` | `Upstream("TMDB returned <status>")` |
+| `get_movie(id)` (:94) | `GET /movie/{id}?append_to_response=credits,watch/providers` | 404 → `NotFound("movie N not found on TMDB")` | `Upstream("TMDB is rate-limiting requests right now. Please try again in a moment.")` | `Upstream("TMDB returned <status>")` |
+| `get_season(id, n)` (:127) | `GET /tv/{id}/season/{n}` | no mapping: 404 → `Upstream("TMDB season N returned 404 …")` | raw | `Upstream("TMDB season N returned <status>")` |
+
+The perimeter maps `NotFound` to HTTP 404 and `Upstream` to 502. Only `get_movie` has the friendly rate-limit sentence today; the intended rule is that every TMDB call does, for 429 and for 5xx alike (`TMDB-ERR-002`, `TMDB-ERR-003`).
+
+The client also exposes `base_url()`, `http()`, and `api_key()` accessors (:55-65). Their only consumer is the search handler, which assembles TMDB's `/search/multi` request itself (`search` segment); that is the one TMDB call not made through a client method, and the one place the key leaves this module.
+
+## Response handling
+
+- **Body cap** — `json_within_cap` (:16-29) refuses a response whose advertised `Content-Length` exceeds 16 MiB with `Upstream("TMDB response was unexpectedly large")` before buffering. Chunked bodies with no length are not capped; the 10 s timeout bounds them.
+- **Shapes** (:147-261) — only the fields the app uses are declared. Collections (`seasons`, `networks`, `episodes`, `cast`, `crew`, provider tiers) and the `watch/providers` and `credits` attachments default to empty when absent, so a sparse TMDB record deserializes rather than failing. Movies use `title` where shows use `name`.
+- **Reductions** — `us_providers()` on shows and movies (:265, :284, :301-318) takes the `US` region only, concatenates the `flatrate`, `free`, and `ads` tiers, and returns provider names sorted and de-duplicated; `rent` and `buy` are ignored. `network_names()` (:271-280) keeps TMDB's order, trims, and drops blanks and duplicates. `directors()` (:288-298) is every crew member whose `job` is exactly `Director`.
+- **Image URLs** — `poster_url` (w185) and `backdrop_url` (w780) in backend/src/models/show.rs:7-15 and `profile_url` (w185) in backend/src/models/movie.rs:6-9 prefix a TMDB path with the image CDN base and treat an empty path as none. The search handler carries its own copy of the w185 base.
+
+## Keeping the key out of errors
+
+`reqwest::Error`'s `Display` appends the request URL, which would include `api_key=…`. The `From<reqwest::Error>` impl (backend/src/error.rs:37-46) therefore stores `err.without_url()`, so the key never enters an `AppError` in the first place. Downstream, `client_message()` collapses the `Http` variant to a generic string anyway, and `IntoResponse` logs it via `Display`, which is now URL-free. `Config` holds the key as a plain `String` with `#[derive(Debug)]`; nothing formats it, but nothing prevents it either.
+
+## Decisions & Alternatives
+
+| Decision | Chosen | Alternatives Considered | Rationale |
+|----------|--------|------------------------|-----------|
+| Authentication | v3 API key as `api_key` query parameter | v4 bearer token in a header | `[inferred]` The v3 key is what TMDB's older endpoints document; the cost is that every URL carries a secret, hence the URL stripping. |
+| URL in errors | Stripped at conversion with `without_url()` | Redact in `Display`; filter at response time | The secret must never reach the error object at all, since handlers surface error strings to clients and logs (error.rs:38-42). |
+| Body size | Reject when `Content-Length` > 16 MiB | Stream with a hard byte cap | Guards a misbehaving upstream without buffering; chunked bodies fall back to the timeout (tmdb.rs:10-13). |
+| Timeout | 10 s per request | Longer for season fetches | `[inferred]` Keeps the serial add and resync paths bounded. |
+| Upstream errors to users | Intended: friendly text for 429 and 5xx on every call (`TMDB-ERR-002`, `TMDB-ERR-003`); today only `get_movie` 429 | Raw status text; client-side mapping only | A rate limit or outage should read as a transient condition, not a status dump; mapping once on the server keeps every page consistent. |
+| Provider regions and tiers | `US` only; `flatrate` + `free` + `ads` | All regions; include `rent` / `buy` | `[inferred]` Single-household app; "where can I stream it" excludes purchase. The tier choice is noted at tmdb.rs:264. |
+| Deserialized fields | Only what the app reads, with defaults for collections | Full TMDB models | Resilient to sparse records and TMDB additions (tmdb.rs:147). |
+| Retries | None | Backoff on 429 / 5xx | `[inferred]` Serial callers and the manual-sync cooldown already pace requests. |
+| Season 404 | Reported as `Upstream`, not `NotFound` | Map 404 like show and movie | `[inferred]` A season listed by the show but missing from TMDB is an upstream inconsistency rather than a user error. |
+
+## Open Questions & Future Decisions
+
+### Resolved
+1. ✅ **Friendly upstream errors are app-wide and server-owned.** The client maps TMDB 429 and 5xx to user-readable sentences on every call; pages only strip the `API <status>:` prefix (`app`). Tracked as `TMDB-ERR-002` and `TMDB-ERR-003`; `search` carries `SEARCH-API-010` until its request moves into the client.
+
+### Deferred
+1. **Bring search into the client.** A `search_multi` method would retire the `api_key()` accessor and make this module the sole holder of the key.
+2. **`get_season` 404.** Should a missing season map to `NotFound` for symmetry?
+3. **Chunked bodies** bypass the size cap.
+4. **No retry or backoff**; a transient 5xx fails the whole add or the show's resync.
+5. **Key visibility in `Config`.** `#[derive(Debug)]` on a struct holding the key invites an accidental `{:?}`.
+6. **Credential naming in docs.** README.md:59 tells users to copy the "API Read Access Token", which is the v4 bearer credential, while the code sends a v3 key.
+7. **Three copies of the w185 base** (models/show.rs:4, models/movie.rs:4, api/search.rs:11).
+8. **No base-URL override outside tests.**
+
+## References
+
+- backend/src/datasources/tmdb.rs (client :31-145, shapes :147-261, reductions :263-318, tests :320-606)
+- backend/src/error.rs:37-46 (`From<reqwest::Error>`), :48-66 (`client_message`)
+- backend/src/models/show.rs:1-15, backend/src/models/movie.rs:1-9 (image URL helpers)
+- backend/tests/api.rs:748-765 (429 on movie detail), :156-170 (502 on search)
+- Consumers: `search` (accessors), `shows` (`get_show`, `get_season`, reductions), `movies` (`get_movie`, reductions), `resync` (`get_show`, `get_season`)
