@@ -50,7 +50,10 @@ afterEach(() => {
 describe("Calendar", () => {
 	// @spec AIRING-CAL-006, AIRING-CAL-009
 	it("renders current month title and episode in correct cell", async () => {
-		mockCalendar.mockResolvedValueOnce({ episodes: [ep()] });
+		mockCalendar.mockResolvedValueOnce({
+			today: "2026-05-09",
+			episodes: [ep()],
+		});
 		renderPage();
 		expect(screen.getByText("May 2026")).toBeInTheDocument();
 		await waitFor(() => expect(mockCalendar).toHaveBeenCalled());
@@ -59,16 +62,24 @@ describe("Calendar", () => {
 	});
 
 	// @spec AIRING-CAL-011
-	it("marks today's cell and the leading/trailing other-month cells", async () => {
-		mockCalendar.mockResolvedValueOnce({ episodes: [] });
+	it("marks the server's today, not the browser's, and the other-month cells", async () => {
+		// The browser clock is pinned to May 9; the server (in its TIMEZONE)
+		// says it is already May 10, and the server wins once it has answered.
+		mockCalendar.mockResolvedValueOnce({ today: "2026-05-10", episodes: [] });
 		const { container } = renderPage();
 		await waitFor(() => expect(mockCalendar).toHaveBeenCalled());
+		await waitFor(() =>
+			expect(
+				within(
+					container.querySelector(".calendar-cell-today") as HTMLElement,
+				).getByText("10"),
+			).toBeInTheDocument(),
+		);
+		expect(container.querySelectorAll(".calendar-cell-today")).toHaveLength(1);
 
 		const cells = container.querySelectorAll(".calendar-cell");
 		expect(cells).toHaveLength(42);
 		const today = container.querySelector(".calendar-cell-today");
-		expect(today).not.toBeNull();
-		expect(within(today as HTMLElement).getByText("9")).toBeInTheDocument();
 		expect(today).not.toHaveClass("calendar-cell-other");
 
 		// April 26–30 lead in (5 cells) and June 1–6 trail out (6 cells).
@@ -81,7 +92,7 @@ describe("Calendar", () => {
 
 	// @spec AIRING-CAL-006, AIRING-CAL-007
 	it("queries with a 42-cell range covering the visible grid", async () => {
-		mockCalendar.mockResolvedValueOnce({ episodes: [] });
+		mockCalendar.mockResolvedValueOnce({ today: "2026-05-09", episodes: [] });
 		renderPage();
 		await waitFor(() => expect(mockCalendar).toHaveBeenCalled());
 		const [start, end] = mockCalendar.mock.calls[0]!;
@@ -94,7 +105,7 @@ describe("Calendar", () => {
 	// @spec AIRING-CAL-008
 	it("navigates to previous month", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-		mockCalendar.mockResolvedValue({ episodes: [] });
+		mockCalendar.mockResolvedValue({ today: "2026-05-09", episodes: [] });
 		renderPage();
 		await waitFor(() => expect(mockCalendar).toHaveBeenCalled());
 
@@ -107,7 +118,7 @@ describe("Calendar", () => {
 	// @spec AIRING-CAL-008
 	it("navigates next and crosses year boundary forward", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-		mockCalendar.mockResolvedValue({ episodes: [] });
+		mockCalendar.mockResolvedValue({ today: "2026-05-09", episodes: [] });
 		renderPage();
 		await waitFor(() => expect(mockCalendar).toHaveBeenCalled());
 
@@ -123,7 +134,7 @@ describe("Calendar", () => {
 	// @spec AIRING-CAL-008
 	it("navigates prev across year boundary backward", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-		mockCalendar.mockResolvedValue({ episodes: [] });
+		mockCalendar.mockResolvedValue({ today: "2026-05-09", episodes: [] });
 		renderPage();
 		await waitFor(() => expect(mockCalendar).toHaveBeenCalled());
 
@@ -138,7 +149,7 @@ describe("Calendar", () => {
 	// @spec AIRING-CAL-008
 	it("Today button returns to current month", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-		mockCalendar.mockResolvedValue({ episodes: [] });
+		mockCalendar.mockResolvedValue({ today: "2026-05-09", episodes: [] });
 		renderPage();
 		await waitFor(() => expect(mockCalendar).toHaveBeenCalled());
 
@@ -174,6 +185,7 @@ describe("Calendar", () => {
 	// @spec AIRING-CAL-010
 	it("renders watched episodes with the watched class and groups by date", async () => {
 		mockCalendar.mockResolvedValueOnce({
+			today: "2026-05-09",
 			episodes: [
 				ep({
 					show_tmdb_id: 1,
@@ -194,6 +206,7 @@ describe("Calendar", () => {
 	// @spec AIRING-CAL-009
 	it("handles missing episode poster and link wraps each episode", async () => {
 		mockCalendar.mockResolvedValueOnce({
+			today: "2026-05-09",
 			episodes: [ep({ poster_url: null, episode_name: null })],
 		});
 		renderPage();

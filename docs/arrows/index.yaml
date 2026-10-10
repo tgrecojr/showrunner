@@ -63,7 +63,7 @@ arrows:
     blocks: []
     blockedBy: [shows]
     detail: up-next-calendar.md
-    next: "expose the server's today to the calendar and make the AIRING-CAL-004 tests assert 200 (decided, pending)"
+    next: "bound list_calendar_episodes or record the 92-day window as the intended bound"
     drift: "LLD Deferred 5 attributes overflow:hidden to .calendar-cell; it is on .calendar-eps"
 
   watch-log:

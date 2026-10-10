@@ -53,7 +53,7 @@ Each `CalendarEpisode` (models/show.rs) carries show id and name, poster, season
 `Calendar` (frontend/src/pages/Calendar.tsx):
 
 - The visible range is always 42 cells: the Sunday on or before the 1st through six weeks later (`buildVisibleRange`). Weeks start on Sunday; month and weekday names are English literals (`WEEKDAYS`, `MONTHS`).
-- "Today" is `new Date()` captured once at mount in the browser's local zone (the `today` and `todayIso` memos in `Calendar`) and used for the initial month, the `calendar-cell-today` highlight, and the **Today** button. This is browser time, not the server's `TIMEZONE`.
+- "Today" starts as `new Date()` captured at mount in the browser's local zone (the `today` memo in `Calendar`) and is replaced by the `today` field of each calendar response, which `get_calendar` fills from `today_in(state.tz)`; the `calendar-cell-today` highlight and the Today button follow whichever is current.
 - The fetch runs whenever the visible range changes, requesting the first through last cell (the `useEffect` keyed on `range.startIso`/`range.endIso`). Episodes are grouped by exact `air_date` string (`episodesByDate`).
 - Prev and Next wrap across year boundaries (`goPrev`, `goNext`).
 - Each episode renders as a link to `/shows/{id}` with the show name and `SxxExx`, a decorative poster (`alt=""`) when present, and the episode name as the link title; watched episodes add `calendar-ep-watched`, which the stylesheet fades (the `calendar-ep` list item; `.calendar-ep-watched .calendar-ep-link` in index.css).
@@ -72,7 +72,7 @@ Each `CalendarEpisode` (models/show.rs) carries show id and name, poster, season
 | Calendar binding | Bind re-formatted parsed dates | Bind the raw query strings | A signed or non-padded year passes the span check but mis-sorts against stored TEXT dates (the binding comment in `get_calendar`, calendar.rs). |
 | Watched episodes on the calendar | Shown, faded | Hidden | They still aired; fading keeps the month honest (CLAUDE.md). |
 | Grid shape | Fixed 42 cells, Sunday start | Variable rows; locale-aware start | Stable layout across months; single-locale homelab app. |
-| Calendar "today" | Browser-local date at mount | Server-provided today in `TIMEZONE` | `[inferred]` No API exposes the server's today; see open question 1. |
+| Calendar "today" | The server's today in `TIMEZONE`, carried on every calendar response; browser-local only until the first response | A dedicated today endpoint; browser-local throughout | One definition of today across the app, and the response the page already fetches is the cheapest carrier. |
 | Calendar links | To the show page, not an episode anchor | Deep link to the episode row | No episode-level route exists. |
 
 ## Open Questions & Future Decisions
@@ -81,15 +81,14 @@ Each `CalendarEpisode` (models/show.rs) carries show id and name, poster, season
 *(none yet)*
 
 ### Deferred
-1. **Two definitions of today.** The calendar highlight uses browser-local time fixed at mount (the `today` and `todayIso` memos in `Calendar`); aired, remaining, and Up Next ordering use the server's `TIMEZONE`. A page left open past midnight keeps the old highlight. Should the server expose its today, or is the drift acceptable?
-2. **No row cap on the calendar query.** Every other list is bounded by `MAX_LIST_ROWS`; the calendar relies on the 92-day window alone (the SQL in `list_calendar_episodes`).
-3. **Unpinned malformed-date contract.** `calendar_signed_year_does_not_bypass_the_92_day_cap` and `calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql` (backend/tests/api.rs) accept either 200-with-normalized-results or 400 for signed-year and non-zero-padded inputs. Which is intended?
-4. **Duplicate fetch code on Up Next** (`load()` vs the effect) and a stale list on a failed post-mark re-fetch.
-5. **Clipped cells.** `.calendar-eps` (the episode list inside each cell) hides overflow (index.css); a day with many episodes silently drops chips.
-6. **Network pill keys** are the network name (the `network-pill` span's `key` in `UpNext`); duplicate names would collide.
-7. **Locale.** English month and weekday names, Sunday start, raw `YYYY-MM-DD` dates in the UI.
-8. **Fetch window.** The 42-cell grid requests up to six days before and twelve after the month; those episodes render in `calendar-cell-other` cells.
-9. **Mark watched semantics.** Up Next's button marks only the shown episode; marking "through here" from Up Next is not offered.
+1. **No row cap on the calendar query.** Every other list is bounded by `MAX_LIST_ROWS`; the calendar relies on the 92-day window alone (the SQL in `list_calendar_episodes`).
+2. **Unpinned malformed-date contract.** `calendar_signed_year_does_not_bypass_the_92_day_cap` and `calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql` (backend/tests/api.rs) accept either 200-with-normalized-results or 400 for signed-year and non-zero-padded inputs. Which is intended?
+3. **Duplicate fetch code on Up Next** (`load()` vs the effect) and a stale list on a failed post-mark re-fetch.
+4. **Clipped cells.** `.calendar-eps` (the episode list inside each cell) hides overflow (index.css); a day with many episodes silently drops chips.
+5. **Network pill keys** are the network name (the `network-pill` span's `key` in `UpNext`); duplicate names would collide.
+6. **Locale.** English month and weekday names, Sunday start, raw `YYYY-MM-DD` dates in the UI.
+7. **Fetch window.** The 42-cell grid requests up to six days before and twelve after the month; those episodes render in `calendar-cell-other` cells.
+8. **Mark watched semantics.** Up Next's button marks only the shown episode; marking "through here" from Up Next is not offered.
 
 ## References
 
