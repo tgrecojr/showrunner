@@ -21,7 +21,7 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 - backend/src/lib.rs tests — JSON content-type matching, CORS branches including the invalid-origin panic
 - backend/src/config.rs tests — defaults, overrides, missing/blank key, bad port, bad timezone
 - backend/src/db/pool.rs tests — `DB_MAX_CONNECTIONS` parsing; backend/src/error.rs tests — status and body mapping
-- backend/tests/api.rs — health (:76), content-type gate (:878-974), CORS parity and wildcard limits (:976-1156)
+- backend/tests/api.rs — health (:76), backend/tests/healthcheck.rs (probe mode), content-type gate (:878-974), CORS parity and wildcard limits (:976-1156)
 - frontend/src/App.test.tsx (7 routes), frontend/src/components/Layout.test.tsx (3), frontend/src/api/client.test.ts (15)
 - Not covered: load shed (503), body limit, timeout (408), security headers, static fallback, the two movie routes in `App.test.tsx`
 
@@ -48,33 +48,31 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 | Config | APP-CONFIG-001 to 005 | 5 | 0 | 0 |
 | HTTP | APP-HTTP-001 to 008 | 8 | 0 | 0 |
 | Errors | APP-ERR-001 to 002 | 2 | 0 | 0 |
-| Health | APP-HEALTH-001 to 002 | 1 | 0 | 1 |
+| Health | APP-HEALTH-001 to 003 | 3 | 0 | 0 |
 | SPA | APP-SPA-001 to 006 | 6 | 0 | 0 |
 
-**Summary:** 22 of 23 active specs implemented; 1 gap (`APP-HEALTH-002` degraded health is 503).
+**Summary:** 24 of 24 active specs implemented; no gaps.
 
 ## Key Findings
 
-1. **Health is always 200** (backend/src/api/health.rs:23-27) and nothing probes it; a dead database is invisible to any status-code check. Intended: `APP-HEALTH-002`, probed by `SHIP-IMAGE-006`.
-2. **Two settings bypass `Config`** — `STATIC_DIR` (backend/src/lib.rs:254) and `DB_MAX_CONNECTIONS` (backend/src/db/pool.rs:8); the first is undocumented, the second is not passed by `docker-compose.yml`.
-3. **Invalid `CORS_ALLOWED_ORIGIN` panics** (lib.rs:217) rather than returning the `Config` error every other setting uses; a test pins the panic.
-4. **Unparsable `SERVER_HOST` silently binds `0.0.0.0`** (lib.rs:269).
-5. **The 30 s timeout drops long handlers mid-work** (lib.rs:177-180): a many-season add or a manual sync gets a 408 while the upstream calls continue.
-6. **`Config` error text is client-visible** on 500 responses (backend/src/error.rs:57-61); handlers use it for impossible states.
-7. **No catch-all route** in frontend/src/App.tsx; an unknown path renders an empty shell.
-8. **Eight hand-copied fetch skeletons** with inconsistent loading, error, and empty structure (sweep cross-file note).
-9. **Perimeter layers are untested** — no test exercises load shed, the body limit, the timeout, or the security headers.
+1. **Two settings bypass `Config`** — `STATIC_DIR` (backend/src/lib.rs:254) and `DB_MAX_CONNECTIONS` (backend/src/db/pool.rs:8); the first is undocumented, the second is not passed by `docker-compose.yml`.
+2. **Invalid `CORS_ALLOWED_ORIGIN` panics** (lib.rs:217) rather than returning the `Config` error every other setting uses; a test pins the panic.
+3. **Unparsable `SERVER_HOST` silently binds `0.0.0.0`** (lib.rs:269).
+4. **The 30 s timeout drops long handlers mid-work** (lib.rs:177-180): a many-season add or a manual sync gets a 408 while the upstream calls continue.
+5. **`Config` error text is client-visible** on 500 responses (backend/src/error.rs:57-61); handlers use it for impossible states.
+6. **No catch-all route** in frontend/src/App.tsx; an unknown path renders an empty shell.
+7. **Eight hand-copied fetch skeletons** with inconsistent loading, error, and empty structure (sweep cross-file note).
+8. **Perimeter layers are untested** — no test exercises load shed, the body limit, the timeout, or the security headers.
 
 ## Work Required
 
 ### Must Fix
 1. Confirm or refute the `[inferred]` decisions (request bounds, localhost CORS default, SQLite mode, Up Next as home, thin fetch wrapper, plain stylesheet).
-2. Implement `APP-HEALTH-002`.
 
 ### Should Fix
-3. Fold `STATIC_DIR` and `DB_MAX_CONNECTIONS` into `Config` and document them.
-4. Add tests for the load shed, body limit, timeout, and security headers.
+2. Fold `STATIC_DIR` and `DB_MAX_CONNECTIONS` into `Config` and document them.
+3. Add tests for the load shed, body limit, timeout, and security headers.
 
 ### Nice to Have
-5. Return a `Config` error for a bad CORS origin instead of panicking.
-6. Add a not-found route and a shared data-loading hook.
+4. Return a `Config` error for a bad CORS origin instead of panicking.
+5. Add a not-found route and a shared data-loading hook.

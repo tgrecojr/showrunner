@@ -9,7 +9,7 @@ Prefix `SHIP`. Facets: `IMAGE` (Dockerfile and compose), `CI` (merge gates), `SU
 - [x] **SHIP-IMAGE-003**: The runtime image shall set `STATIC_DIR=/app/static`, expose port 3001, and start the backend binary as its entrypoint.
 - [x] **SHIP-IMAGE-004**: The compose definition shall build the image locally, restart the service unless stopped, publish host port 3001 to container port 3001, mount the named volume `showrunner_data` at `/data`, and pass `SERVER_HOST`, `SERVER_PORT`, `DATABASE_URL`, `TMDB_API_KEY`, `RESYNC_CRON`, `TIMEZONE`, `CORS_ALLOWED_ORIGIN`, and `RUST_LOG` from the environment with the application defaults, requiring `TMDB_API_KEY`.
 - [x] **SHIP-IMAGE-005**: The Docker build context shall exclude `.git`, dotenv files, build outputs, `node_modules`, `dist`, Markdown files, `.claude/`, local data directories, and SQLite files.
-- [ ] **SHIP-IMAGE-006**: The container shall declare a health check that probes `GET /api/v1/health` and reports unhealthy when the database probe fails.
+- [x] **SHIP-IMAGE-006**: The runtime image shall declare a `HEALTHCHECK` that runs the backend binary with `--healthcheck` every 30 seconds with a 5-second timeout, a 10-second start period, and 3 retries, so that the container reports unhealthy when `GET /api/v1/health` has not returned HTTP 200 for three consecutive probes.
 
 ## CI
 

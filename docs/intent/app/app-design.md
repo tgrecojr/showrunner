@@ -48,7 +48,9 @@ Two more are read outside `Config`: `DB_MAX_CONNECTIONS` (default 5; an unparsab
 
 ## Health
 
-`GET /api/v1/health` (backend/src/api/health.rs) runs `SELECT 1` with a 2 s timeout and returns `{ status: "ok" | "degraded", version, database: bool }`. It is the only handler that cannot fail, and today it returns HTTP 200 in both states, so a probe keyed on status code cannot detect a dead database. The intended behavior is 503 when degraded (`APP-HEALTH-002`), which is what the container health check in `build-ship` (`SHIP-IMAGE-006`) will key on.
+`GET /api/v1/health` (backend/src/api/health.rs) runs `SELECT 1` with a 2 s timeout and returns `{ status: "ok" | "degraded", version, database: bool }`, with HTTP 200 when the probe succeeds and 503 when it fails or times out. The body is for humans; the status code is what a container or proxy check keys on.
+
+The binary doubles as its own probe. Started as `showrunner-backend --healthcheck`, it reads `SERVER_HOST` and `SERVER_PORT` (defaults `0.0.0.0` and `3001`, an unspecified host becoming loopback), issues one `GET /api/v1/health` with a 3 s timeout, and exits 0 on HTTP 200 and 1 on anything else, including a refused connection or a timeout. It loads nothing else: no `.env`, no `Config`, no database, so a probe never fails for a reason unrelated to the server's health. `main.rs` dispatches on that single argument before `run()`; the image's `HEALTHCHECK` (`build-ship`) is the only intended caller.
 
 ## SPA shell
 
@@ -75,7 +77,8 @@ Two more are read outside `Config`: `DB_MAX_CONNECTIONS` (default 5; an unparsab
 | SPA delivery | Backend serves `dist/` with `index.html` fallback | Separate web server | One container, one process (README.md:5, CLAUDE.md). |
 | Error bodies | `{"error": …}` with generic text for internal variants | Pass-through messages | sqlx and reqwest internals must never reach a client (error.rs:49-54). |
 | Client error shape | `ApiError` with `status` as a field and the server message as `message` | `Error` with `API <status>: <message>` as the message, stripped per page | The status is data, not part of the sentence; carrying it as a field means every page shows the server's wording without each one parsing a prefix. |
-| Health status code | Intended: 503 when degraded, 200 when ok (`APP-HEALTH-002`); today always 200 | State in the body only | A container or proxy health check keys on the status code; the body alone cannot fail a probe. |
+| Health status code | 503 when degraded, 200 when ok | State in the body only | A container or proxy health check keys on the status code; the body alone cannot fail a probe. |
+| Health probe | A `--healthcheck` mode in the binary that GETs the endpoint over loopback | curl or wget in the image; a compose `healthcheck` command; a sidecar | The runtime image has no shell or HTTP tool, and a compose `healthcheck` also executes inside the container, so the binary is the only thing that can run there; reqwest is already linked. |
 | SQLite mode | WAL, `synchronous=NORMAL`, 30 s busy timeout, foreign keys on | Default journal | `[inferred]` Concurrent reads during the serial resync writer; FK cascades are relied on by delete. |
 | Home route | Up Next at `/` | Watchlist | `[inferred]` "What do I watch next" is the daily question. |
 | Data layer | A thin `fetch` wrapper, no query or state library | React Query, SWR | `[inferred]` Nine pages with simple load-then-mutate flows. |
@@ -84,7 +87,7 @@ Two more are read outside `Config`: `DB_MAX_CONNECTIONS` (default 5; an unparsab
 ## Open Questions & Future Decisions
 
 ### Resolved
-1. ✅ **Degraded health is a 503.** `/api/v1/health` answers 503 when the database probe fails so container and proxy checks can act on it; the body keeps `status` and `database` for humans. Not yet implemented; tracked as `APP-HEALTH-002`.
+*(none yet)*
 
 ### Deferred
 1. **Configuration outside `Config`.** `STATIC_DIR` (lib.rs:254) and `DB_MAX_CONNECTIONS` (pool.rs:8) bypass `Config::from_env`; `STATIC_DIR` is documented nowhere and `DB_MAX_CONNECTIONS` is missing from CLAUDE.md and not passed by compose.
@@ -100,7 +103,7 @@ Two more are read outside `Config`: `DB_MAX_CONNECTIONS` (default 5; an unparsab
 
 ## References
 
-- backend/src/lib.rs; backend/src/main.rs; backend/src/config.rs; backend/src/db/pool.rs; backend/src/error.rs; backend/src/api/health.rs
+- backend/src/lib.rs; backend/src/main.rs (`--healthcheck` dispatch); backend/src/config.rs; backend/src/db/pool.rs; backend/src/error.rs; backend/src/api/health.rs (handler and probe)
 - env.example; README.md:163-211 (configuration and reverse proxy); SECURITY.md:11-30
 - frontend/src/main.tsx; frontend/src/App.tsx; frontend/src/components/Layout.tsx; frontend/src/api/client.ts; frontend/src/types/index.ts; frontend/src/index.css; frontend/index.html; frontend/vite.config.ts (dev proxy to 3001)
 - Tests: backend/src/lib.rs tests (content-type matching, CORS branches incl. the panic), backend/src/config.rs tests, backend/src/db/pool.rs tests, backend/src/error.rs tests; backend/tests/api.rs:76-88 (health), :878-974 (content-type gate), :976-1156 (CORS); frontend/src/App.test.tsx, components/Layout.test.tsx, api/client.test.ts

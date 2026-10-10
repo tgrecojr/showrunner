@@ -52,4 +52,10 @@ ENV STATIC_DIR=/app/static
 
 EXPOSE 3001
 
+# The image has no shell or curl, so the binary probes itself (see
+# `--healthcheck` in main.rs). Its own request timeout is 3 s, inside the 5 s
+# here; the start period covers first-boot migrations.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["/app/showrunner-backend", "--healthcheck"]
+
 ENTRYPOINT ["/app/showrunner-backend"]

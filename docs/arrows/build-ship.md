@@ -41,37 +41,35 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 
 | Category | Spec IDs | Implemented | Deferred | Gaps |
 |----------|----------|-------------|----------|------|
-| Image | SHIP-IMAGE-001 to 006 | 5 | 0 | 1 |
+| Image | SHIP-IMAGE-001 to 006 | 6 | 0 | 0 |
 | CI | SHIP-CI-001 to 004 | 4 | 0 | 0 |
 | Supply | SHIP-SUPPLY-001 to 004 | 4 | 0 | 0 |
 | Release | SHIP-RELEASE-001 to 003 | 3 | 0 | 0 |
 
-**Summary:** 16 of 17 active specs implemented; 1 gap (`SHIP-IMAGE-006`, container health check).
+**Summary:** 17 of 17 active specs implemented; no gaps.
 
 ## Key Findings
 
-1. **No health check anywhere** despite `/api/v1/health`; the distroless image has no curl, so a check needs the binary or a compose-level test (Dockerfile; docker-compose.yml). Intended: `SHIP-IMAGE-006` with `APP-HEALTH-002`.
-2. **Publish does not gate on CI** — docker-publish.yml:23 `needs: supply-chain` only.
-3. **`npm ci` hardening is inconsistent** — ci.yml:77 runs lifecycle scripts; Dockerfile:12 and supply-chain.yml:35 do not.
-4. **No `concurrency:` groups** on ci.yml or docker-publish.yml.
-5. **Semver tags will be pruned** — every `main` push adds a `sha-*` tag and retention keeps five (ghcr-retention.yml:25, docker-publish.yml:53); README.md:131 suggests pinning `0.1`.
-6. **README backup instructions cannot work** against a shell-less runtime (README.md:220 vs Dockerfile:39-40).
-7. **Variable passthrough disagrees with docs** — `DB_MAX_CONNECTIONS` documented but not in compose; `STATIC_DIR` in compose but undocumented; `SERVER_PORT` tunable in docs but the port mapping is hard-coded (docker-compose.yml:8-18).
-8. **Floating `stable` Rust in CI vs pinned 1.98 in the image** (ci.yml:27, Dockerfile:17).
-9. **Renovate residue** — overlapping Docker automerge rules, an unused stable-image list, `:enablePreCommit` without a config (renovate.json:28-41, :59-64, :8).
-10. **Ignore files negate a dot-prefixed example file** while the template is `env.example` (.gitignore:5, .dockerignore:4).
+1. **Publish does not gate on CI** — docker-publish.yml:23 `needs: supply-chain` only.
+2. **`npm ci` hardening is inconsistent** — ci.yml:77 runs lifecycle scripts; Dockerfile:12 and supply-chain.yml:35 do not.
+3. **No `concurrency:` groups** on ci.yml or docker-publish.yml.
+4. **Semver tags will be pruned** — every `main` push adds a `sha-*` tag and retention keeps five (ghcr-retention.yml:25, docker-publish.yml:53); README.md:131 suggests pinning `0.1`.
+5. **README backup instructions cannot work** against a shell-less runtime (README.md:220 vs Dockerfile:39-40).
+6. **Variable passthrough disagrees with docs** — `DB_MAX_CONNECTIONS` documented but not in compose; `STATIC_DIR` in compose but undocumented; `SERVER_PORT` tunable in docs but the port mapping is hard-coded (docker-compose.yml:8-18).
+7. **Floating `stable` Rust in CI vs pinned 1.98 in the image** (ci.yml:27, Dockerfile:17).
+8. **Renovate residue** — overlapping Docker automerge rules, an unused stable-image list, `:enablePreCommit` without a config (renovate.json:28-41, :59-64, :8).
+9. **Ignore files negate a dot-prefixed example file** while the template is `env.example` (.gitignore:5, .dockerignore:4).
 
 ## Work Required
 
 ### Must Fix
 1. Confirm or refute the `[inferred]` decisions (scan-only publish gate, amd64-only).
-2. Implement `SHIP-IMAGE-006` once `APP-HEALTH-002` lands; choose the probe mechanism (open question 1).
 
 ### Should Fix
-3. Add `--ignore-scripts` to ci.yml's `npm ci`.
-4. Fix the README backup procedure and the variable documentation (cascade to `app` for `STATIC_DIR` / `DB_MAX_CONNECTIONS`).
-5. Add `concurrency:` groups to CI and publish.
+2. Add `--ignore-scripts` to ci.yml's `npm ci`.
+3. Fix the README backup procedure and the variable documentation (cascade to `app` for `STATIC_DIR` / `DB_MAX_CONNECTIONS`).
+4. Add `concurrency:` groups to CI and publish.
 
 ### Nice to Have
-6. Make publish depend on CI, or document branch protection as the guarantee.
-7. Clean up the Renovate rules and ignore-file naming.
+5. Make publish depend on CI, or document branch protection as the guarantee.
+6. Clean up the Renovate rules and ignore-file naming.
