@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "./client";
+import { ApiError, api } from "./client";
 
 type FetchArgs = [RequestInfo | URL, RequestInit | undefined];
 
@@ -47,25 +47,32 @@ describe("api client", () => {
 		expect(result).toBeUndefined();
 	});
 
-	it('throws Error("API <status>: <error>") when JSON body has error field', async () => {
+	// @spec APP-SPA-004
+	it("rejects with ApiError carrying the status and the bare server message", async () => {
 		fetchSpy.mockResolvedValueOnce(
 			jsonResponse(404, { error: "show 9 missing" }),
 		);
-		await expect(api.getShow(9)).rejects.toThrowError(
-			"API 404: show 9 missing",
-		);
+		const err = await api.getShow(9).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ApiError);
+		expect(err).toBeInstanceOf(Error);
+		expect((err as ApiError).status).toBe(404);
+		expect((err as ApiError).message).toBe("show 9 missing");
 	});
 
+	// @spec APP-SPA-004
 	it("falls back to raw text when error body is not JSON", async () => {
 		fetchSpy.mockResolvedValueOnce(textResponse(500, "plain failure"));
-		await expect(api.listShows()).rejects.toThrowError(
-			"API 500: plain failure",
-		);
+		const err = await api.listShows().catch((e: unknown) => e);
+		expect((err as ApiError).status).toBe(500);
+		expect((err as ApiError).message).toBe("plain failure");
 	});
 
+	// @spec APP-SPA-004
 	it("falls back to raw text when JSON has no error field", async () => {
 		fetchSpy.mockResolvedValueOnce(jsonResponse(400, { other: "noise" }));
-		await expect(api.listShows()).rejects.toThrowError(/API 400/);
+		const err = await api.listShows().catch((e: unknown) => e);
+		expect((err as ApiError).status).toBe(400);
+		expect((err as ApiError).message).toBe('{"other":"noise"}');
 	});
 
 	it("listShows hits /shows", async () => {

@@ -39,7 +39,7 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 1. `Config::from_env` and `create_pool` — fail-fast startup from environment variables and embedded migrations.
 2. Router middleware — content-type gate, load-shed concurrency limit, body limit, timeout; CORS on the API; security headers over everything.
 3. `AppError` — status mapping with generic text for internal variants.
-4. SPA shell — static serving with history fallback, `BrowserRouter` routes, `Layout` nav, the `request` fetch wrapper.
+4. SPA shell — static serving with history fallback, `BrowserRouter` routes, `Layout` nav, the `request` fetch wrapper that rejects with `ApiError { status, message }`.
 
 ## Spec Coverage
 
@@ -49,9 +49,9 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 | HTTP | APP-HTTP-001 to 008 | 8 | 0 | 0 |
 | Errors | APP-ERR-001 to 002 | 2 | 0 | 0 |
 | Health | APP-HEALTH-001 to 002 | 1 | 0 | 1 |
-| SPA | APP-SPA-001 to 006 | 5 | 0 | 1 |
+| SPA | APP-SPA-001 to 006 | 6 | 0 | 0 |
 
-**Summary:** 21 of 23 active specs implemented; 2 gaps (`APP-HEALTH-002` degraded health is 503, `APP-SPA-006` strip the `API <status>:` prefix on every page).
+**Summary:** 22 of 23 active specs implemented; 1 gap (`APP-HEALTH-002` degraded health is 503).
 
 ## Key Findings
 
@@ -62,15 +62,14 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 5. **The 30 s timeout drops long handlers mid-work** (lib.rs:177-180): a many-season add or a manual sync gets a 408 while the upstream calls continue.
 6. **`Config` error text is client-visible** on 500 responses (backend/src/error.rs:57-61); handlers use it for impossible states.
 7. **No catch-all route** in frontend/src/App.tsx; an unknown path renders an empty shell.
-8. **Error prefix stripping exists only on MovieDetail** (frontend/src/pages/MovieDetail.tsx:7); every other page shows `API 502: …`. Intended: `APP-SPA-006`.
-9. **Eight hand-copied fetch skeletons** with inconsistent loading, error, and empty structure (sweep cross-file note).
-10. **Perimeter layers are untested** — no test exercises load shed, the body limit, the timeout, or the security headers.
+8. **Eight hand-copied fetch skeletons** with inconsistent loading, error, and empty structure (sweep cross-file note).
+9. **Perimeter layers are untested** — no test exercises load shed, the body limit, the timeout, or the security headers.
 
 ## Work Required
 
 ### Must Fix
 1. Confirm or refute the `[inferred]` decisions (request bounds, localhost CORS default, SQLite mode, Up Next as home, thin fetch wrapper, plain stylesheet).
-2. Implement `APP-HEALTH-002` and `APP-SPA-006` (the latter ideally in one shared place).
+2. Implement `APP-HEALTH-002`.
 
 ### Should Fix
 3. Fold `STATIC_DIR` and `DB_MAX_CONNECTIONS` into `Config` and document them.

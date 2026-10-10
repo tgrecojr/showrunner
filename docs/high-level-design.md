@@ -90,7 +90,7 @@ Cross-segment ownership rules the segment designs rely on:
 
 - **"Today" and "aired"** are defined once, in `shows` (`today_in` and the `air_date <= today` rule); `up-next-calendar` and `resync` cite it.
 - **Watch-log rows** are written by `shows` and `movies` inside their own transactions; `watch-log` owns the row shape and the read side.
-- **Upstream error wording** is produced by the `tmdb` client for every TMDB call; pages only strip the `API <status>:` prefix (`app`).
+- **Upstream error wording** is produced by the `tmdb` client for every TMDB call; the fetch wrapper hands pages the server's message verbatim with the HTTP status as a separate field, and pages display it as received (`app`).
 - **Health** is reported by `app` and probed by `build-ship`.
 
 ## Key Design Decisions

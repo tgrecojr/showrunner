@@ -13,12 +13,11 @@ The segment owns the `GET /api/v1/search` handler and the Search page. It does n
 
 ## Backend request flow
 
-`search_shows` (backend/src/api/search.rs:54-143):
+`search_shows` (backend/src/api/search.rs):
 
 1. **Validate** — `q` is trimmed; an empty result is a 400 `InvalidData("query parameter `q` is required")` (:58-63). There is no length cap.
-2. **Call TMDB** — the request is assembled in the handler from `TmdbClient` accessors (`base_url()`, `http()`, `api_key()`) rather than a client method (:65-76). Query params: `api_key`, `query`, `include_adult=false`. This is the only TMDB call in the codebase that is not a `TmdbClient` method.
-3. **Reject non-2xx** — any non-success status becomes `Upstream("TMDB returned <status>")`, which the perimeter maps to HTTP 502 (:78-83). A 429 is not special-cased here, unlike `TmdbClient::get_movie` (backend/src/datasources/tmdb.rs:112-117).
-4. **Parse within cap** — the body goes through `tmdb::json_within_cap` (:85), which refuses bodies whose `Content-Length` exceeds 16 MiB. That rule is owned by `tmdb`.
+2. **Call TMDB** — `TmdbClient::search_multi(query)` sends `GET /search/multi` with `query` and `include_adult=false`. The handler never sees the key or the raw HTTP response.
+3. **Upstream failures** — the client's status mapper applies (`tmdb`): 429 and 5xx become the fixed user-readable sentences, any other non-2xx becomes `TMDB returned <status>`; all surface as HTTP 502. The body cap (`json_within_cap`, 16 MiB) is also the client's.
 5. **Partition ids** — results with `media_type` `tv` or `movie` are collected into two id lists; everything else (persons, missing type) is ignored (:87-95).
 6. **Look up tracked ids** — two IN-list queries, `tracked_tmdb_ids_in` against `shows` and `tracked_movie_tmdb_ids_in` against `movies` (:97-104). Both short-circuit to no query when their list is empty (backend/src/db/queries.rs:413, :428).
 7. **Shape results** — TV uses `name` + `first_air_date`; movies use `title` + `release_date`. Empty strings for `overview`, `date`, and `poster_path` become `null`; `poster_url` is prefixed with the w185 poster base (:106-140). TMDB's order is preserved; there is no ranking, deduplication, or pagination, so only TMDB's first page is ever returned.
@@ -53,7 +52,6 @@ The segment owns the `GET /api/v1/search` handler and the Search page. It does n
 |----------|--------|------------------------|-----------|
 | Where the TMDB call happens | Backend proxy; browser calls `/api/v1/search` | Browser calls TMDB directly with a public key | The API key must never reach the browser (SECURITY.md:28, README.md:50). |
 | TMDB endpoint | One `search/multi` request | Separate `search/tv` and `search/movie` requests merged client- or server-side | `[inferred]` One round trip and TMDB's own cross-type ranking; the cost is filtering out `person` results. |
-| Request assembly | Inline in the handler via `TmdbClient` accessors | A `TmdbClient::search_multi` method like `get_show`/`get_movie` | `[inferred]` No rationale in code or comments; appears historical. The accessors exist only for this caller. |
 | `already_tracked` computation | Server-side, two IN-list queries per response | Client compares results against a cached watchlist | `[inferred]` Keeps the page stateless and correct across tabs; the lists are bounded by TMDB's page size. |
 | Adult content | `include_adult=false` hard-coded | Configurable | `[inferred]` Personal homelab tracker; no setting surface exists. |
 | Empty-string normalization | `overview`, `date`, `poster_path` empty → `null` | Pass TMDB strings through | `[inferred]` Lets the page use truthiness checks; TMDB uses `""` for unknown dates. |
@@ -64,15 +62,14 @@ The segment owns the `GET /api/v1/search` handler and the Search page. It does n
 ## Open Questions & Future Decisions
 
 ### Resolved
-1. ✅ **Friendly upstream errors are app-wide and mapped on the server.** A user-readable message whenever TMDB rate-limits or fails upstream is intended for every page. The `tmdb` client owns the mapping (`TMDB-ERR-002`, `TMDB-ERR-003`); search carries `SEARCH-API-010` only because its request is assembled outside the client, and the spec is satisfied by moving the request into a client method (deferred question 1).
+*(none yet)*
 
 ### Deferred
-1. **Move the request into `TmdbClient`.** Would let `tmdb` own every outbound call and retire the `api_key()` accessor.
-2. **Cap `q` length.** Currently bounded only by URI limits.
-3. **Link results to detail pages.** Cards are not links today; is that deliberate?
-4. **Abort in-flight searches** with `AbortController` instead of only ignoring late results.
-5. **Add-error styling.** Per-card add errors omit the `Error:` prefix every other page uses (Search.tsx:155). Intentional, or drift?
-6. **Poster base constant** duplicated at search.rs:11 rather than reusing `models::show::poster_url`.
+1. **Cap `q` length.** Currently bounded only by URI limits.
+2. **Link results to detail pages.** Cards are not links today; is that deliberate?
+3. **Abort in-flight searches** with `AbortController` instead of only ignoring late results.
+4. **Add-error styling.** Per-card add errors omit the `Error:` prefix every other page uses (Search.tsx:155). Intentional, or drift?
+5. **Poster base constant** duplicated in search.rs rather than reusing `models::show::poster_url`.
 
 ## References
 
@@ -80,5 +77,5 @@ The segment owns the `GET /api/v1/search` handler and the Search page. It does n
 - frontend/src/pages/Search.tsx
 - backend/tests/api.rs:91-170 (search tests)
 - frontend/src/pages/Search.test.tsx
-- Consumed: `shows` (add-show endpoint, `tracked_tmdb_ids_in`), `movies` (add-movie endpoint, `tracked_movie_tmdb_ids_in`), `tmdb` (`json_within_cap`, accessors)
+- Consumed: `shows` (add-show endpoint, `tracked_tmdb_ids_in`), `movies` (add-movie endpoint, `tracked_movie_tmdb_ids_in`), `tmdb` (`search_multi`, status mapping, body cap)
 - SECURITY.md:28 — key never reaches the browser

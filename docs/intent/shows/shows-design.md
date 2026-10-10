@@ -111,8 +111,7 @@ Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every
 9. **Year range** renders `2024–2024` when first and last air dates differ within one year (ShowDetail.tsx:128-131).
 10. **Timezone coverage.** Every backend test uses UTC; the midnight boundary in the configured zone is untested.
 11. **Stale doc comment** at queries.rs:30 names a parameter `season_episodes` that does not exist.
-12. **Upstream errors during add.** A TMDB 429 while fetching a show or season surfaces as the raw `TMDB returned 429` text with HTTP 502. The app-wide intent is a user-readable message; the rule is owned by `tmdb` (server) and `app` (client), and this segment inherits it through `get_show` / `get_season`.
-13. **Cascade from resync.** Resync upserts never delete episodes TMDB has dropped; stale rows stay on the tree and in progress counts (owned by `resync`, noted here because the counts are this segment's).
+12. **Cascade from resync.** Resync upserts never delete episodes TMDB has dropped; stale rows stay on the tree and in progress counts (owned by `resync`, noted here because the counts are this segment's).
 
 ## References
 

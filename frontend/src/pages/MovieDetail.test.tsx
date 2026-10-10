@@ -75,15 +75,20 @@ describe("MovieDetail", () => {
 		expect(screen.getByText("No photo")).toBeInTheDocument();
 	});
 
-	it("shows a friendly rate-limit message when TMDB is throttling", async () => {
+	// @spec APP-SPA-006
+	it("shows the server's rate-limit sentence exactly as delivered", async () => {
 		mockGet.mockRejectedValueOnce(
-			new Error("API 502: TMDB is rate-limiting requests right now."),
+			new Error(
+				"TMDB is rate-limiting requests right now. Please try again in a moment.",
+			),
 		);
 		renderPage();
 
 		await waitFor(() =>
 			expect(
-				screen.getByText(/TMDB is rate-limiting requests/i),
+				screen.getByText(
+					"Error: TMDB is rate-limiting requests right now. Please try again in a moment.",
+				),
 			).toBeInTheDocument(),
 		);
 	});
@@ -153,13 +158,12 @@ describe("MovieDetail", () => {
 		expect(mockGet).not.toHaveBeenCalled();
 	});
 
-	it("falls back to a generic upstream message for 5xx errors", async () => {
-		mockGet.mockRejectedValueOnce(new Error("API 502: TMDB returned 503"));
+	// @spec APP-SPA-006
+	it("does not rewrite a raw upstream status message", async () => {
+		mockGet.mockRejectedValueOnce(new Error("TMDB returned 503"));
 		renderPage();
 		await waitFor(() =>
-			expect(
-				screen.getByText(/couldn't load this movie's details from TMDB/i),
-			).toBeInTheDocument(),
+			expect(screen.getByText("Error: TMDB returned 503")).toBeInTheDocument(),
 		);
 	});
 

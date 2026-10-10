@@ -87,6 +87,7 @@ async fn health_returns_ok_when_db_responsive() {
 
 // ============================ Search ============================
 
+// @spec SEARCH-API-001, SEARCH-API-003, SEARCH-API-004, SEARCH-API-005, SEARCH-API-006, SEARCH-API-007
 #[tokio::test]
 async fn search_returns_mixed_results_with_already_tracked_flag() {
     let app = build_app().await;
@@ -152,8 +153,9 @@ async fn search_rejects_blank_query() {
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
 
+// @spec SEARCH-API-010
 #[tokio::test]
-async fn search_returns_502_when_tmdb_errors() {
+async fn search_returns_502_with_unavailable_message_on_tmdb_5xx() {
     let app = build_app().await;
     Mock::given(wm_method("GET"))
         .and(wm_path("/search/multi"))
@@ -165,6 +167,50 @@ async fn search_returns_502_when_tmdb_errors() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+    let v = body_to_value(resp).await;
+    assert_eq!(
+        v["error"],
+        "TMDB is unavailable right now. Please try again shortly."
+    );
+}
+
+// @spec SEARCH-API-010
+#[tokio::test]
+async fn search_returns_502_with_rate_limit_message_on_tmdb_429() {
+    let app = build_app().await;
+    Mock::given(wm_method("GET"))
+        .and(wm_path("/search/multi"))
+        .respond_with(ResponseTemplate::new(429))
+        .mount(&app.tmdb_server)
+        .await;
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::GET, "/api/v1/search?q=bear"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+    let v = body_to_value(resp).await;
+    assert_eq!(
+        v["error"],
+        "TMDB is rate-limiting requests right now. Please try again in a moment."
+    );
+}
+
+// @spec SEARCH-API-008
+#[tokio::test]
+async fn search_returns_502_with_raw_status_on_other_tmdb_errors() {
+    let app = build_app().await;
+    Mock::given(wm_method("GET"))
+        .and(wm_path("/search/multi"))
+        .respond_with(ResponseTemplate::new(401))
+        .mount(&app.tmdb_server)
+        .await;
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::GET, "/api/v1/search?q=bear"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+    let v = body_to_value(resp).await;
+    assert_eq!(v["error"], "TMDB returned 401 Unauthorized");
 }
 
 // ============================ Shows: list ============================

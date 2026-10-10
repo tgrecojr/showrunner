@@ -6,14 +6,14 @@ Prefix `SEARCH`. Facets: `API` (the `GET /api/v1/search` handler) and `UI` (the 
 
 - [x] **SEARCH-API-001**: When `GET /api/v1/search` is called with a `q` whose trimmed value is non-empty, the system shall request TMDB `/search/multi` with `query` set to the trimmed value and `include_adult=false`.
 - [x] **SEARCH-API-002**: If `q` is absent or blank after trimming, then the system shall respond 400 with the error `query parameter `q` is required` and make no TMDB request.
-- [x] **SEARCH-API-003**: The system shall send the TMDB API key only as the `api_key` query parameter of the server-side request to TMDB, and the search response body shall not contain it.
+- [x] **SEARCH-API-003**: The system shall send the TMDB API key only on the server-side request to TMDB, and the search response body shall not contain it.
 - [x] **SEARCH-API-004**: The system shall include in the search response only TMDB results whose `media_type` is `tv` or `movie`, dropping `person` and any other or missing type.
 - [x] **SEARCH-API-005**: For a `tv` result the system shall take `name` from TMDB `name` and `date` from `first_air_date`; for a `movie` result it shall take `name` from `title` and `date` from `release_date`.
 - [x] **SEARCH-API-006**: The system shall set `already_tracked` to true for a `tv` result whose id is on the show watchlist and for a `movie` result whose id is on the movie list, checking each media type against its own table.
 - [x] **SEARCH-API-007**: The system shall return `overview`, `date`, and `poster_url` as `null` when TMDB supplies an empty string, and shall build `poster_url` by prefixing `poster_path` with the w185 TMDB image base.
-- [x] **SEARCH-API-008**: If TMDB responds to a search with a non-2xx status, then the system shall respond 502 with the error `TMDB returned <status>`.
+- [x] **SEARCH-API-008**: If TMDB responds to a search with a non-2xx status other than 429 or 5xx, then the system shall respond 502 with the error `TMDB returned <status>`.
 - [x] **SEARCH-API-009**: The system shall return search results in TMDB's order, from TMDB's first result page only, without ranking, deduplication, or pagination of its own.
-- [ ] **SEARCH-API-010**: If TMDB responds 429 to a search, then the system shall respond with a user-readable rate-limit message rather than the raw `TMDB returned 429` status text.
+- [x] **SEARCH-API-010**: The system shall make the search request through the TMDB client, so that a 429 or 5xx from TMDB surfaces as HTTP 502 carrying the user-readable sentence defined by TMDB-ERR-002 or TMDB-ERR-003 rather than the raw status text.
 
 ## UI
 

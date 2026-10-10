@@ -31,26 +31,7 @@ pub struct SearchResponse {
     pub results: Vec<SearchResult>,
 }
 
-// Raw shape from TMDB's /search/multi: each result carries a `media_type`
-// discriminator and TV/movie-specific fields. Persons are filtered out.
-#[derive(Debug, Deserialize)]
-struct TmdbSearchResponse {
-    results: Vec<TmdbMultiResult>,
-}
-
-#[derive(Debug, Deserialize)]
-struct TmdbMultiResult {
-    id: i64,
-    media_type: Option<String>,
-    // TV uses `name` + `first_air_date`; movies use `title` + `release_date`.
-    name: Option<String>,
-    title: Option<String>,
-    first_air_date: Option<String>,
-    release_date: Option<String>,
-    overview: Option<String>,
-    poster_path: Option<String>,
-}
-
+// @spec SEARCH-API-001, SEARCH-API-002, SEARCH-API-003, SEARCH-API-004, SEARCH-API-005, SEARCH-API-006, SEARCH-API-007, SEARCH-API-008, SEARCH-API-009, SEARCH-API-010
 pub async fn search_shows(
     State(state): State<AppState>,
     Query(q): Query<SearchQuery>,
@@ -62,27 +43,7 @@ pub async fn search_shows(
         ));
     }
 
-    let url = format!("{}/search/multi", state.tmdb.base_url());
-    let resp = state
-        .tmdb
-        .http()
-        .get(&url)
-        .query(&[
-            ("api_key", state.tmdb.api_key()),
-            ("query", query),
-            ("include_adult", "false"),
-        ])
-        .send()
-        .await?;
-
-    if !resp.status().is_success() {
-        return Err(AppError::Upstream(format!(
-            "TMDB returned {}",
-            resp.status()
-        )));
-    }
-
-    let body: TmdbSearchResponse = crate::datasources::tmdb::json_within_cap(resp).await?;
+    let body = state.tmdb.search_multi(query).await?;
 
     let mut tv_ids: Vec<i64> = Vec::new();
     let mut movie_ids: Vec<i64> = Vec::new();

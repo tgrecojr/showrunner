@@ -56,24 +56,22 @@ impl TmdbClient {
         &self.base_url
     }
 
-    pub fn http(&self) -> &Client {
-        &self.http
+    /// Send `GET {base}/{path}` with the API key and the given extra query
+    /// parameters. The key never leaves this method.
+    async fn get(&self, path: &str, params: &[(&str, &str)]) -> Result<reqwest::Response> {
+        let url = format!("{}/{}", self.base_url, path);
+        let mut query: Vec<(&str, &str)> = vec![("api_key", self.api_key.as_str())];
+        query.extend_from_slice(params);
+        Ok(self.http.get(&url).query(&query).send().await?)
     }
 
-    pub fn api_key(&self) -> &str {
-        &self.api_key
-    }
-
+    // @spec TMDB-CLIENT-002, TMDB-ERR-001
     pub async fn get_show(&self, tmdb_id: i64) -> Result<TmdbShow> {
-        let url = format!("{}/tv/{}", self.base_url, tmdb_id);
         let resp = self
-            .http
-            .get(&url)
-            .query(&[
-                ("api_key", self.api_key.as_str()),
-                ("append_to_response", "watch/providers"),
-            ])
-            .send()
+            .get(
+                &format!("tv/{}", tmdb_id),
+                &[("append_to_response", "watch/providers")],
+            )
             .await?;
 
         if resp.status() == reqwest::StatusCode::NOT_FOUND {
@@ -82,25 +80,17 @@ impl TmdbClient {
                 tmdb_id
             )));
         }
-        if !resp.status().is_success() {
-            return Err(AppError::Upstream(format!(
-                "TMDB returned {}",
-                resp.status()
-            )));
-        }
+        map_status(&resp, None)?;
         json_within_cap(resp).await
     }
 
+    // @spec TMDB-CLIENT-003, TMDB-ERR-001
     pub async fn get_movie(&self, tmdb_id: i64) -> Result<TmdbMovie> {
-        let url = format!("{}/movie/{}", self.base_url, tmdb_id);
         let resp = self
-            .http
-            .get(&url)
-            .query(&[
-                ("api_key", self.api_key.as_str()),
-                ("append_to_response", "credits,watch/providers"),
-            ])
-            .send()
+            .get(
+                &format!("movie/{}", tmdb_id),
+                &[("append_to_response", "credits,watch/providers")],
+            )
             .await?;
 
         if resp.status() == reqwest::StatusCode::NOT_FOUND {
@@ -109,42 +99,82 @@ impl TmdbClient {
                 tmdb_id
             )));
         }
-        if resp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
-            return Err(AppError::Upstream(
-                "TMDB is rate-limiting requests right now. Please try again in a moment."
-                    .to_string(),
-            ));
-        }
-        if !resp.status().is_success() {
-            return Err(AppError::Upstream(format!(
-                "TMDB returned {}",
-                resp.status()
-            )));
-        }
+        map_status(&resp, None)?;
         json_within_cap(resp).await
     }
 
+    // @spec TMDB-CLIENT-004
     pub async fn get_season(&self, tmdb_id: i64, season_number: i64) -> Result<TmdbSeason> {
-        let url = format!("{}/tv/{}/season/{}", self.base_url, tmdb_id, season_number);
         let resp = self
-            .http
-            .get(&url)
-            .query(&[("api_key", self.api_key.as_str())])
-            .send()
+            .get(&format!("tv/{}/season/{}", tmdb_id, season_number), &[])
             .await?;
+        map_status(&resp, Some(season_number))?;
+        json_within_cap(resp).await
+    }
 
-        if !resp.status().is_success() {
-            return Err(AppError::Upstream(format!(
-                "TMDB season {} returned {}",
-                season_number,
-                resp.status()
-            )));
-        }
+    /// TMDB `search/multi`: TV, movies, and persons in one ranked list.
+    /// Callers filter by `media_type`.
+    // @spec TMDB-CLIENT-007
+    pub async fn search_multi(&self, query: &str) -> Result<TmdbSearchResponse> {
+        let resp = self
+            .get(
+                "search/multi",
+                &[("query", query), ("include_adult", "false")],
+            )
+            .await?;
+        map_status(&resp, None)?;
         json_within_cap(resp).await
     }
 }
 
+pub const RATE_LIMIT_MESSAGE: &str =
+    "TMDB is rate-limiting requests right now. Please try again in a moment.";
+pub const UNAVAILABLE_MESSAGE: &str = "TMDB is unavailable right now. Please try again shortly.";
+
+/// Turn a non-2xx TMDB response into the error every caller surfaces. 429 and
+/// 5xx become fixed user-readable sentences; anything else keeps the raw
+/// status, which is the useful part when (say) the key is rejected with 401.
+/// Per-method 404 rules run before this.
+// @spec TMDB-ERR-002, TMDB-ERR-003, TMDB-ERR-004
+fn map_status(resp: &reqwest::Response, season_number: Option<i64>) -> Result<()> {
+    let status = resp.status();
+    if status.is_success() {
+        return Ok(());
+    }
+    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        return Err(AppError::Upstream(RATE_LIMIT_MESSAGE.to_string()));
+    }
+    if status.is_server_error() {
+        return Err(AppError::Upstream(UNAVAILABLE_MESSAGE.to_string()));
+    }
+    Err(AppError::Upstream(match season_number {
+        Some(n) => format!("TMDB season {} returned {}", n, status),
+        None => format!("TMDB returned {}", status),
+    }))
+}
+
 // === TMDB response shapes (only fields we use) ===
+
+/// Raw shape from TMDB's /search/multi: each result carries a `media_type`
+/// discriminator and TV/movie-specific fields. Persons are left for callers
+/// to filter out.
+#[derive(Debug, Deserialize)]
+pub struct TmdbSearchResponse {
+    pub results: Vec<TmdbMultiResult>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TmdbMultiResult {
+    pub id: i64,
+    pub media_type: Option<String>,
+    // TV uses `name` + `first_air_date`; movies use `title` + `release_date`.
+    pub name: Option<String>,
+    pub title: Option<String>,
+    pub first_air_date: Option<String>,
+    pub release_date: Option<String>,
+    pub overview: Option<String>,
+    pub poster_path: Option<String>,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct TmdbShow {
@@ -395,7 +425,6 @@ mod tests {
     fn new_uses_real_tmdb_base_url() {
         let c = TmdbClient::new("k".into());
         assert_eq!(c.base_url(), TMDB_BASE_URL);
-        assert_eq!(c.api_key(), "k");
     }
 
     #[test]
@@ -431,6 +460,7 @@ mod tests {
         assert_eq!(show.us_providers(), vec!["Hulu".to_string()]);
     }
 
+    // @spec TMDB-ERR-001
     #[tokio::test]
     async fn get_show_404_maps_to_not_found() {
         let server = MockServer::start().await;
@@ -444,17 +474,84 @@ mod tests {
         assert!(matches!(err, crate::error::AppError::NotFound(_)));
     }
 
-    #[tokio::test]
-    async fn get_show_500_maps_to_upstream() {
-        let server = MockServer::start().await;
+    async fn upstream_message(err: crate::error::AppError) -> String {
+        match err {
+            crate::error::AppError::Upstream(msg) => msg,
+            other => panic!("expected Upstream, got {other:?}"),
+        }
+    }
+
+    async fn mock_status(server: &MockServer, p: &str, status: u16) {
         Mock::given(method("GET"))
-            .and(path("/tv/9"))
-            .respond_with(ResponseTemplate::new(500))
-            .mount(&server)
+            .and(path(p))
+            .respond_with(ResponseTemplate::new(status))
+            .mount(server)
             .await;
+    }
+
+    // @spec TMDB-ERR-003
+    #[tokio::test]
+    async fn get_show_500_maps_to_unavailable_message() {
+        let server = MockServer::start().await;
+        mock_status(&server, "/tv/9", 500).await;
         let c = TmdbClient::with_base_url("k".into(), server.uri());
-        let err = c.get_show(9).await.unwrap_err();
-        assert!(matches!(err, crate::error::AppError::Upstream(_)));
+        let msg = upstream_message(c.get_show(9).await.unwrap_err()).await;
+        assert_eq!(
+            msg,
+            "TMDB is unavailable right now. Please try again shortly."
+        );
+    }
+
+    // @spec TMDB-ERR-002
+    #[tokio::test]
+    async fn get_show_429_maps_to_rate_limit_message() {
+        let server = MockServer::start().await;
+        mock_status(&server, "/tv/9", 429).await;
+        let c = TmdbClient::with_base_url("k".into(), server.uri());
+        let msg = upstream_message(c.get_show(9).await.unwrap_err()).await;
+        assert_eq!(
+            msg,
+            "TMDB is rate-limiting requests right now. Please try again in a moment."
+        );
+    }
+
+    // @spec TMDB-ERR-004
+    #[tokio::test]
+    async fn get_show_401_keeps_raw_status_text() {
+        let server = MockServer::start().await;
+        mock_status(&server, "/tv/9", 401).await;
+        let c = TmdbClient::with_base_url("k".into(), server.uri());
+        let msg = upstream_message(c.get_show(9).await.unwrap_err()).await;
+        assert_eq!(msg, "TMDB returned 401 Unauthorized");
+    }
+
+    // @spec TMDB-ERR-002, TMDB-ERR-003
+    #[tokio::test]
+    async fn get_season_429_and_5xx_map_to_friendly_messages() {
+        let server = MockServer::start().await;
+        mock_status(&server, "/tv/42/season/1", 429).await;
+        mock_status(&server, "/tv/42/season/2", 502).await;
+        let c = TmdbClient::with_base_url("k".into(), server.uri());
+        let msg = upstream_message(c.get_season(42, 1).await.unwrap_err()).await;
+        assert_eq!(
+            msg,
+            "TMDB is rate-limiting requests right now. Please try again in a moment."
+        );
+        let msg = upstream_message(c.get_season(42, 2).await.unwrap_err()).await;
+        assert_eq!(
+            msg,
+            "TMDB is unavailable right now. Please try again shortly."
+        );
+    }
+
+    // @spec TMDB-ERR-004
+    #[tokio::test]
+    async fn get_season_other_status_names_the_season() {
+        let server = MockServer::start().await;
+        mock_status(&server, "/tv/42/season/3", 404).await;
+        let c = TmdbClient::with_base_url("k".into(), server.uri());
+        let msg = upstream_message(c.get_season(42, 3).await.unwrap_err()).await;
+        assert_eq!(msg, "TMDB season 3 returned 404 Not Found");
     }
 
     #[tokio::test]
@@ -532,6 +629,7 @@ mod tests {
         assert_eq!(movie.us_providers(), vec!["Netflix".to_string()]);
     }
 
+    // @spec TMDB-ERR-002
     #[tokio::test]
     async fn get_movie_429_maps_to_rate_limit_message() {
         let server = MockServer::start().await;
@@ -563,19 +661,44 @@ mod tests {
         assert!(matches!(err, crate::error::AppError::NotFound(_)));
     }
 
+    // @spec TMDB-ERR-003
     #[tokio::test]
-    async fn get_movie_500_maps_to_upstream() {
+    async fn get_movie_500_maps_to_unavailable_message() {
         let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/movie/9"))
-            .respond_with(ResponseTemplate::new(500))
-            .mount(&server)
-            .await;
+        mock_status(&server, "/movie/9", 500).await;
         let c = TmdbClient::with_base_url("k".into(), server.uri());
-        let err = c.get_movie(9).await.unwrap_err();
-        assert!(matches!(err, crate::error::AppError::Upstream(_)));
+        let msg = upstream_message(c.get_movie(9).await.unwrap_err()).await;
+        assert_eq!(
+            msg,
+            "TMDB is unavailable right now. Please try again shortly."
+        );
     }
 
+    // @spec TMDB-CLIENT-007
+    #[tokio::test]
+    async fn search_multi_sends_query_key_and_adult_filter() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/search/multi"))
+            .and(query_param("api_key", "test_key"))
+            .and(query_param("query", "the bear"))
+            .and(query_param("include_adult", "false"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "results": [
+                    {"id": 1, "media_type": "tv", "name": "The Bear"},
+                    {"id": 2, "media_type": "person", "name": "Someone"}
+                ]
+            })))
+            .mount(&server)
+            .await;
+        let c = TmdbClient::with_base_url("test_key".into(), server.uri());
+        let body = c.search_multi("the bear").await.unwrap();
+        assert_eq!(body.results.len(), 2);
+        assert_eq!(body.results[0].name.as_deref(), Some("The Bear"));
+        assert_eq!(body.results[1].media_type.as_deref(), Some("person"));
+    }
+
+    // @spec TMDB-ERR-005
     #[tokio::test]
     async fn transport_error_does_not_leak_api_key() {
         // Unreachable host → reqwest transport error, which would normally carry
