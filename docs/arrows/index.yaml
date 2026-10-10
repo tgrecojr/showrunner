@@ -51,7 +51,7 @@ arrows:
     blocks: [search, watch-log]
     blockedBy: [tmdb, watch-log]
     detail: movies.md
-    next: "Confirm [inferred] decisions; implement MOVIES-UI-010 (keep list on failed mark/remove)"
+    next: "Confirm [inferred] decisions; move friendlyError into the shared fetch wrapper with app"
     drift: null
 
   up-next-calendar:

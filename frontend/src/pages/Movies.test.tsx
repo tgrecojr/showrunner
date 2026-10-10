@@ -103,6 +103,7 @@ describe("Movies", () => {
 		).toHaveAttribute("href", "/search");
 	});
 
+	// @spec MOVIES-UI-002
 	it("shows error state when load fails", async () => {
 		mockListMovies.mockRejectedValueOnce(new Error("boom"));
 		renderPage();
@@ -167,10 +168,14 @@ describe("Movies", () => {
 		expect(screen.getByText("Inception")).toBeInTheDocument();
 	});
 
-	it("shows error and keeps card when delete fails", async () => {
+	// @spec MOVIES-UI-010
+	it("shows a banner, keeps the list, and re-enables the card when delete fails", async () => {
 		const user = userEvent.setup();
 		mockListMovies.mockResolvedValueOnce({
-			movies: [buildMovie({ tmdb_id: 1, name: "Inception" })],
+			movies: [
+				buildMovie({ tmdb_id: 1, name: "Inception" }),
+				buildMovie({ tmdb_id: 2, name: "Dune" }),
+			],
 		});
 		mockDeleteMovie.mockRejectedValueOnce(new Error("500"));
 		renderPage();
@@ -178,10 +183,61 @@ describe("Movies", () => {
 			expect(screen.getByText("Inception")).toBeInTheDocument(),
 		);
 
-		await user.click(screen.getByRole("button", { name: "Remove" }));
+		await user.click(
+			screen.getAllByRole("button", { name: "Remove" })[0] as HTMLElement,
+		);
 
 		await waitFor(() =>
 			expect(screen.getByText("Error: 500")).toBeInTheDocument(),
 		);
+		expect(screen.getByText("Inception")).toBeInTheDocument();
+		expect(screen.getByText("Dune")).toBeInTheDocument();
+		for (const button of screen.getAllByRole("button")) {
+			expect(button).toBeEnabled();
+		}
+	});
+
+	// @spec MOVIES-UI-010
+	it("clears the banner when the next attempt begins", async () => {
+		const user = userEvent.setup();
+		mockListMovies.mockResolvedValueOnce({
+			movies: [buildMovie({ tmdb_id: 1, name: "Inception" })],
+		});
+		mockMarkWatched.mockRejectedValueOnce(new Error("boom"));
+		mockMarkWatched.mockResolvedValueOnce(undefined as never);
+		renderPage();
+		await waitFor(() =>
+			expect(screen.getByText("Inception")).toBeInTheDocument(),
+		);
+
+		await user.click(screen.getByRole("button", { name: "Mark Watched" }));
+		await waitFor(() =>
+			expect(screen.getByText("Error: boom")).toBeInTheDocument(),
+		);
+
+		await user.click(screen.getByRole("button", { name: "Mark Watched" }));
+		await waitFor(() =>
+			expect(screen.queryByText("Error: boom")).not.toBeInTheDocument(),
+		);
+		expect(screen.queryByText("Inception")).not.toBeInTheDocument();
+	});
+
+	// @spec MOVIES-UI-010
+	it("uses 'Update failed' when the rejection carries no message", async () => {
+		const user = userEvent.setup();
+		mockListMovies.mockResolvedValueOnce({
+			movies: [buildMovie({ tmdb_id: 1, name: "Inception" })],
+		});
+		mockMarkWatched.mockRejectedValueOnce("nope");
+		renderPage();
+		await waitFor(() =>
+			expect(screen.getByText("Inception")).toBeInTheDocument(),
+		);
+
+		await user.click(screen.getByRole("button", { name: "Mark Watched" }));
+		await waitFor(() =>
+			expect(screen.getByText("Error: Update failed")).toBeInTheDocument(),
+		);
+		expect(screen.getByText("Inception")).toBeInTheDocument();
 	});
 });

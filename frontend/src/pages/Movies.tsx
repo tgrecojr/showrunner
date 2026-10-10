@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { api } from "../api/client";
 import type { MovieWatchlistItem } from "../types";
 
+// @spec MOVIES-UI-001, MOVIES-UI-002, MOVIES-UI-003, MOVIES-UI-004, MOVIES-UI-010
 export default function Movies() {
 	const [movies, setMovies] = useState<MovieWatchlistItem[] | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -31,6 +32,7 @@ export default function Movies() {
 		mode: "watched" | "remove",
 	) {
 		if (!confirm(message)) return;
+		setError(null);
 		setPending((prev) => ({ ...prev, [tmdbId]: true }));
 		try {
 			if (mode === "watched") await api.markMovieWatched(tmdbId);
@@ -48,7 +50,9 @@ export default function Movies() {
 		}
 	}
 
-	if (error) {
+	// Only a failed initial load replaces the page: there is no list to keep.
+	// Action failures render as a banner over the grid below.
+	if (error && movies === null) {
 		return (
 			<div>
 				<h1>Movies</h1>
@@ -81,6 +85,7 @@ export default function Movies() {
 	return (
 		<div>
 			<h1>Movies</h1>
+			{error && <p className="status status-error">Error: {error}</p>}
 			<ul className="results-grid">
 				{movies.map((m) => {
 					const isPending = !!pending[m.tmdb_id];
