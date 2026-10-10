@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -172,6 +172,53 @@ describe("Movies", () => {
 		expect(mockDeleteMovie).not.toHaveBeenCalled();
 		expect(mockMarkWatched).not.toHaveBeenCalled();
 		expect(screen.getByText("Inception")).toBeInTheDocument();
+	});
+
+	// @spec MOVIES-UI-004
+	it("disables only the busy card's buttons while its request is in flight", async () => {
+		const user = userEvent.setup();
+		mockListMovies.mockResolvedValueOnce({
+			movies: [
+				buildMovie({ tmdb_id: 1, name: "Inception" }),
+				buildMovie({ tmdb_id: 2, name: "Dune" }),
+			],
+		});
+		let settle: () => void = () => {};
+		mockMarkWatched.mockReturnValueOnce(
+			new Promise<void>((resolve) => {
+				settle = resolve;
+			}),
+		);
+		renderPage();
+		await waitFor(() =>
+			expect(screen.getByText("Inception")).toBeInTheDocument(),
+		);
+		const busyCard = screen.getByText("Inception").closest("li") as HTMLElement;
+		const idleCard = screen.getByText("Dune").closest("li") as HTMLElement;
+
+		await user.click(
+			within(busyCard).getByRole("button", { name: "Mark Watched" }),
+		);
+
+		await waitFor(() =>
+			expect(
+				within(busyCard).getByRole("button", { name: "Mark Watched" }),
+			).toBeDisabled(),
+		);
+		expect(
+			within(busyCard).getByRole("button", { name: "Remove" }),
+		).toBeDisabled();
+		expect(
+			within(idleCard).getByRole("button", { name: "Mark Watched" }),
+		).toBeEnabled();
+		expect(
+			within(idleCard).getByRole("button", { name: "Remove" }),
+		).toBeEnabled();
+
+		settle();
+		await waitFor(() =>
+			expect(screen.queryByText("Inception")).not.toBeInTheDocument(),
+		);
 	});
 
 	// @spec MOVIES-UI-010

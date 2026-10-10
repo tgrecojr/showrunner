@@ -9,6 +9,7 @@ use chrono::{Duration, Utc};
 use http_body_util::BodyExt;
 use serde_json::Value;
 use showrunner_backend::build_api_router;
+use showrunner_backend::db::queries;
 use sqlx::SqlitePool;
 use tower::ServiceExt;
 use wiremock::matchers::{method as wm_method, path as wm_path, query_param};
@@ -289,6 +290,54 @@ async fn add_show_fetches_from_tmdb_and_inserts() {
     let v = body_to_value(resp).await;
     assert_eq!(v["tmdb_id"], 55);
     assert_eq!(v["name"], "Added");
+}
+
+// @spec SHOWS-API-004
+#[tokio::test]
+async fn add_show_persists_nothing_when_a_season_fetch_fails() {
+    let app = build_app().await;
+    Mock::given(wm_method("GET"))
+        .and(wm_path("/tv/55"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "id": 55, "name": "Half Fetched",
+            "seasons": [{"season_number": 1}, {"season_number": 2}]
+        })))
+        .mount(&app.tmdb_server)
+        .await;
+    Mock::given(wm_method("GET"))
+        .and(wm_path("/tv/55/season/1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "season_number": 1, "episodes": [
+                {"id": 1, "episode_number": 1, "air_date": "2024-01-01"}
+            ]
+        })))
+        .mount(&app.tmdb_server)
+        .await;
+    Mock::given(wm_method("GET"))
+        .and(wm_path("/tv/55/season/2"))
+        .respond_with(ResponseTemplate::new(500))
+        .mount(&app.tmdb_server)
+        .await;
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(json_request(
+            Method::POST,
+            "/api/v1/shows",
+            serde_json::json!({"tmdb_id": 55}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+
+    let (shows,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM shows WHERE tmdb_id = 55")
+        .fetch_one(&app.pool)
+        .await
+        .unwrap();
+    let (seasons,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM seasons WHERE show_tmdb_id = 55")
+        .fetch_one(&app.pool)
+        .await
+        .unwrap();
+    assert_eq!((shows, seasons), (0, 0));
 }
 
 // @spec SHOWS-API-002
@@ -659,6 +708,35 @@ async fn up_next_returns_oldest_unwatched_per_show() {
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["episode_number"], 1);
     assert_eq!(items[0]["remaining"], 2);
+}
+
+// @spec MOVIES-API-011
+#[tokio::test]
+async fn movies_are_absent_from_up_next_calendar_and_resync() {
+    let app = build_app().await;
+    insert_movie(&app.pool, 27205, "Inception").await;
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::GET, "/api/v1/up-next"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v = body_to_value(resp).await;
+    assert_eq!(v["items"].as_array().unwrap().len(), 0);
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(
+            Method::GET,
+            "/api/v1/calendar?start=2026-05-01&end=2026-05-31",
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v = body_to_value(resp).await;
+    assert_eq!(v["episodes"].as_array().unwrap().len(), 0);
+
+    let candidates = queries::list_resync_candidates(&app.pool).await.unwrap();
+    assert!(candidates.is_empty());
 }
 
 // ============================ Sync ============================
@@ -1421,6 +1499,43 @@ async fn delete_movie_writes_no_log_entry() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::NO_CONTENT);
     assert_eq!(log_count(&app.pool).await, 0);
+}
+
+// @spec WATCHLOG-DATA-004
+#[tokio::test]
+async fn watch_log_exposes_no_update_or_delete_route() {
+    let app = build_app().await;
+    insert_movie(&app.pool, 27205, "Inception").await;
+    build_api_router(app.state.clone())
+        .oneshot(post_no_body("/api/v1/movies/27205/watched"))
+        .await
+        .unwrap();
+    assert_eq!(log_count(&app.pool).await, 1);
+
+    let attempts = [
+        json_request(Method::PUT, "/api/v1/watch-log", serde_json::json!({})),
+        json_request(Method::PATCH, "/api/v1/watch-log", serde_json::json!({})),
+        json_request(Method::PUT, "/api/v1/watch-log/1", serde_json::json!({})),
+        json_request(Method::PATCH, "/api/v1/watch-log/1", serde_json::json!({})),
+        empty_request(Method::DELETE, "/api/v1/watch-log"),
+        empty_request(Method::DELETE, "/api/v1/watch-log/1"),
+    ];
+    for req in attempts {
+        let desc = format!("{} {}", req.method(), req.uri());
+        let resp = build_api_router(app.state.clone())
+            .oneshot(req)
+            .await
+            .unwrap();
+        assert!(
+            matches!(
+                resp.status(),
+                StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED
+            ),
+            "{desc} returned {}",
+            resp.status()
+        );
+    }
+    assert_eq!(log_count(&app.pool).await, 1);
 }
 
 // @spec WATCHLOG-API-001, WATCHLOG-API-002, WATCHLOG-API-005, WATCHLOG-DATA-001, WATCHLOG-DATA-002, MOVIES-API-009

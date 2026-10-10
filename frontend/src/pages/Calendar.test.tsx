@@ -58,6 +58,27 @@ describe("Calendar", () => {
 		expect(screen.getByText("S02E05")).toBeInTheDocument();
 	});
 
+	// @spec AIRING-CAL-011
+	it("marks today's cell and the leading/trailing other-month cells", async () => {
+		mockCalendar.mockResolvedValueOnce({ episodes: [] });
+		const { container } = renderPage();
+		await waitFor(() => expect(mockCalendar).toHaveBeenCalled());
+
+		const cells = container.querySelectorAll(".calendar-cell");
+		expect(cells).toHaveLength(42);
+		const today = container.querySelector(".calendar-cell-today");
+		expect(today).not.toBeNull();
+		expect(within(today as HTMLElement).getByText("9")).toBeInTheDocument();
+		expect(today).not.toHaveClass("calendar-cell-other");
+
+		// April 26–30 lead in (5 cells) and June 1–6 trail out (6 cells).
+		const other = container.querySelectorAll(".calendar-cell-other");
+		expect(other).toHaveLength(11);
+		expect(cells[0]).toHaveClass("calendar-cell-other");
+		expect(cells[41]).toHaveClass("calendar-cell-other");
+		expect(cells[5]).not.toHaveClass("calendar-cell-other");
+	});
+
 	// @spec AIRING-CAL-006, AIRING-CAL-007
 	it("queries with a 42-cell range covering the visible grid", async () => {
 		mockCalendar.mockResolvedValueOnce({ episodes: [] });
