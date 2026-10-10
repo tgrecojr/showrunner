@@ -26,6 +26,7 @@ pub struct ScheduleConfig {
 }
 
 impl Config {
+    // @spec RESYNC-TRIGGER-001
     pub fn from_env() -> Result<Self> {
         let host = std::env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
         let port: u16 = std::env::var("SERVER_PORT")
@@ -98,6 +99,7 @@ mod tests {
         unsafe { std::env::set_var(key, value) };
     }
 
+    // @spec RESYNC-TRIGGER-001
     #[test]
     #[serial]
     fn defaults_apply_when_only_required_vars_set() {
@@ -113,6 +115,7 @@ mod tests {
         assert_eq!(cfg.timezone.name(), "America/New_York");
     }
 
+    // @spec RESYNC-TRIGGER-001
     #[test]
     #[serial]
     fn overrides_pick_up_env_vars() {

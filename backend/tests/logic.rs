@@ -10,6 +10,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use crate::common::*;
 
+// @spec RESYNC-SHOW-001, RESYNC-SHOW-002, RESYNC-SHOW-003
 #[tokio::test]
 async fn resync_show_updates_metadata_and_episodes_preserving_watched() {
     let pool = test_pool().await;
@@ -64,6 +65,7 @@ async fn resync_show_updates_metadata_and_episodes_preserving_watched() {
     assert!(detail.seasons[0].episodes[0].watched, "watched preserved");
 }
 
+// @spec RESYNC-SHOW-002
 #[tokio::test]
 async fn resync_show_skips_season_zero() {
     let pool = test_pool().await;
@@ -98,6 +100,7 @@ async fn resync_show_skips_season_zero() {
     resync::resync_show(&pool, &tmdb, 7).await.unwrap();
 }
 
+// @spec RESYNC-RUN-003, RESYNC-RUN-004
 #[tokio::test]
 async fn resync_all_reports_per_show_success_and_failure() {
     let pool = test_pool().await;
@@ -125,6 +128,7 @@ async fn resync_all_reports_per_show_success_and_failure() {
     assert_eq!(report.errors[0].tmdb_id, 2);
 }
 
+// @spec RESYNC-RUN-004
 #[tokio::test]
 async fn resync_all_with_no_shows_is_a_noop() {
     let pool = test_pool().await;
@@ -201,6 +205,7 @@ async fn resync_all_caps_shows_per_run() {
     );
 }
 
+// @spec RESYNC-RUN-001, RESYNC-RUN-004
 #[tokio::test]
 async fn resync_all_below_the_ceiling_still_syncs_everything() {
     let pool = test_pool().await;

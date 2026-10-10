@@ -45,6 +45,7 @@ describe("Settings", () => {
 		).toBeInTheDocument();
 	});
 
+	// @spec RESYNC-UI-002, RESYNC-UI-003
 	it("runs sync and shows result", async () => {
 		const user = userEvent.setup();
 		mockSync.mockResolvedValueOnce({ shows_synced: 5, errors: [] });
@@ -58,6 +59,7 @@ describe("Settings", () => {
 		);
 	});
 
+	// @spec RESYNC-UI-003
 	it("renders sync errors per show", async () => {
 		const user = userEvent.setup();
 		mockSync.mockResolvedValueOnce({
@@ -77,6 +79,7 @@ describe("Settings", () => {
 		expect(screen.getByText(/Show #7: tmdb 404/)).toBeInTheDocument();
 	});
 
+	// @spec RESYNC-UI-004
 	it("shows error when sync rejects", async () => {
 		const user = userEvent.setup();
 		mockSync.mockRejectedValueOnce(new Error("boom"));
@@ -90,6 +93,7 @@ describe("Settings", () => {
 		);
 	});
 
+	// @spec RESYNC-UI-004
 	it("shows generic sync error for non-Error rejection", async () => {
 		const user = userEvent.setup();
 		mockSync.mockRejectedValueOnce("weird");

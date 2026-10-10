@@ -34,6 +34,7 @@ pub enum AppError {
 
 pub type Result<T> = std::result::Result<T, AppError>;
 
+// @spec TMDB-ERR-005
 impl From<reqwest::Error> for AppError {
     /// Strip the request URL before storing the error. `reqwest::Error`'s
     /// `Display` appends " for url (...)", and our outbound URLs carry secrets

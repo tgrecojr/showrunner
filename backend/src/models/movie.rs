@@ -3,6 +3,7 @@ use sqlx::FromRow;
 
 const PROFILE_BASE: &str = "https://image.tmdb.org/t/p/w185";
 
+// @spec TMDB-SHAPE-004
 pub fn profile_url(path: Option<&str>) -> Option<String> {
     path.filter(|p| !p.is_empty())
         .map(|p| format!("{}{}", PROFILE_BASE, p))
