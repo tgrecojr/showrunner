@@ -234,13 +234,36 @@ pub fn build_cors_layer(config: &Config) -> CorsLayer {
     }
 }
 
+/// The tracing filter: `RUST_LOG` when it is set and parses, else `info`.
+// @spec APP-CONFIG-005
+pub fn log_filter() -> EnvFilter {
+    EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into())
+}
+
+/// Serve the SPA from `static_dir` behind the API routes, with history
+/// fallback to its `index.html`. Without an `index.html` there, the app runs
+/// API-only and says so.
+// @spec APP-CONFIG-004, APP-HTTP-001
+pub fn with_static_fallback(app: Router, static_dir: &str) -> Router {
+    let static_path = PathBuf::from(static_dir);
+    let index_file = static_path.join("index.html");
+    if index_file.exists() {
+        let serve_dir = ServeDir::new(&static_path).not_found_service(ServeFile::new(&index_file));
+        tracing::info!("Serving static files from {}", static_dir);
+        app.fallback_service(serve_dir)
+    } else {
+        tracing::warn!("Static directory '{}' not found, API-only mode", static_dir);
+        app
+    }
+}
+
 /// Run the full server. Called from `main.rs`.
 // @spec APP-CONFIG-001, APP-CONFIG-002, APP-CONFIG-004, APP-CONFIG-005, APP-HTTP-001
 pub async fn run() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
 
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
+        .with_env_filter(log_filter())
         .init();
 
     let config = Config::from_env()?;
@@ -257,16 +280,7 @@ pub async fn run() -> anyhow::Result<()> {
     let app = build_api_router(state).layer(build_cors_layer(&config));
 
     let static_dir = std::env::var("STATIC_DIR").unwrap_or_else(|_| "./static".to_string());
-    let static_path = PathBuf::from(&static_dir);
-    let app = if static_path.join("index.html").exists() {
-        let index_file = static_path.join("index.html");
-        let serve_dir = ServeDir::new(&static_path).not_found_service(ServeFile::new(&index_file));
-        tracing::info!("Serving static files from {}", static_dir);
-        app.fallback_service(serve_dir)
-    } else {
-        tracing::warn!("Static directory '{}' not found, API-only mode", static_dir);
-        app
-    };
+    let app = with_static_fallback(app, &static_dir);
 
     let app = with_security_headers(app);
 
@@ -287,6 +301,27 @@ mod tests {
     use super::*;
     use crate::config::{ScheduleConfig, ServerConfig};
     use chrono_tz::UTC;
+    use serial_test::serial;
+
+    // @spec APP-CONFIG-005
+    #[test]
+    #[serial]
+    fn log_filter_defaults_to_info_when_rust_log_is_unset() {
+        // SAFETY: env mutation is serialised by `#[serial]`.
+        unsafe { std::env::remove_var("RUST_LOG") };
+        assert_eq!(log_filter().to_string(), "info");
+    }
+
+    // @spec APP-CONFIG-005
+    #[test]
+    #[serial]
+    fn log_filter_honours_rust_log() {
+        // SAFETY: env mutation is serialised by `#[serial]`.
+        unsafe { std::env::set_var("RUST_LOG", "debug") };
+        let filter = log_filter().to_string();
+        unsafe { std::env::remove_var("RUST_LOG") };
+        assert_eq!(filter, "debug");
+    }
 
     fn cfg(origin: Option<&str>) -> Config {
         Config {

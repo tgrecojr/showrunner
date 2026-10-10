@@ -8,9 +8,11 @@ use axum::http::{Method, Request, StatusCode};
 use chrono::{Duration, Utc};
 use http_body_util::BodyExt;
 use serde_json::Value;
-use showrunner_backend::build_api_router;
 use showrunner_backend::db::queries;
+use showrunner_backend::{build_api_router, with_static_fallback};
 use sqlx::SqlitePool;
+use std::str::FromStr;
+use std::time::Duration as StdDuration;
 use tower::ServiceExt;
 use wiremock::matchers::{method as wm_method, path as wm_path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -1650,4 +1652,210 @@ async fn get_show_detail_response_includes_show_level_counts() {
     assert_eq!(v["watched_count"], 1);
     assert_eq!(v["aired_count"], 1);
     assert_eq!(v["total_count"], 2);
+}
+
+// ============================ Perimeter ============================
+
+// @spec RESYNC-TRIGGER-006
+#[tokio::test]
+async fn sync_collapses_internal_errors_in_the_per_show_message() {
+    let app = build_app().await;
+    insert_show(&app.pool, 1, "Garbled", None, None, &[]).await;
+    Mock::given(wm_method("GET"))
+        .and(wm_path("/tv/1"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "application/json")
+                .set_body_string("this is not json"),
+        )
+        .mount(&app.tmdb_server)
+        .await;
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(post_no_body("/api/v1/sync"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v = body_to_value(resp).await;
+    assert_eq!(v["shows_synced"], 0);
+    assert_eq!(v["errors"][0]["tmdb_id"], 1);
+    assert_eq!(v["errors"][0]["message"], "An internal error occurred");
+}
+
+// @spec APP-HTTP-001
+#[tokio::test]
+async fn api_routes_live_only_under_the_v1_prefix() {
+    let app = build_app().await;
+    let router = build_api_router(app.state.clone());
+
+    let resp = router
+        .clone()
+        .oneshot(empty_request(Method::GET, "/shows"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+    let resp = router
+        .clone()
+        .oneshot(empty_request(Method::GET, "/api/v1/no-such-route"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+    let resp = router
+        .oneshot(empty_request(Method::GET, "/api/v1/shows"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+// @spec APP-HTTP-004
+#[tokio::test]
+async fn request_bodies_over_one_mebibyte_are_rejected_with_413() {
+    let app = build_app().await;
+    let pad = "x".repeat(1024 * 1024);
+    let body = format!(r#"{{"tmdb_id": 1, "pad": "{pad}"}}"#);
+    assert!(body.len() > 1024 * 1024);
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/api/v1/shows")
+                .header("content-type", "application/json")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+// @spec APP-HTTP-003
+#[tokio::test]
+async fn the_sixty_fifth_in_flight_request_is_shed_with_503() {
+    let app = build_app().await;
+    // The test pool has a single connection; holding it parks every handler
+    // that needs the database, so requests stay in flight for as long as we
+    // like without any sleeping handler in the production router.
+    let held = app.pool.acquire().await.unwrap();
+    let router = build_api_router(app.state.clone());
+
+    let mut in_flight = Vec::new();
+    for _ in 0..64 {
+        let r = router.clone();
+        in_flight.push(tokio::spawn(async move {
+            r.oneshot(empty_request(Method::GET, "/api/v1/shows"))
+                .await
+                .unwrap()
+                .status()
+        }));
+    }
+    // Let every spawned request reach its database wait and take a permit.
+    tokio::time::sleep(StdDuration::from_millis(200)).await;
+
+    let resp = router
+        .clone()
+        .oneshot(empty_request(Method::GET, "/api/v1/shows"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+    drop(held);
+    for h in in_flight {
+        assert_eq!(h.await.unwrap(), StatusCode::OK);
+    }
+}
+
+// @spec APP-HTTP-005
+#[tokio::test]
+async fn requests_running_past_thirty_seconds_get_408() {
+    // A pool whose acquire timeout is far beyond the request timeout, so the
+    // only timer that can fire first is the perimeter's.
+    let opts = sqlx::sqlite::SqliteConnectOptions::from_str("sqlite::memory:")
+        .unwrap()
+        .foreign_keys(true);
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .acquire_timeout(StdDuration::from_secs(600))
+        .connect_with(opts)
+        .await
+        .unwrap();
+    sqlx::migrate!("./src/db/migrations")
+        .run(&pool)
+        .await
+        .unwrap();
+    let tmdb_server = MockServer::start().await;
+    let state = app_state(pool.clone(), tmdb_server.uri(), utc_tz());
+
+    let held = pool.acquire().await.unwrap();
+    // Pause the clock only now: SQLite connects on a blocking thread, and a
+    // paused runtime would auto-advance through the acquire timeout while the
+    // pool waited on it. From here the handler parks on the held connection
+    // and the only timer left to fire is the perimeter's 30 s.
+    tokio::time::pause();
+    let resp = build_api_router(state)
+        .oneshot(empty_request(Method::GET, "/api/v1/shows"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::REQUEST_TIMEOUT);
+    drop(held);
+}
+
+// @spec APP-CONFIG-004
+#[tokio::test]
+async fn static_fallback_serves_index_for_unknown_paths_but_not_for_api_paths() {
+    let app = build_app().await;
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("index.html"), "<html>spa</html>").unwrap();
+    std::fs::write(dir.path().join("app.js"), "console.log(1)").unwrap();
+
+    let router = with_static_fallback(
+        build_api_router(app.state.clone()),
+        dir.path().to_str().unwrap(),
+    );
+
+    let resp = router
+        .clone()
+        .oneshot(empty_request(Method::GET, "/shows/42"))
+        .await
+        .unwrap();
+    let status = resp.status();
+    let text = collect_text(resp).await;
+    assert_eq!(text, "<html>spa</html>");
+    // tower-http's `not_found_service` serves the fallback body under a 404.
+    // Browsers render it, so client-side routes resolve, but the status is
+    // not what a history fallback usually returns; APP-CONFIG-004 is silent
+    // on the status, and this pins the behavior until that is decided.
+    assert_eq!(status, StatusCode::NOT_FOUND, "body: {text}");
+
+    let resp = router
+        .clone()
+        .oneshot(empty_request(Method::GET, "/app.js"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(collect_text(resp).await, "console.log(1)");
+
+    let resp = router
+        .oneshot(empty_request(Method::GET, "/api/v1/health"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(body_to_value(resp).await["status"], "ok");
+}
+
+// @spec APP-CONFIG-004
+#[tokio::test]
+async fn missing_static_dir_leaves_the_app_api_only() {
+    let app = build_app().await;
+    let router = with_static_fallback(
+        build_api_router(app.state.clone()),
+        "/definitely/not/a/static/dir",
+    );
+    let resp = router
+        .oneshot(empty_request(Method::GET, "/shows/42"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }

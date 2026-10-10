@@ -722,6 +722,24 @@ mod tests {
         assert_eq!(body.results[1].media_type.as_deref(), Some("person"));
     }
 
+    // @spec TMDB-CLIENT-005
+    #[tokio::test]
+    async fn oversized_body_is_rejected_before_it_is_read() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/tv/9"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "application/json")
+                    .set_body_bytes(vec![b' '; MAX_TMDB_BODY_BYTES as usize + 1]),
+            )
+            .mount(&server)
+            .await;
+        let c = TmdbClient::with_base_url("k".into(), server.uri());
+        let msg = upstream_message(c.get_show(9).await.unwrap_err()).await;
+        assert_eq!(msg, "TMDB response was unexpectedly large");
+    }
+
     // @spec TMDB-ERR-005
     #[tokio::test]
     async fn transport_error_does_not_leak_api_key() {
