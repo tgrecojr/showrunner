@@ -4,7 +4,7 @@ Prefix `RESYNC`. Facets: `SHOW` (what one show's resync does), `RUN` (a full run
 
 ## Show
 
-- [x] **RESYNC-SHOW-001**: When a show is resynced, the system shall fetch it from TMDB and update its name, overview, poster and backdrop paths, status, first and last air dates, `in_production`, US watch providers, network names, and `last_synced_at` (current UTC time), storing empty strings as NULL.
+- [x] **RESYNC-SHOW-001**: When a show is resynced, the system shall fetch it from TMDB and update its name, `in_production`, US watch providers, network names, and `last_synced_at` (current UTC time), and update its overview, poster path, backdrop path, status, first air date, and last air date, storing an empty string in any of those six as NULL.
 - [x] **RESYNC-SHOW-002**: When a show is resynced, the system shall fetch every season with `season_number > 0` and insert or update its name, overview, air date, and `episode_count` (the number of episodes fetched); season 0 shall be neither fetched nor stored.
 - [x] **RESYNC-SHOW-003**: When a show is resynced, the system shall insert each fetched episode that is new and update `tmdb_id`, `name`, `overview`, `air_date`, and `runtime` on each that exists, and shall never modify `watched` or `watched_at` on an existing episode.
 - [x] **RESYNC-SHOW-004**: Resync shall never delete a season or episode row, including ones TMDB no longer returns.

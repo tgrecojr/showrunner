@@ -29,7 +29,7 @@ pub(crate) async fn json_within_cap<T: serde::de::DeserializeOwned>(
     Ok(resp.json().await?)
 }
 
-// @spec TMDB-CLIENT-007
+// @spec TMDB-CLIENT-008
 #[derive(Clone)]
 pub struct TmdbClient {
     http: Client,

@@ -8,7 +8,8 @@ Prefix `TMDB`. Facets: `CLIENT` (requests and response handling), `SHAPE` (reduc
 - [x] **TMDB-CLIENT-002**: When asked for a show, the TMDB client shall request `GET /tv/{id}` with `append_to_response=watch/providers`.
 - [x] **TMDB-CLIENT-003**: When asked for a movie, the TMDB client shall request `GET /movie/{id}` with `append_to_response=credits,watch/providers`.
 - [x] **TMDB-CLIENT-004**: When asked for a season, the TMDB client shall request `GET /tv/{id}/season/{n}`.
-- [x] **TMDB-CLIENT-007**: When asked to search, the TMDB client shall request `GET /search/multi` with `query` set to the given text and `include_adult=false`, and the client shall expose no accessor for the API key or the underlying HTTP client.
+- [x] **TMDB-CLIENT-007**: When asked to search, the TMDB client shall request `GET /search/multi` with `query` set to the given text and `include_adult=false`.
+- [x] **TMDB-CLIENT-008**: The TMDB client shall expose no accessor for the API key or the underlying HTTP client; only the base URL is readable.
 - [x] **TMDB-CLIENT-005**: If a TMDB response advertises a `Content-Length` greater than 16 MiB, then the TMDB client shall reject it with the upstream error `TMDB response was unexpectedly large` before reading the body.
 - [x] **TMDB-CLIENT-006**: The TMDB client shall deserialize only the fields the application uses and shall treat absent `seasons`, `networks`, `episodes`, `credits`, `cast`, `crew`, and `watch/providers` as empty rather than failing.
 
