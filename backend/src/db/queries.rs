@@ -588,11 +588,33 @@ pub async fn upsert_episode_preserving_watched(
     Ok(())
 }
 
-pub async fn list_tracked_show_ids(pool: &SqlitePool) -> Result<Vec<i64>> {
-    let rows: Vec<(i64,)> =
-        sqlx::query_as("SELECT tmdb_id FROM shows ORDER BY name COLLATE NOCASE")
-            .fetch_all(pool)
-            .await?;
+/// Days after which an `Ended` / `Canceled` show is checked again, so a
+/// revival or a late metadata fix is still picked up.
+pub const ENDED_SHOW_RESYNC_DAYS: i64 = 30;
+
+/// Shows a full resync should consider, in the order to take them.
+///
+/// Eligible: status other than `Ended` / `Canceled` (NULL or unknown counts
+/// as eligible so a new TMDB status can never silently freeze a show), or
+/// any show not synced for `ENDED_SHOW_RESYNC_DAYS`. Ordered least recently
+/// synced first (never-synced before everything), then by name, so a capped
+/// run rotates through the whole set across consecutive runs. `datetime()`
+/// makes the RFC3339 strings compare as instants whatever their UTC suffix.
+// @spec RESYNC-RUN-005, RESYNC-RUN-006
+pub async fn list_resync_candidates(pool: &SqlitePool) -> Result<Vec<i64>> {
+    let rows: Vec<(i64,)> = sqlx::query_as(
+        "SELECT tmdb_id FROM shows
+         WHERE status IS NULL
+            OR status NOT IN ('Ended', 'Canceled')
+            OR last_synced_at IS NULL
+            OR datetime(last_synced_at) < datetime('now', ?)
+         ORDER BY (last_synced_at IS NULL) DESC,
+                  datetime(last_synced_at) ASC,
+                  name COLLATE NOCASE",
+    )
+    .bind(format!("-{} days", ENDED_SHOW_RESYNC_DAYS))
+    .fetch_all(pool)
+    .await?;
     Ok(rows.into_iter().map(|r| r.0).collect())
 }
 

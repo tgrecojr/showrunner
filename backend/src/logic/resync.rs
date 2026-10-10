@@ -47,9 +47,12 @@ pub async fn resync_show(pool: &SqlitePool, tmdb: &TmdbClient, tmdb_id: i64) -> 
 /// watchlist; the point is to bound the multiplier, not to ration normal use.
 pub const MAX_SHOWS_PER_RESYNC: usize = 100;
 
+// @spec RESYNC-RUN-001, RESYNC-RUN-002, RESYNC-RUN-003, RESYNC-RUN-004, RESYNC-RUN-005, RESYNC-RUN-006
 pub async fn resync_all(pool: &SqlitePool, tmdb: &TmdbClient) -> Result<ResyncReport> {
     let started = Instant::now();
-    let all_ids = queries::list_tracked_show_ids(pool).await?;
+    // Eligible shows, least recently synced first, so the ceiling below
+    // rotates through all of them across runs instead of re-picking a prefix.
+    let all_ids = queries::list_resync_candidates(pool).await?;
 
     let skipped = all_ids.len().saturating_sub(MAX_SHOWS_PER_RESYNC);
     let ids = &all_ids[..all_ids.len().min(MAX_SHOWS_PER_RESYNC)];
@@ -58,7 +61,7 @@ pub async fn resync_all(pool: &SqlitePool, tmdb: &TmdbClient) -> Result<ResyncRe
             total = all_ids.len(),
             limit = MAX_SHOWS_PER_RESYNC,
             skipped,
-            "resync fan-out ceiling reached; remaining shows deferred to the next run"
+            "resync fan-out ceiling reached; remaining eligible shows rotate into the next run"
         );
     }
     tracing::info!(count = ids.len(), "resync starting");
