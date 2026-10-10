@@ -4,7 +4,7 @@ Tracking a TV show: add with its full season/episode tree, list with progress, d
 
 ## Status
 
-**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 40 specs are implemented, annotated in code, and cited by at least one test; what remains open is the LLD's deferred list (per-season count semantics, query fan-out, duplicate-add race, add-under-timeout, and the untested timezone boundary) and the six `[inferred]` decision rows awaiting confirmation.
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 40 specs are implemented, annotated in code, and cited by at least one test; what remains open is the LLD's deferred list (per-season count semantics, query fan-out, duplicate-add race, add-under-timeout, and the untested timezone boundary).
 
 ## References
 
@@ -73,13 +73,11 @@ Tracking a TV show: add with its full season/episode tree, list with progress, d
 ## Work Required
 
 ### Must Fix
-1. Confirm or refute the `[inferred]` rows in the LLD decisions table (season 0 rationale, mutation response shape, TEXT dates, JSON columns, read-only Watchlist, post-remove navigation).
 
 ### Should Fix
-2. Add a timezone-boundary test for `SHOWS-PROGRESS-001` and `SHOWS-WATCHED-004` using `ny_tz()`.
-3. Move LLD Deferred 1 and 5 to Resolved: SHOWS-API-009 and SHOWS-API-007 now state the per-season count and `episode_count` semantics as intent.
+1. Add a timezone-boundary test for `SHOWS-PROGRESS-001` and `SHOWS-WATCHED-004` using `ny_tz()`.
 
 ### Nice to Have
-4. Collapse the per-show count queries into a single grouped query.
-5. Replace the check-then-insert on add with `INSERT … ON CONFLICT` or map the constraint error to 400.
-6. Fix the stale `insert_show_full` doc comment.
+2. Collapse the per-show count queries into a single grouped query.
+3. Replace the check-then-insert on add with `INSERT … ON CONFLICT` or map the constraint error to 400.
+4. Fix the stale `insert_show_full` doc comment.

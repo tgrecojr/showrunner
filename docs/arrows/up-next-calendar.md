@@ -4,7 +4,7 @@ The two aired-episode views: Up Next (per show, the oldest unwatched aired episo
 
 ## Status
 
-**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 24 specs are implemented, annotated in code, and cited by tests; what remains open is the LLD's six `[inferred]` decisions and its nine Deferred items (chiefly whose "today" the calendar highlights and the malformed-date contract).
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 24 specs are implemented, annotated in code, and cited by tests; what remains open is the LLD's Deferred items (chiefly whose "today" the calendar highlights and the malformed-date contract).
 
 ## References
 
@@ -65,13 +65,12 @@ The two aired-episode views: Up Next (per show, the oldest unwatched aired episo
 ## Work Required
 
 ### Must Fix
-1. Confirm or refute the `[inferred]` decisions in the LLD table (single-statement query, PATCH-then-refetch, 92-day cap, 42-cell grid, browser-local today, show-level links).
-2. Resolve Finding 1 (whose today the calendar highlights) and Finding 3 (reject vs normalize malformed dates), then pin each with a spec and a test.
+1. Expose the server's `TIMEZONE` today in the calendar response and highlight that cell (decided); keep normalizing malformed dates and make the two `AIRING-CAL-004` tests assert 200 (decided).
 
 ### Should Fix
-3. Add a `MAX_LIST_ROWS`-style bound to `list_calendar_episodes` or record the 92-day window as the intended bound in the LLD.
-4. Collapse the two Up Next fetch paths into one guarded loader.
+2. Add a `MAX_LIST_ROWS`-style bound to `list_calendar_episodes` or record the 92-day window as the intended bound in the LLD.
+3. Collapse the two Up Next fetch paths into one guarded loader.
 
 ### Nice to Have
-5. Overflow indicator for busy calendar days.
-6. Key network pills by index or de-duplicate names at the source.
+4. Overflow indicator for busy calendar days.
+5. Key network pills by index or de-duplicate names at the source.

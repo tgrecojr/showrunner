@@ -39,16 +39,16 @@ The client is the only holder of the API key and the only module that builds a T
 
 | Decision | Chosen | Alternatives Considered | Rationale |
 |----------|--------|------------------------|-----------|
-| Authentication | v3 API key as `api_key` query parameter | v4 bearer token in a header | `[inferred]` The v3 key is what TMDB's older endpoints document; the cost is that every URL carries a secret, hence the URL stripping. |
+| Authentication | v3 API key as `api_key` query parameter | v4 bearer token in a header | The v3 key is what TMDB's older endpoints document; the cost is that every URL carries a secret, hence the URL stripping. |
 | URL in errors | Stripped at conversion with `without_url()` | Redact in `Display`; filter at response time | The secret must never reach the error object at all, since handlers surface error strings to clients and logs (the doc comment on `From<reqwest::Error>` in error.rs). |
 | Body size | Reject when `Content-Length` > 16 MiB | Stream with a hard byte cap | Guards a misbehaving upstream without buffering; chunked bodies fall back to the timeout (the doc comment on `MAX_TMDB_BODY_BYTES`). |
-| Timeout | 10 s per request | Longer for season fetches | `[inferred]` Keeps the serial add and resync paths bounded. |
+| Timeout | 10 s per request | Longer for season fetches | Keeps the serial add and resync paths bounded. |
 | Upstream errors to users | One status mapper shared by every client method: fixed sentences for 429 and 5xx, raw `TMDB returned <status>` otherwise | Raw status text; client-side mapping per page; per-method mapping | A rate limit or outage should read as a transient condition, not a status dump, and mapping once on the server keeps every page and the Settings sync list consistent. Other statuses (a 401 from a bad key, say) are operator problems where the status is the useful part. |
 | Search request | A `search_multi` client method | Assemble the request in the search handler from client accessors | Every outbound call goes through the mapper, and the key never leaves this module. |
-| Provider regions and tiers | `US` only; `flatrate` + `free` + `ads` | All regions; include `rent` / `buy` | `[inferred]` Single-household app; "where can I stream it" excludes purchase. The tier choice is noted on `TmdbShow::us_providers`. |
+| Provider regions and tiers | `US` only; `flatrate` + `free` + `ads` | All regions; include `rent` / `buy` | Single-household app; "where can I stream it" excludes purchase. The tier choice is noted on `TmdbShow::us_providers`. |
 | Deserialized fields | Only what the app reads, with defaults for collections | Full TMDB models | Resilient to sparse records and TMDB additions (the `TMDB response shapes` section of tmdb.rs). |
-| Retries | None | Backoff on 429 / 5xx | `[inferred]` Serial callers and the manual-sync cooldown already pace requests. |
-| Season 404 | Reported as `Upstream`, not `NotFound` | Map 404 like show and movie | `[inferred]` A season listed by the show but missing from TMDB is an upstream inconsistency rather than a user error. |
+| Retries | None | Backoff on 429 / 5xx | Serial callers and the manual-sync cooldown already pace requests. |
+| Season 404 | Reported as `Upstream`, not `NotFound` | Map 404 like show and movie | A season listed by the show but missing from TMDB is an upstream inconsistency rather than a user error. |
 
 ## Open Questions & Future Decisions
 

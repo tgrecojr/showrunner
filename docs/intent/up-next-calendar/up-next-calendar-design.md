@@ -66,14 +66,14 @@ Each `CalendarEpisode` (models/show.rs) carries show id and name, poster, season
 | What Up Next shows | Per show, the oldest unwatched aired episode; sorted oldest first | Newest episode; sorted by show name | Longest-overdue first makes falling behind visible (CLAUDE.md). |
 | Where to watch | Network pills from `networks_json`; watch providers deliberately absent | Provider pills | TMDB's provider list is too noisy to read at a glance; networks say where the show airs (CLAUDE.md, the header comment of `20260921000000_add_show_networks.sql`). |
 | Remaining count | Aired unwatched only; accent style when more than one | Count all unwatched; always accent | Future episodes are not "behind"; one pending episode is normal, several is the signal (CLAUDE.md; `.status-pill-accent` in frontend/src/index.css). |
-| Up Next query shape | Single statement with a window function and correlated count | Per-show queries in Rust | `[inferred]` One round trip for the home page; bounded by the 500-row cap. |
-| Mark watched from Up Next | Single-episode PATCH, then re-fetch the list | Bulk `through_episode`; patch the row locally | `[inferred]` The row is by construction aired, so the escape-hatch path is safe; re-fetching lets the server pick the next episode. |
-| Calendar range cap | 92 days server-side | No cap; cap equal to the 42-cell grid | `[inferred]` Bounds the only list query without a row cap; leaves room for a quarter view. |
+| Up Next query shape | Single statement with a window function and correlated count | Per-show queries in Rust | One round trip for the home page; bounded by the 500-row cap. |
+| Mark watched from Up Next | Single-episode PATCH, then re-fetch the list | Bulk `through_episode`; patch the row locally | The row is by construction aired, so the escape-hatch path is safe; re-fetching lets the server pick the next episode. |
+| Calendar range cap | 92 days server-side | No cap; cap equal to the 42-cell grid | Bounds the only list query without a row cap; leaves room for a quarter view. |
 | Calendar binding | Bind re-formatted parsed dates | Bind the raw query strings | A signed or non-padded year passes the span check but mis-sorts against stored TEXT dates (the binding comment in `get_calendar`, calendar.rs). |
 | Watched episodes on the calendar | Shown, faded | Hidden | They still aired; fading keeps the month honest (CLAUDE.md). |
-| Grid shape | Fixed 42 cells, Sunday start | Variable rows; locale-aware start | `[inferred]` Stable layout across months; single-locale homelab app. |
+| Grid shape | Fixed 42 cells, Sunday start | Variable rows; locale-aware start | Stable layout across months; single-locale homelab app. |
 | Calendar "today" | Browser-local date at mount | Server-provided today in `TIMEZONE` | `[inferred]` No API exposes the server's today; see open question 1. |
-| Calendar links | To the show page, not an episode anchor | Deep link to the episode row | `[inferred]` No episode-level route exists. |
+| Calendar links | To the show page, not an episode anchor | Deep link to the episode row | No episode-level route exists. |
 
 ## Open Questions & Future Decisions
 

@@ -9,7 +9,7 @@ prefix: SEARCH
 
 Search is how a title enters Showrunner. The user types a name, the backend asks TMDB's multi-search on their behalf, and each result comes back tagged with whether it is already on the show watchlist or the movie list so the page can offer either an **Add** button or an **On watchlist** pill. The TMDB API key lives only in the server's environment; the browser never calls TMDB directly (SECURITY.md, "What the app does protect").
 
-The segment owns the `GET /api/v1/search` handler and the Search page. It does not own what happens after Add: the add-show and add-movie endpoints, and the tracked-id lookups used to compute `already_tracked`, belong to `shows` and `movies` and are consumed across the boundary.
+The segment owns the `GET /api/v1/search` handler and the Search page. It also owns the two tracked-id lookups (`tracked_tmdb_ids_in`, `tracked_movie_tmdb_ids_in` in backend/src/db/queries.rs) that compute `already_tracked`; they read the `shows` and `movies` tables but exist only for this page. It does not own what happens after Add: the add-show and add-movie endpoints belong to `shows` and `movies` and are consumed across the boundary.
 
 ## Backend request flow
 
@@ -51,13 +51,13 @@ The segment owns the `GET /api/v1/search` handler and the Search page. It does n
 | Decision | Chosen | Alternatives Considered | Rationale |
 |----------|--------|------------------------|-----------|
 | Where the TMDB call happens | Backend proxy; browser calls `/api/v1/search` | Browser calls TMDB directly with a public key | The API key must never reach the browser (SECURITY.md, "What the app does protect"; README.md feature list). |
-| TMDB endpoint | One `search/multi` request | Separate `search/tv` and `search/movie` requests merged client- or server-side | `[inferred]` One round trip and TMDB's own cross-type ranking; the cost is filtering out `person` results. |
-| `already_tracked` computation | Server-side, two IN-list queries per response | Client compares results against a cached watchlist | `[inferred]` Keeps the page stateless and correct across tabs; the lists are bounded by TMDB's page size. |
-| Adult content | `include_adult=false` hard-coded | Configurable | `[inferred]` Personal homelab tracker; no setting surface exists. |
-| Empty-string normalization | `overview`, `date`, `poster_path` empty → `null` | Pass TMDB strings through | `[inferred]` Lets the page use truthiness checks; TMDB uses `""` for unknown dates. |
-| Result paging | First TMDB page only, TMDB order | Expose `page`, or fetch several pages | `[inferred]` A name search rarely needs more than the top 20; no UI for paging. |
-| Add interaction | Stay on Search with per-card state | Navigate to the new detail page after add | `[inferred]` Supports adding several titles from one query. |
-| Debounce | 350 ms after the last keystroke, no abort | Submit button; abortable fetch | `[inferred]` Balances TMDB call volume against responsiveness; a stale response is ignored via the `cancelled` flag. |
+| TMDB endpoint | One `search/multi` request | Separate `search/tv` and `search/movie` requests merged client- or server-side | One round trip and TMDB's own cross-type ranking; the cost is filtering out `person` results. |
+| `already_tracked` computation | Server-side, two IN-list queries per response | Client compares results against a cached watchlist | Keeps the page stateless and correct across tabs; the lists are bounded by TMDB's page size. |
+| Adult content | `include_adult=false` hard-coded | Configurable | Personal homelab tracker; no setting surface exists. |
+| Empty-string normalization | `overview`, `date`, `poster_path` empty → `null` | Pass TMDB strings through | Lets the page use truthiness checks; TMDB uses `""` for unknown dates. |
+| Result paging | First TMDB page only, TMDB order | Expose `page`, or fetch several pages | A name search rarely needs more than the top 20; no UI for paging. |
+| Add interaction | Stay on Search with per-card state | Navigate to the new detail page after add | Supports adding several titles from one query. |
+| Debounce | 350 ms after the last keystroke, no abort | Submit button; abortable fetch | Balances TMDB call volume against responsiveness; a stale response is ignored via the `cancelled` flag. |
 
 ## Open Questions & Future Decisions
 
@@ -77,5 +77,6 @@ The segment owns the `GET /api/v1/search` handler and the Search page. It does n
 - frontend/src/pages/Search.tsx
 - backend/tests/api.rs (`search_returns_mixed_results_with_already_tracked_flag`, `search_rejects_blank_query`, `search_returns_502_with_unavailable_message_on_tmdb_5xx`, `search_returns_502_with_rate_limit_message_on_tmdb_429`, `search_returns_502_with_raw_status_on_other_tmdb_errors`)
 - frontend/src/pages/Search.test.tsx
-- Consumed: `shows` (add-show endpoint, `tracked_tmdb_ids_in`), `movies` (add-movie endpoint, `tracked_movie_tmdb_ids_in`), `tmdb` (`search_multi`, status mapping, body cap)
+- backend/src/db/queries.rs (`tracked_tmdb_ids_in`, `tracked_movie_tmdb_ids_in`)
+- Consumed: `shows` (add-show endpoint), `movies` (add-movie endpoint), `tmdb` (`search_multi`, status mapping, body cap)
 - SECURITY.md, "What the app does protect" — key never reaches the browser

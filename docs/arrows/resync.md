@@ -4,7 +4,7 @@ Keeping show metadata current from TMDB without touching watched state: the per-
 
 ## Status
 
-**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 21 specs are implemented, annotated in code, and cited by at least one test; what remains open is the LLD's deferred list (overlapping runs, non-transactional per-show resync, stale rows, the 30 s manual timeout, no visibility of scheduled runs) and three `[inferred]` decisions awaiting confirmation.
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 21 specs are implemented, annotated in code, and cited by at least one test; what remains open is the LLD's deferred list (overlapping runs, non-transactional per-show resync, stale rows, the 30 s manual timeout, no visibility of scheduled runs).
 
 ## References
 
@@ -69,12 +69,10 @@ Keeping show metadata current from TMDB without touching watched state: the per-
 ## Work Required
 
 ### Must Fix
-1. Confirm or refute the three `[inferred]` rows in the LLD decisions table (failure isolation, upsert-only with no deletes, per-statement autocommit).
 
 ### Should Fix
-2. Serialize cron and manual runs (shared gate or a run lock).
-3. Decide whether `resync_show` should be one transaction with `last_synced_at` written last.
+1. Serialize cron and manual runs (shared gate or a run lock).
 
 ### Nice to Have
-4. Surface the schedule, timezone, and last scheduled result on Settings.
-5. Collapse the duplicated `SyncResponse`/`SyncError` and `ResyncReport`/`ResyncError` structs.
+2. Surface the schedule, timezone, and last scheduled result on Settings.
+3. Collapse the duplicated `SyncResponse`/`SyncError` and `ResyncReport`/`ResyncError` structs.

@@ -4,7 +4,7 @@ The flat movie to-watch list: add, list, detail with live TMDB credits, mark wat
 
 ## Status
 
-**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 20 active specs are implemented, annotated in code, and cited by at least one test; what remains open is confirming the five `[inferred]` decisions in the LLD and the eight Deferred items listed there.
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 20 active specs are implemented, annotated in code, and cited by at least one test; what remains open is the Deferred items listed in the LLD.
 
 ## References
 
@@ -65,11 +65,9 @@ The flat movie to-watch list: add, list, detail with live TMDB credits, mark wat
 ## Work Required
 
 ### Must Fix
-1. Confirm or refute the five `[inferred]` rows in the LLD decisions table (live credits fetch, cast cap, newest-first order, local removal, post-mutation navigation).
 
 ### Should Fix
-2. Add routing (`App.test.tsx`) and client (`client.test.ts`) tests for the movie routes and endpoints.
+1. Add routing (`App.test.tsx`) and client (`client.test.ts`) tests for the movie routes and endpoints.
 
 ### Nice to Have
-3. Cache credits and providers at add time, or add movies to resync.
-4. Collapse the two near-identical exit handlers (`mark_movie_watched`, `delete_movie` in backend/src/api/movies.rs).
+2. Collapse the two near-identical exit handlers (`mark_movie_watched`, `delete_movie` in backend/src/api/movies.rs).

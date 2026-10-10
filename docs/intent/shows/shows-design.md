@@ -80,7 +80,7 @@ Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every
 | Decision | Chosen | Alternatives Considered | Rationale |
 |----------|--------|------------------------|-----------|
 | What "adding" fetches | Whole season/episode tree once, then nightly resync | Fetch seasons lazily on first open | The watchlist needs per-show progress counts immediately; one upfront cost per add (README.md, Troubleshooting: "Adding a long-running show takes 5–10 seconds"). |
-| Season 0 | Skipped on add and resync | Store Specials | Specials would pollute progress counts (the `// Skip season 0 (Specials).` comment in `add_show`). `[inferred]` beyond that comment. |
+| Season 0 | Skipped on add and resync | Store Specials | Specials would pollute progress counts (the `// Skip season 0 (Specials).` comment in `add_show`). |
 | Add atomicity | All TMDB fetches first, then one transaction | Insert show then stream seasons | No partial shows on the watchlist; doc comment on `insert_show_full`. |
 | List bound | `MAX_LIST_ROWS = 500`, no pagination | Cursor pagination | Unauthenticated callers can grow the table; a hard bound caps response size and query count (doc comment on `MAX_LIST_ROWS`). |
 | Bulk actions | Aired episodes only | Any episode in scope | Accidental marks must not apply to future airings (doc comment on `bulk_set_watched`, CLAUDE.md). |
@@ -90,29 +90,28 @@ Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every
 | "Today" | Configured `TIMEZONE`, default America/New_York | Server UTC; browser-local | Aired means aired where the user lives (CLAUDE.md, `TIMEZONE` in env.example). |
 | Progress format | `watched/aired`, no percentage | Percentage bar | CLAUDE.md "Progress display" key pattern; aired is the denominator that can actually change. |
 | Detail progress counts | Server-computed aired counts on `ShowDetail`, from the same helper as the watchlist | Page sums season counts; page filters episodes by the browser's date; a separate counts endpoint | "Aired" means aired in the server's `TIMEZONE`, which the page cannot know; one helper gives both views one definition and the detail page one fewer thing to compute. |
-| Mutation response | Full `ShowDetail` | Changed episode or count only | `[inferred]` Lets the page replace state wholesale without client-side merging. |
-| Dates in SQL | `TEXT` compared bytewise | Julian day or epoch columns | `[inferred]` Simple and sufficient while inputs are zero-padded; the hazard is documented in the comment above the `list_calendar_episodes` call in `get_calendar` (backend/src/api/calendar.rs). |
-| Providers and networks | JSON text columns on `shows` | Normalized join tables | `[inferred]` Read-only lists displayed as pills; no querying by provider. |
-| Where mutations live | Detail page only; Watchlist is read-only | Quick actions on cards | `[inferred]` |
-| After remove | Navigate to `/` (Up Next) | Back to Watchlist | `[inferred]` Up Next is the home route. |
+| Mutation response | Full `ShowDetail` | Changed episode or count only | Lets the page replace state wholesale without client-side merging. |
+| Dates in SQL | `TEXT` compared bytewise | Julian day or epoch columns | Simple and sufficient while inputs are zero-padded; the hazard is documented in the comment above the `list_calendar_episodes` call in `get_calendar` (backend/src/api/calendar.rs). |
+| Providers and networks | JSON text columns on `shows` | Normalized join tables | Read-only lists displayed as pills; no querying by provider. |
+| Where mutations live | Detail page only; Watchlist is read-only | Quick actions on cards | Cards stay scannable, and marking watched needs the episode context only the detail page shows. |
+| After remove | Navigate to `/` (Up Next) | Back to Watchlist | Up Next is the home route. |
 
 ## Open Questions & Future Decisions
 
 ### Resolved
-*(none yet)*
+1. **Per-season `watched_count` on detail counts every watched episode regardless of air date**, unlike the aired-only show-level count; specified by SHOWS-API-009.
+2. **`seasons.episode_count` is the number of episodes TMDB returned for the season**, not TMDB's summary count; specified by SHOWS-API-007.
 
 ### Deferred
-1. **Per-season `watched_count` on detail** counts watched episodes regardless of air date (the per-season `watched_count` computed in `get_show_detail`), unlike the watchlist count.
-2. **Query fan-out.** `list_watchlist` runs 1 + 2N statements and `get_show_detail` 3 + S. Acceptable at 500-row bound, or worth collapsing into joins?
-3. **Duplicate-add race.** Check-then-insert (`show_exists` in `add_show`, then the `INSERT INTO shows` in `insert_show_full`) can surface a primary-key violation as 500 rather than 400.
-4. **Add under the request timeout.** N+1 serial TMDB calls for an N-season show all run inside the perimeter's 30 s timeout; the response is cut off but the fetches are not cancelled.
-5. **`seasons.episode_count` semantics.** Derived from fetched episodes (`season.episodes.len()` bound in `insert_show_full`), not TMDB's summary count.
-6. **`networks_json`** is absent from `ShowRow` and `ShowDetail`; only Up Next surfaces it. Should detail show networks too?
-7. **Impossible-state errors** use `AppError::Config("show vanished after insert")` (after `get_watchlist_item` in `add_show`), whose text reaches the client as a 500 body.
-8. **Global `mutating` lock** disables every control on the page during one checkbox toggle.
-9. **Timezone coverage.** Every backend test uses UTC; the midnight boundary in the configured zone is untested.
-10. **Stale doc comment** on `insert_show_full` names a parameter `season_episodes` that does not exist.
-11. **Cascade from resync.** Resync upserts never delete episodes TMDB has dropped; stale rows stay on the tree and in progress counts (owned by `resync`, noted here because the counts are this segment's).
+1. **Query fan-out.** `list_watchlist` runs 1 + 2N statements and `get_show_detail` 3 + S. Acceptable at 500-row bound, or worth collapsing into joins?
+2. **Duplicate-add race.** Check-then-insert (`show_exists` in `add_show`, then the `INSERT INTO shows` in `insert_show_full`) can surface a primary-key violation as 500 rather than 400.
+3. **Add under the request timeout.** N+1 serial TMDB calls for an N-season show all run inside the perimeter's 30 s timeout; the response is cut off but the fetches are not cancelled.
+4. **`networks_json`** is absent from `ShowRow` and `ShowDetail`; only Up Next surfaces it. Should detail show networks too?
+5. **Impossible-state errors** use `AppError::Config("show vanished after insert")` (after `get_watchlist_item` in `add_show`), whose text reaches the client as a 500 body.
+6. **Global `mutating` lock** disables every control on the page during one checkbox toggle.
+7. **Timezone coverage.** Every backend test uses UTC; the midnight boundary in the configured zone is untested.
+8. **Stale doc comment** on `insert_show_full` names a parameter `season_episodes` that does not exist.
+9. **Cascade from resync.** Resync upserts never delete episodes TMDB has dropped; stale rows stay on the tree and in progress counts (owned by `resync`, noted here because the counts are this segment's).
 
 ## References
 

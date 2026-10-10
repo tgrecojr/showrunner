@@ -4,7 +4,7 @@ The append-only history of every watched and unwatched action, written inside th
 
 ## Status
 
-**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 19 specs are implemented, annotated in code, and cited by at least one test; what remains open is confirming the four `[inferred]` decisions in the LLD and the LLD's own deferred items.
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 19 specs are implemented, annotated in code, and cited by at least one test; what remains open is the LLD's own deferred items.
 
 ## References
 
@@ -68,13 +68,11 @@ The append-only history of every watched and unwatched action, written inside th
 ## Work Required
 
 ### Must Fix
-1. Confirm or refute the `[inferred]` rows in the LLD decisions table (free-text vocabulary columns, unlinked movie titles, page in URL, browser-local time).
 
 ### Should Fix
-2. Add a frontend/src/api/client.test.ts case for `api.watchLog` URL construction (`/watch-log?page=&per_page=`).
-3. Decide whether `scope`/`action`/`media_type` get CHECK constraints in a new migration (Finding 1).
+1. Add a frontend/src/api/client.test.ts case for `api.watchLog` URL construction (`/watch-log?page=&per_page=`).
 
 ### Nice to Have
-4. Clamp or redirect an out-of-range `?page=` (Finding 3).
-5. Show a loading state on page change (LLD Deferred 7).
-6. Add `afterEach(vi.restoreAllMocks)` to History.test.tsx (Finding 7).
+2. Clamp or redirect an out-of-range `?page=` (Finding 3).
+3. Show a loading state on page change (LLD Deferred 7).
+4. Add `afterEach(vi.restoreAllMocks)` to History.test.tsx (Finding 7).

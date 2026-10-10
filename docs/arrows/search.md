@@ -4,7 +4,7 @@ TMDB multi-search proxied through the backend, plus the Search page with its per
 
 ## Status
 
-**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 22 specs implemented and annotated in code and tests; nothing is open except the seven `[inferred]` decisions in the LLD awaiting confirmation.
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 22 specs implemented and annotated in code and tests; nothing is open beyond the LLD's deferred items.
 
 ## References
 
@@ -53,20 +53,15 @@ TMDB multi-search proxied through the backend, plus the Search page with its per
 3. **Per-result add errors omit the `Error:` prefix** every other page uses (`Search.tsx:Search`, the `addErrors[key]` paragraph). LLD Deferred 4.
 4. **`q` is trimmed and required but has no length cap** (`search.rs:search_shows`). LLD Deferred 1.
 5. **Poster base URL duplicated** — `search.rs:POSTER_BASE` alongside `models/show.rs:poster_url`. LLD Deferred 5.
-6. **Ownership of the tracked-id lookups is stated two ways** — the LLD's Context section says `tracked_tmdb_ids_in` and `tracked_movie_tmdb_ids_in` belong to `shows` and `movies`, but the code annotates both under SEARCH-API-006 and only `search_shows` calls them (`queries.rs:tracked_tmdb_ids_in`, `queries.rs:tracked_movie_tmdb_ids_in`).
-7. **An unannotated test exercises a search-owned query** — `backend/tests/db.rs:tracked_tmdb_ids_in_handles_empty_and_subset` pins the empty-list short-circuit and subset behavior of `tracked_tmdb_ids_in` but carries no `@spec` line.
 
 ## Work Required
 
 ### Must Fix
-1. Confirm or refute the seven `[inferred]` rows in the LLD Decisions & Alternatives table (endpoint choice, server-side `already_tracked`, adult filter, empty-string normalization, paging, stay-on-Search add, debounce).
 
 ### Should Fix
-2. Settle the ownership of `tracked_tmdb_ids_in` / `tracked_movie_tmdb_ids_in` (finding 6): either reword the LLD Context so search owns the two lookups, or re-annotate them under `shows` / `movies` and list them as consumed.
-3. Annotate `tracked_tmdb_ids_in_handles_empty_and_subset` in backend/tests/db.rs with `// @spec SEARCH-API-006` (finding 7).
 
 ### Nice to Have
-4. Cap `q` length server-side (LLD Deferred 1).
-5. Abort in-flight searches on query change (LLD Deferred 3).
-6. Reuse `models::show::poster_url` instead of a local base constant (LLD Deferred 5).
-7. Decide whether per-card add errors should carry the `Error:` prefix (LLD Deferred 4).
+1. Cap `q` length server-side (LLD Deferred 1).
+2. Abort in-flight searches on query change (LLD Deferred 3).
+3. Reuse `models::show::poster_url` instead of a local base constant (LLD Deferred 5).
+4. Decide whether per-card add errors should carry the `Error:` prefix (LLD Deferred 4).

@@ -69,8 +69,8 @@ The binary doubles as its own probe. Started as `showrunner-backend --healthchec
 | Authentication | None | Basic auth; token; reverse-proxy auth | Deliberate for a single-household LAN app; auth and multi-user are one future design topic, not a bolt-on (SECURITY.md "Security model"; CONTRIBUTING.md "Things that likely need discussion first"). |
 | CSRF defense | Require JSON content type on `POST`/`PUT`/`PATCH` at the router | Origin/Referer checks; CSRF tokens | Makes every state change a non-simple request a browser must preflight, covering body-less handlers and future routes alike (`require_json_content_type`). |
 | Flood handling | 64 in-flight, shed to 503 | Queue; per-IP rate limiting | Bounds pending work from an unauthenticated flood without a queue that grows unbounded (`MAX_INFLIGHT_REQUESTS`; the `LoadShed` stack in `build_api_router`). |
-| Request bounds | 1 MiB body, 30 s timeout | Per-route values | `[inferred]` Generous for JSON bodies; the timeout caps the slowest legitimate call (a many-season add). |
-| CORS default | `http://localhost:<port>` when unset | Same-origin only (no CORS layer) | `[inferred]` Lets a dev browser on the same host call the API directly. |
+| Request bounds | 1 MiB body, 30 s timeout | Per-route values | Generous for JSON bodies; the timeout caps the slowest legitimate call (a many-season add). |
+| CORS default | `http://localhost:<port>` when unset | Same-origin only (no CORS layer) | Lets a dev browser on the same host call the API directly. |
 | Wildcard CORS | Hand-built, no credentials, explicit methods | tower-http's permissive constructor | The permissive constructor also wildcards methods and exposed headers, a broader grant than the named branch; credentials with `*` are forbidden by the CORS spec (the `Some("*")` branch of `build_cors_layer`). |
 | CSP | Same-origin scripts and connections; images from TMDB's CDN; inline styles allowed | Nonce-based styles; report-only | The SPA loads only its own bundle and TMDB posters (`CONTENT_SECURITY_POLICY`). |
 | Header placement | Security headers wrap the whole app, last | API router only | The static HTML is where CSP and anti-framing matter (`with_security_headers`). |
@@ -79,10 +79,10 @@ The binary doubles as its own probe. Started as `showrunner-backend --healthchec
 | Client error shape | `ApiError` with `status` as a field and the server message as `message` | `Error` with `API <status>: <message>` as the message, stripped per page | The status is data, not part of the sentence; carrying it as a field means every page shows the server's wording without each one parsing a prefix. |
 | Health status code | 503 when degraded, 200 when ok | State in the body only | A container or proxy health check keys on the status code; the body alone cannot fail a probe. |
 | Health probe | A `--healthcheck` mode in the binary that GETs the endpoint over loopback | curl or wget in the image; a compose `healthcheck` command; a sidecar | The runtime image has no shell or HTTP tool, and a compose `healthcheck` also executes inside the container, so the binary is the only thing that can run there; reqwest is already linked. |
-| SQLite mode | WAL, `synchronous=NORMAL`, 30 s busy timeout, foreign keys on | Default journal | `[inferred]` Concurrent reads during the serial resync writer; FK cascades are relied on by delete. |
-| Home route | Up Next at `/` | Watchlist | `[inferred]` "What do I watch next" is the daily question. |
-| Data layer | A thin `fetch` wrapper, no query or state library | React Query, SWR | `[inferred]` Nine pages with simple load-then-mutate flows. |
-| Styling | Single plain stylesheet | CSS modules; utility framework; design tokens | `[inferred]` Small surface, one theme. |
+| SQLite mode | WAL, `synchronous=NORMAL`, 30 s busy timeout, foreign keys on | Default journal | Concurrent reads during the serial resync writer; FK cascades are relied on by delete. |
+| Home route | Up Next at `/` | Watchlist | "What do I watch next" is the daily question. |
+| Data layer | A thin `fetch` wrapper, no query or state library | React Query, SWR | Nine pages with simple load-then-mutate flows. |
+| Styling | Single plain stylesheet | CSS modules; utility framework; design tokens | Small surface, one theme. |
 
 ## Open Questions & Future Decisions
 

@@ -4,7 +4,7 @@ The adapter for the only external data source: the HTTP client, the TMDB respons
 
 ## Status
 
-**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 17 specs are implemented and annotated in code and tests; nothing is deferred or open, though `TMDB-CLIENT-008` (no accessor for the key) is verified by inspection rather than by a test, and the LLD still carries five `[inferred]` decisions awaiting confirmation.
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 17 specs are implemented and annotated in code and tests; nothing is deferred or open, though `TMDB-CLIENT-008` (no accessor for the key) is verified by inspection rather than by a test; that property is verified by review and the coherence script lists it as such.
 
 ## References
 
@@ -64,12 +64,10 @@ The adapter for the only external data source: the HTTP client, the TMDB respons
 ## Work Required
 
 ### Must Fix
-1. Confirm or refute the `[inferred]` rows in the LLD decisions table (v3 key, 10 s timeout, US-only providers and tiers, no retries, season-404-as-upstream).
+*(none)*
 
 ### Should Fix
-2. Fix the README prerequisites line to name the v3 "API Key" rather than the "API Read Access Token".
-3. Decide how `TMDB-CLIENT-008` is checked — a compile-fail doctest, a grep-based lint in `scripts/coherence-check.mjs`, or an explicit note in the spec that it is verified by review.
+*(none)*
 
 ### Nice to Have
-4. Map season 404 to not-found (LLD Deferred #1).
-5. Consolidate the image base constants (LLD Deferred #6).
+1. Consolidate the image base constants (LLD Deferred #6).
