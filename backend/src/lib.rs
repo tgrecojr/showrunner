@@ -55,6 +55,7 @@ object-src 'none'";
 /// Wrap the fully-assembled app (API routes + static fallback) with security
 /// response headers. Applied last so it also covers the static HTML/JS, which
 /// is where the CSP and anti-framing headers actually matter.
+// @spec APP-HTTP-008
 pub fn with_security_headers(app: Router) -> Router {
     app.layer(SetResponseHeaderLayer::if_not_present(
         header::CONTENT_SECURITY_POLICY,
@@ -90,6 +91,7 @@ pub fn with_security_headers(app: Router) -> Router {
 /// form. It does not authenticate the caller — any non-browser client (curl, a
 /// script) can still set the header and reach these routes. Closing that is the
 /// deferred auth/authz work, not this layer's job.
+// @spec APP-HTTP-002
 async fn require_json_content_type(req: Request, next: Next) -> Response {
     let guarded = matches!(*req.method(), Method::POST | Method::PUT | Method::PATCH);
     if guarded && !is_json_content_type(req.headers().get(header::CONTENT_TYPE)) {
@@ -117,6 +119,7 @@ fn is_json_content_type(value: Option<&HeaderValue>) -> bool {
 
 /// Build the API router with all routes wired up. Public so tests can drive
 /// the same Router used in production.
+// @spec APP-HTTP-001, APP-HTTP-002, APP-HTTP-003, APP-HTTP-004, APP-HTTP-005
 pub fn build_api_router(state: AppState) -> Router {
     Router::new()
         .route("/api/v1/health", get(api::health::health_check))
@@ -181,6 +184,7 @@ pub fn build_api_router(state: AppState) -> Router {
         .with_state(state)
 }
 
+// @spec APP-HTTP-006, APP-HTTP-007
 pub fn build_cors_layer(config: &Config) -> CorsLayer {
     use axum::http::Method;
 
@@ -231,6 +235,7 @@ pub fn build_cors_layer(config: &Config) -> CorsLayer {
 }
 
 /// Run the full server. Called from `main.rs`.
+// @spec APP-CONFIG-001, APP-CONFIG-002, APP-CONFIG-004, APP-CONFIG-005, APP-HTTP-001
 pub async fn run() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
 
@@ -316,6 +321,7 @@ mod tests {
         let _ = build_cors_layer(&cfg(None));
     }
 
+    // @spec APP-HTTP-007
     #[test]
     #[should_panic]
     fn cors_invalid_origin_panics() {
@@ -323,6 +329,7 @@ mod tests {
         let _ = build_cors_layer(&cfg(Some("\u{0}invalid")));
     }
 
+    // @spec APP-HTTP-008
     #[tokio::test]
     async fn security_headers_are_applied_to_responses() {
         use axum::body::Body;

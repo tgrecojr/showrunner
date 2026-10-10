@@ -4,7 +4,7 @@ import type { SearchResult } from "../types";
 
 type AddState = "idle" | "pending" | "added" | "error";
 
-// @spec SEARCH-UI-001, SEARCH-UI-002, SEARCH-UI-003, SEARCH-UI-004, SEARCH-UI-005, SEARCH-UI-006, SEARCH-UI-007, SEARCH-UI-008, SEARCH-UI-009, SEARCH-UI-010, SEARCH-UI-011, SEARCH-UI-012
+// @spec SEARCH-UI-001, SEARCH-UI-002, SEARCH-UI-003, SEARCH-UI-004, SEARCH-UI-005, SEARCH-UI-006, SEARCH-UI-007, SEARCH-UI-008, SEARCH-UI-009, SEARCH-UI-010, SEARCH-UI-011, SEARCH-UI-012, APP-SPA-006
 export default function Search() {
 	const [query, setQuery] = useState("");
 	const [results, setResults] = useState<SearchResult[]>([]);

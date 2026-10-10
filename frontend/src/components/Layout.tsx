@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet } from "react-router";
 
+// @spec APP-SPA-002
 export default function Layout() {
 	return (
 		<div className="layout">

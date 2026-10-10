@@ -48,6 +48,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 	return res.json() as Promise<T>;
 }
 
+// @spec APP-SPA-005
 export const api = {
 	search: (q: string) =>
 		request<SearchResponse>(`/search?q=${encodeURIComponent(q)}`),

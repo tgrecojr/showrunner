@@ -1,5 +1,6 @@
 name: CI
 
+# @spec SHIP-CI-001, SHIP-CI-004
 on:
   push:
     branches: [main]
@@ -8,15 +9,18 @@ on:
   # Weekly absolute supply-chain scan of main. PR scans run in OSV diff mode
   # (only vulnerabilities a PR introduces fail it), so this is what surfaces an
   # advisory that lands against already-merged dependencies.
+  # @spec SHIP-CI-004
   schedule:
     - cron: "0 13 * * 1" # Mondays 09:00 America/New_York (13:00 UTC)
 
 # Least privilege: CI only needs to read the repo. Renovate keeps the pinned
 # action SHAs below current (helpers:pinGitHubActionDigests).
+# @spec SHIP-CI-003
 permissions:
   contents: read
 
 jobs:
+  # @spec SHIP-CI-001
   backend:
     name: Backend (Rust)
     if: ${{ github.event_name != 'schedule' }}
@@ -49,6 +53,7 @@ jobs:
         working-directory: backend
         run: cargo llvm-cov --lcov --output-path lcov.info --fail-under-lines 85
 
+      # @spec SHIP-CI-002
       - name: Upload backend coverage report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -57,6 +62,7 @@ jobs:
           path: backend/lcov.info
           if-no-files-found: ignore
 
+  # @spec SHIP-CI-001
   frontend:
     name: Frontend (React/TypeScript)
     if: ${{ github.event_name != 'schedule' }}
@@ -85,6 +91,7 @@ jobs:
       - name: Run tests with coverage
         run: npm run test:coverage
 
+      # @spec SHIP-CI-002
       - name: Upload frontend coverage report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -95,6 +102,7 @@ jobs:
 
   # Schedule-only: on push and pull_request the scan already runs via
   # docker-publish.yml, so gating here avoids a duplicate check.
+  # @spec SHIP-CI-004, SHIP-SUPPLY-003
   supply-chain:
     name: Supply chain
     if: ${{ github.event_name == 'schedule' }}

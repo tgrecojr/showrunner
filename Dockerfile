@@ -1,3 +1,4 @@
+# @spec SHIP-IMAGE-001
 # Stage 1: Build frontend
 # glibc (Debian slim), not alpine/musl: matches the CI environment the committed
 # lockfile is resolved against, so `npm ci` installs exactly the audited tree.
@@ -13,6 +14,7 @@ RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY frontend/ ./
 RUN npm run build
 
+# @spec SHIP-IMAGE-001
 # Stage 2: Build backend
 FROM rust:1.98-slim-trixie@sha256:4cd829461bd5c4d511c32e269da9cb8929223b666519d8004e35fc8d1d771ab7 AS backend-build
 WORKDIR /app
@@ -36,6 +38,7 @@ RUN cargo build --release --locked
 # or chown at build time.
 RUN mkdir -p /rootfs/data && chown -R 65532:65532 /rootfs
 
+# @spec SHIP-IMAGE-002
 # Stage 3: Runtime — Chainguard glibc-dynamic. No shell, no package manager,
 # no libssl (rustls handles TLS). The image's default user is uid 65532
 # (nonroot) and it ships a CA bundle at /etc/ssl/certs/ca-certificates.crt
@@ -48,10 +51,12 @@ COPY --from=backend-build --chown=65532:65532 /app/target/release/showrunner-bac
 COPY --from=frontend-build --chown=65532:65532 /app/frontend/dist /app/static
 COPY --from=backend-build --chown=65532:65532 /rootfs/data /data
 
+# @spec SHIP-IMAGE-003, APP-CONFIG-004
 ENV STATIC_DIR=/app/static
 
 EXPOSE 3001
 
+# @spec SHIP-IMAGE-006, APP-HEALTH-003
 # The image has no shell or curl, so the binary probes itself (see
 # `--healthcheck` in main.rs). Its own request timeout is 3 s, inside the 5 s
 # here; the start period covers first-boot migrations.

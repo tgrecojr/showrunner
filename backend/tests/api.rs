@@ -87,7 +87,7 @@ async fn health_returns_ok_when_db_responsive() {
     assert_eq!(v["database"], true);
 }
 
-// @spec APP-HEALTH-002
+// @spec APP-HEALTH-002, APP-HEALTH-001
 #[tokio::test]
 async fn health_returns_503_degraded_when_db_unreachable() {
     let app = build_app().await;
@@ -1098,6 +1098,7 @@ fn cross_origin_form_post(uri: &str) -> Request<Body> {
         .unwrap()
 }
 
+// @spec APP-HTTP-002
 #[tokio::test]
 async fn form_encoded_post_to_sync_is_rejected() {
     let app = build_app().await;
@@ -1115,6 +1116,7 @@ async fn form_encoded_post_to_sync_is_rejected() {
 }
 
 /// `text/plain` is the other enctype a form can emit without a preflight.
+// @spec APP-HTTP-002
 #[tokio::test]
 async fn text_plain_post_to_sync_is_rejected() {
     let app = build_app().await;
@@ -1140,6 +1142,7 @@ async fn text_plain_post_to_sync_is_rejected() {
 
 /// A `+json` structured suffix with parameters must be accepted too. Guards
 /// against over-tightening the content-type gate for legitimate callers.
+// @spec APP-HTTP-002
 #[tokio::test]
 async fn json_suffix_and_charset_parameter_are_accepted() {
     let app = build_app().await;
@@ -1161,6 +1164,7 @@ async fn json_suffix_and_charset_parameter_are_accepted() {
 }
 
 /// GET must not be swept up by the content-type gate.
+// @spec APP-HTTP-002
 #[tokio::test]
 async fn get_requests_are_unaffected_by_the_content_type_gate() {
     let app = build_app().await;
@@ -1211,6 +1215,7 @@ fn delete_preflight() -> Request<Body> {
 /// The wildcard branch must grant no more than the named-origin branch does.
 /// `permissive()` is strictly broader; the fix makes the two agree on
 /// everything except which origins are accepted.
+// @spec APP-HTTP-006
 #[tokio::test]
 async fn wildcard_branch_grants_no_more_than_the_named_origin_branch() {
     async fn preflight_headers(origin_cfg: Option<&str>) -> axum::http::HeaderMap {
@@ -1247,6 +1252,7 @@ async fn wildcard_branch_grants_no_more_than_the_named_origin_branch() {
 
 /// `permissive()` also sets `expose-headers: *`, handing the calling page every
 /// response header. The narrowed layer must not.
+// @spec APP-HTTP-006
 #[tokio::test]
 async fn wildcard_cors_does_not_expose_all_response_headers() {
     let pool = test_pool().await;
@@ -1276,6 +1282,7 @@ async fn wildcard_cors_does_not_expose_all_response_headers() {
 
 /// A wildcard origin must never be paired with credentialed requests — that
 /// combination would turn the cross-origin read into an authenticated one.
+// @spec APP-HTTP-006
 #[tokio::test]
 async fn wildcard_cors_never_allows_credentials() {
     let pool = test_pool().await;
@@ -1294,6 +1301,7 @@ async fn wildcard_cors_never_allows_credentials() {
 
 /// The documented feature — "allow any origin" — must still work, and the
 /// method list must be the same explicit one the named-origin branch uses.
+// @spec APP-HTTP-006
 #[tokio::test]
 async fn wildcard_cors_still_allows_any_origin_with_the_explicit_method_list() {
     let pool = test_pool().await;
@@ -1329,6 +1337,7 @@ async fn wildcard_cors_still_allows_any_origin_with_the_explicit_method_list() {
 }
 
 /// Regression guard: the named-origin branch must keep rejecting evil.example.
+// @spec APP-HTTP-006
 #[tokio::test]
 async fn named_origin_branch_still_denies_other_origins() {
     let pool = test_pool().await;

@@ -11,9 +11,11 @@ on:
         required: false
 
 jobs:
+  # @spec SHIP-SUPPLY-001
   scan:
     name: Scan
     runs-on: ubuntu-latest
+    # @spec SHIP-CI-003
     permissions:
       contents: read
     # Job-level env so the Socket step's `if:` can test for the secret's
@@ -77,6 +79,7 @@ jobs:
       # broken scan as clean. All files live in the workspace: the scanner and
       # reporter are Docker actions that mount only $GITHUB_WORKSPACE.
 
+      # @spec SHIP-SUPPLY-002
       - name: Fetch base-branch lockfiles (PR diff mode)
         if: ${{ github.event_name == 'pull_request' }}
         env:
@@ -142,6 +145,7 @@ jobs:
             --gh-annotations=true
             --fail-on-vuln=true
 
+      # @spec SHIP-SUPPLY-003
       - name: OSV scan (absolute, main / scheduled)
         if: ${{ github.event_name != 'pull_request' }}
         uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0

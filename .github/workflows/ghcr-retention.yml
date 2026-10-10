@@ -5,11 +5,13 @@ on:
   schedule:
     - cron: '0 6 * * 1'   # Mondays 06:00 UTC
 
+# @spec SHIP-CI-003
 permissions:
   packages: write
   contents: read
 
 jobs:
+  # @spec SHIP-RELEASE-003
   prune:
     name: Prune old GHCR versions
     runs-on: ubuntu-latest

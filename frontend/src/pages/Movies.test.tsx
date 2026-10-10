@@ -106,7 +106,7 @@ describe("Movies", () => {
 		).toHaveAttribute("href", "/search");
 	});
 
-	// @spec MOVIES-UI-002
+	// @spec MOVIES-UI-002, APP-SPA-006
 	it("shows error state when load fails", async () => {
 		mockListMovies.mockRejectedValueOnce(new Error("boom"));
 		renderPage();
@@ -221,7 +221,7 @@ describe("Movies", () => {
 		);
 	});
 
-	// @spec MOVIES-UI-010
+	// @spec MOVIES-UI-010, APP-SPA-006
 	it("shows a banner, keeps the list, and re-enables the card when delete fails", async () => {
 		const user = userEvent.setup();
 		mockListMovies.mockResolvedValueOnce({

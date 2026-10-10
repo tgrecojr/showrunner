@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api } from "../api/client";
 import type { SyncResponse } from "../types";
 
-// @spec RESYNC-UI-001, RESYNC-UI-002, RESYNC-UI-003, RESYNC-UI-004
+// @spec RESYNC-UI-001, RESYNC-UI-002, RESYNC-UI-003, RESYNC-UI-004, APP-SPA-006
 export default function Settings() {
 	const [syncing, setSyncing] = useState(false);
 	const [syncResult, setSyncResult] = useState<SyncResponse | null>(null);

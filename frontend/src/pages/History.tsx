@@ -23,7 +23,7 @@ function parsePage(raw: string | null): number {
 	return Number.isInteger(n) && n >= 1 ? n : 1;
 }
 
-// @spec WATCHLOG-UI-001, WATCHLOG-UI-002, WATCHLOG-UI-003, WATCHLOG-UI-004, WATCHLOG-UI-005, WATCHLOG-UI-007, WATCHLOG-UI-008, WATCHLOG-UI-009
+// @spec WATCHLOG-UI-001, WATCHLOG-UI-002, WATCHLOG-UI-003, WATCHLOG-UI-004, WATCHLOG-UI-005, WATCHLOG-UI-007, WATCHLOG-UI-008, WATCHLOG-UI-009, APP-SPA-006
 export default function History() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const page = parsePage(searchParams.get("page"));

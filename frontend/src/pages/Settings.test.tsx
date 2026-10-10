@@ -79,7 +79,7 @@ describe("Settings", () => {
 		expect(screen.getByText(/Show #7: tmdb 404/)).toBeInTheDocument();
 	});
 
-	// @spec RESYNC-UI-004
+	// @spec RESYNC-UI-004, APP-SPA-006
 	it("shows error when sync rejects", async () => {
 		const user = userEvent.setup();
 		mockSync.mockRejectedValueOnce(new Error("boom"));

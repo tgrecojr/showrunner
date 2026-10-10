@@ -92,7 +92,7 @@ describe("Watchlist", () => {
 		).toHaveAttribute("href", "/search");
 	});
 
-	// @spec SHOWS-UI-002
+	// @spec SHOWS-UI-002, APP-SPA-006
 	it("shows error state when API call rejects", async () => {
 		mockListShows.mockRejectedValueOnce(new Error("boom"));
 		renderPage();

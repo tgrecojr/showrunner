@@ -52,7 +52,7 @@ function buildVisibleRange(year: number, month: number): VisibleRange {
 	};
 }
 
-// @spec AIRING-CAL-006, AIRING-CAL-007, AIRING-CAL-008, AIRING-CAL-009, AIRING-CAL-010, AIRING-CAL-011, AIRING-CAL-012
+// @spec AIRING-CAL-006, AIRING-CAL-007, AIRING-CAL-008, AIRING-CAL-009, AIRING-CAL-010, AIRING-CAL-011, AIRING-CAL-012, APP-SPA-006
 export default function Calendar() {
 	const today = useMemo(() => new Date(), []);
 	const [year, setYear] = useState(today.getFullYear());

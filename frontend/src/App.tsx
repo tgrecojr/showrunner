@@ -10,6 +10,7 @@ import ShowDetail from "./pages/ShowDetail";
 import UpNext from "./pages/UpNext";
 import Watchlist from "./pages/Watchlist";
 
+// @spec APP-SPA-001
 export default function App() {
 	return (
 		<BrowserRouter>

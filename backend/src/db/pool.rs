@@ -4,6 +4,7 @@ use sqlx::SqlitePool;
 use std::str::FromStr;
 use std::time::Duration;
 
+// @spec APP-CONFIG-002, APP-CONFIG-003
 pub async fn create_pool(database_url: &str) -> Result<SqlitePool> {
     let max_conn: u32 = std::env::var("DB_MAX_CONNECTIONS")
         .ok()
@@ -40,6 +41,7 @@ mod tests {
     use super::*;
     use serial_test::serial;
 
+    // @spec APP-CONFIG-003
     #[tokio::test]
     #[serial]
     async fn create_pool_runs_migrations_on_memory_db() {
@@ -54,6 +56,7 @@ mod tests {
         unsafe { std::env::remove_var("DB_MAX_CONNECTIONS") };
     }
 
+    // @spec APP-CONFIG-003
     #[tokio::test]
     #[serial]
     async fn create_pool_uses_default_max_connections_when_env_invalid() {
