@@ -272,14 +272,55 @@ async fn upsert_episode_preserves_watched_state() {
     assert_eq!(row.5, Some(100));
 }
 
+async fn set_last_synced(pool: &sqlx::SqlitePool, tmdb_id: i64, ts: Option<&str>) {
+    sqlx::query("UPDATE shows SET last_synced_at = ? WHERE tmdb_id = ?")
+        .bind(ts)
+        .bind(tmdb_id)
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+fn days_ago(days: i64) -> String {
+    (chrono::Utc::now() - chrono::Duration::days(days)).to_rfc3339()
+}
+
+// @spec RESYNC-RUN-006
 #[tokio::test]
-async fn list_tracked_show_ids_sorted_case_insensitively() {
+async fn list_resync_candidates_applies_status_and_slow_lane_rules() {
     let pool = test_pool().await;
-    insert_show(&pool, 1, "Bravo", None, None, &[]).await;
+    insert_show(&pool, 1, "Returning", None, Some("Returning Series"), &[]).await;
+    insert_show(&pool, 2, "Ended recent", None, Some("Ended"), &[]).await;
+    insert_show(&pool, 3, "Canceled stale", None, Some("Canceled"), &[]).await;
+    insert_show(&pool, 4, "No status", None, None, &[]).await;
+    insert_show(&pool, 5, "Odd status", None, Some("Pilot"), &[]).await;
+    insert_show(&pool, 6, "Ended exactly boundary", None, Some("Ended"), &[]).await;
+    for id in [1, 2, 4, 5] {
+        set_last_synced(&pool, id, Some(&days_ago(1))).await;
+    }
+    set_last_synced(&pool, 3, Some(&days_ago(40))).await;
+    set_last_synced(&pool, 6, Some(&days_ago(29))).await;
+
+    let mut ids = queries::list_resync_candidates(&pool).await.unwrap();
+    ids.sort();
+    assert_eq!(ids, vec![1, 3, 4, 5]);
+}
+
+// @spec RESYNC-RUN-005
+#[tokio::test]
+async fn list_resync_candidates_orders_by_last_synced_then_name() {
+    let pool = test_pool().await;
+    insert_show(&pool, 1, "Zeta", None, None, &[]).await;
     insert_show(&pool, 2, "alpha", None, None, &[]).await;
-    insert_show(&pool, 3, "Charlie", None, None, &[]).await;
-    let ids = queries::list_tracked_show_ids(&pool).await.unwrap();
-    assert_eq!(ids, vec![2, 1, 3]);
+    insert_show(&pool, 3, "Never synced", None, None, &[]).await;
+    insert_show(&pool, 4, "Oldest", None, None, &[]).await;
+    set_last_synced(&pool, 1, Some(&days_ago(1))).await;
+    set_last_synced(&pool, 2, Some(&days_ago(1))).await;
+    set_last_synced(&pool, 3, None).await;
+    set_last_synced(&pool, 4, Some(&days_ago(5))).await;
+
+    let ids = queries::list_resync_candidates(&pool).await.unwrap();
+    assert_eq!(ids, vec![3, 4, 2, 1]);
 }
 
 #[tokio::test]

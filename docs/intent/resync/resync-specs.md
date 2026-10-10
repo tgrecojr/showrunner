@@ -12,12 +12,12 @@ Prefix `RESYNC`. Facets: `SHOW` (what one show's resync does), `RUN` (a full run
 
 ## Run
 
-- [x] **RESYNC-RUN-001**: A full resync shall resync at most 100 tracked shows per run, one show at a time with at most one TMDB request in flight.
-- [x] **RESYNC-RUN-002**: When more than 100 shows are tracked, a full resync shall log a warning carrying the total, the limit, and the number skipped.
+- [x] **RESYNC-RUN-001**: A full resync shall resync at most 100 eligible shows per run, one show at a time with at most one TMDB request in flight.
+- [x] **RESYNC-RUN-002**: When more than 100 shows are eligible, a full resync shall log a warning carrying the eligible total, the limit, and the number skipped.
 - [x] **RESYNC-RUN-003**: If resyncing one show fails, then the run shall record `{ tmdb_id, message }` for that show using the error's client-safe message and continue with the remaining shows; the run shall fail as a whole only if the tracked-show list cannot be read.
 - [x] **RESYNC-RUN-004**: A full resync shall report `shows_synced` (count of shows that completed) and `errors` (one entry per failed show).
-- [ ] **RESYNC-RUN-005**: When more eligible shows exist than the per-run ceiling, successive runs shall select the least-recently-synced eligible shows first, so that every eligible show is resynced across consecutive runs.
-- [ ] **RESYNC-RUN-006**: A full resync shall consider only shows that are still airing or expected to return, excluding shows whose stored TMDB status is `Ended` or `Canceled`; the per-run ceiling and the rotation in RESYNC-RUN-005 apply to the eligible set only.
+- [x] **RESYNC-RUN-005**: A full resync shall order eligible shows by `last_synced_at` ascending with NULL first and then by name, and take the first 100, so that when more eligible shows exist than the per-run ceiling, consecutive runs rotate through every eligible show.
+- [x] **RESYNC-RUN-006**: A full resync shall treat a show as eligible when its stored TMDB `status` is neither `Ended` nor `Canceled` (a NULL or any other status being eligible), or when its `last_synced_at` is more than 30 days before the current time; the per-run ceiling and the rotation in RESYNC-RUN-005 apply to the eligible set only.
 
 ## Trigger
 
@@ -30,7 +30,7 @@ Prefix `RESYNC`. Facets: `SHOW` (what one show's resync does), `RUN` (a full run
 
 ## UI
 
-- [x] **RESYNC-UI-001**: The Settings page shall show a "TMDB sync" section stating that watched state is preserved and that the job also runs on the configured cron schedule, with a button labelled "Resync all shows from TMDB".
+- [x] **RESYNC-UI-001**: The Settings page shall show a "TMDB sync" section stating that a run refreshes shows still airing or expected to return with ended shows checked about monthly, that watched state is preserved, and that the job also runs on the configured cron schedule, with a button labelled "Resync all shows from TMDB".
 - [x] **RESYNC-UI-002**: When the user clicks the resync button, the Settings page shall call `POST /api/v1/sync`, label the button "Syncing…" and disable it while in flight, and clear any previous result and error.
 - [x] **RESYNC-UI-003**: When a manual sync completes, the Settings page shall show `Synced <n> show(s).`, append ` <m> failed.` when `errors` is non-empty, and list each error as `Show #<tmdb_id>: <message>`.
 - [x] **RESYNC-UI-004**: If the manual sync request fails, then the Settings page shall show `Error: <message>` ("Sync failed" when the rejection carries no message).

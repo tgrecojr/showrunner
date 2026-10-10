@@ -31,6 +31,20 @@ afterEach(() => {
 });
 
 describe("Settings", () => {
+	// @spec RESYNC-UI-001
+	it("explains which shows a run refreshes", () => {
+		renderPage();
+		expect(
+			screen.getByText(
+				/Refreshes seasons and episodes from TMDB for shows still airing or expected to return\. Ended shows are checked about monthly\./,
+			),
+		).toBeInTheDocument();
+		expect(screen.getByText(/Watched state is preserved/)).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Resync all shows from TMDB" }),
+		).toBeInTheDocument();
+	});
+
 	it("runs sync and shows result", async () => {
 		const user = userEvent.setup();
 		mockSync.mockResolvedValueOnce({ shows_synced: 5, errors: [] });

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../api/client";
 import type { SyncResponse } from "../types";
 
+// @spec RESYNC-UI-001, RESYNC-UI-002, RESYNC-UI-003, RESYNC-UI-004
 export default function Settings() {
 	const [syncing, setSyncing] = useState(false);
 	const [syncResult, setSyncResult] = useState<SyncResponse | null>(null);
@@ -27,8 +28,10 @@ export default function Settings() {
 			<section className="settings-section">
 				<h2>TMDB sync</h2>
 				<p>
-					Refreshes every show's seasons and episodes from TMDB. Watched state
-					is preserved. Runs automatically on the configured cron schedule.
+					Refreshes seasons and episodes from TMDB for shows still airing or
+					expected to return. Ended shows are checked about monthly. Watched
+					state is preserved. Runs automatically on the configured cron
+					schedule.
 				</p>
 				<button
 					type="button"

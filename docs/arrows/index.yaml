@@ -87,7 +87,7 @@ arrows:
     blocks: []
     blockedBy: [tmdb, shows]
     detail: resync.md
-    next: "Implement RESYNC-RUN-005 (rotate least-recently-synced) and RESYNC-RUN-006 (skip Ended/Canceled); confirm status vocabulary"
+    next: "Confirm [inferred] decisions; serialize cron and manual runs; decide per-show transaction scope"
     drift: null
 
   tmdb:
