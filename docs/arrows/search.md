@@ -4,7 +4,7 @@ TMDB multi-search proxied through the backend, plus the Search page with its per
 
 ## Status
 
-**MAPPED** — sampled 2026-10-10 (git SHA `3b525e1`), not yet audited. Skeleton LLD and EARS specs were reverse-engineered from code; design rationale carries `[inferred]` markers until confirmed.
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 22 specs implemented and annotated in code and tests; nothing is open except the seven `[inferred]` decisions in the LLD awaiting confirmation.
 
 ## References
 
@@ -15,18 +15,18 @@ TMDB multi-search proxied through the backend, plus the Search page with its per
 - docs/intent/search/search-design.md
 
 ### EARS
-- docs/intent/search/search-specs.md (22 specs: 21 implemented, 1 active gap)
+- docs/intent/search/search-specs.md (22 specs: 22 implemented, 0 deferred, 0 active gaps)
 
 ### Tests
-- backend/tests/api.rs — `search_returns_mixed_results_with_already_tracked_flag` (:91), `search_rejects_blank_query` (:146), `search_returns_502_when_tmdb_errors` (:156)
-- frontend/src/pages/Search.test.tsx — 12 tests (debounce, result rendering, add TV vs movie, per-result errors)
-- frontend/src/api/client.test.ts — URL construction and query encoding for `api.search` (:29, :37)
+- backend/tests/api.rs — `search_returns_mixed_results_with_already_tracked_flag`, `search_rejects_blank_query`, `search_returns_502_with_unavailable_message_on_tmdb_5xx`, `search_returns_502_with_rate_limit_message_on_tmdb_429`, `search_returns_502_with_raw_status_on_other_tmdb_errors`
+- frontend/src/pages/Search.test.tsx — 16 tests (input focus and label, debounce, blank-query clearing, in-flight and error status lines, card rendering, add TV vs movie, pending/added/error states, state keying and reset)
 
 ### Code
 - backend/src/api/search.rs — `search_shows` handler (the whole file)
-- frontend/src/pages/Search.tsx — Search page
-- frontend/src/api/client.ts — `api.search` (:36)
-- Consumed from other segments: `queries::tracked_tmdb_ids_in` (backend/src/db/queries.rs:427), `queries::tracked_movie_tmdb_ids_in` (:412), `tmdb::json_within_cap` (backend/src/datasources/tmdb.rs:18), `api.addShow` / `api.addMovie` (frontend/src/api/client.ts:40, :49)
+- backend/src/db/queries.rs — `tracked_tmdb_ids_in`, `tracked_movie_tmdb_ids_in` (the two IN-list lookups behind `already_tracked`)
+- frontend/src/pages/Search.tsx — `Search` page component
+- Consumed from other segments: `TmdbClient::search_multi` and its status mapping and body cap (`tmdb`); `POSTER_BASE` in search.rs is annotated under `tmdb` (TMDB-SHAPE-004); `api.search` in frontend/src/api/client.ts and its URL-encoding tests are annotated under `app` (APP-SPA-003/005); `api.addShow` / `api.addMovie` and their endpoints (`shows`, `movies`)
+- Consumers: none — no other segment calls into search.
 
 ## Architecture
 
@@ -35,7 +35,7 @@ TMDB multi-search proxied through the backend, plus the Search page with its per
 **Key Components:**
 1. `search_shows` handler — validates `q`, calls TMDB `/search/multi` with `include_adult=false`, drops non-tv/movie results, normalizes TV vs movie fields, annotates each result with `already_tracked` from two IN-list lookups.
 2. Search page — 350 ms debounced query, per-result add state keyed by `media_type:tmdb_id`, routes Add to `addMovie` or `addShow` by media type, shows `On watchlist` for tracked or just-added results.
-3. Tracked-id lookups — owned by `shows` and `movies` (in `queries.rs`); this segment only consumes them.
+3. Tracked-id lookups — `tracked_tmdb_ids_in` (shows) and `tracked_movie_tmdb_ids_in` (movies) in `queries.rs`; both short-circuit to no query on an empty id list. Only search calls them, and they are annotated under this segment (SEARCH-API-006).
 
 ## Spec Coverage
 
@@ -44,25 +44,29 @@ TMDB multi-search proxied through the backend, plus the Search page with its per
 | API | SEARCH-API-001 to 010 | 10 | 0 | 0 |
 | UI | SEARCH-UI-001 to 012 | 12 | 0 | 0 |
 
-**Summary:** 22 of 22 active specs implemented; no gaps.
+**Summary:** 22 of 22 active specs implemented; 0 deferred. (Specs with no test citation: none.)
 
 ## Key Findings
 
-1. **Non tv/movie results are dropped silently** — `person` and any unknown `media_type` are filtered at search.rs:90-94 and :110-114, pinned by api.rs:112.
-2. **Add crosses the segment boundary** — Search.tsx:66-70 calls `api.addMovie` / `api.addShow`, whose endpoints belong to `movies` and `shows`. The Search page owns only the button states.
-3. **Debounce without cancellation** — Search.tsx:25-50 clears the timer and ignores late results via a `cancelled` flag, but no `AbortController`; previous results stay visible while a new search runs (:120 shows "Searching…" above them), and `loading` is only set once the 350 ms timer fires (:26).
-4. **Per-result add errors render without the `Error:` prefix** every other page uses (Search.tsx:155; contrast UpNext.tsx and Watchlist.tsx).
-5. **`q` is trimmed and required but has no length cap** (search.rs:58-63); it is a query parameter, so the 1 MiB body limit does not apply.
-6. **Poster base URL duplicated** — search.rs defines `POSTER_BASE` separately from `models::show::poster_url` (backend/src/models/show.rs:4).
+1. **Add crosses the segment boundary** — `Search.tsx:handleAdd` calls `api.addMovie` / `api.addShow`, whose endpoints belong to `movies` and `shows`. The Search page owns only the button states.
+2. **Debounce without cancellation** — `Search.tsx:Search` (the query effect) clears the timer and ignores late results via a `cancelled` flag but never aborts the HTTP request. LLD Deferred 3.
+3. **Per-result add errors omit the `Error:` prefix** every other page uses (`Search.tsx:Search`, the `addErrors[key]` paragraph). LLD Deferred 4.
+4. **`q` is trimmed and required but has no length cap** (`search.rs:search_shows`). LLD Deferred 1.
+5. **Poster base URL duplicated** — `search.rs:POSTER_BASE` alongside `models/show.rs:poster_url`. LLD Deferred 5.
+6. **Ownership of the tracked-id lookups is stated two ways** — the LLD's Context section says `tracked_tmdb_ids_in` and `tracked_movie_tmdb_ids_in` belong to `shows` and `movies`, but the code annotates both under SEARCH-API-006 and only `search_shows` calls them (`queries.rs:tracked_tmdb_ids_in`, `queries.rs:tracked_movie_tmdb_ids_in`).
+7. **An unannotated test exercises a search-owned query** — `backend/tests/db.rs:tracked_tmdb_ids_in_handles_empty_and_subset` pins the empty-list short-circuit and subset behavior of `tracked_tmdb_ids_in` but carries no `@spec` line.
 
 ## Work Required
 
 ### Must Fix
-1. Confirm or refute the `[inferred]` decisions in the LLD (why add stays on the Search page rather than navigating).
+1. Confirm or refute the seven `[inferred]` rows in the LLD Decisions & Alternatives table (endpoint choice, server-side `already_tracked`, adult filter, empty-string normalization, paging, stay-on-Search add, debounce).
 
 ### Should Fix
+2. Settle the ownership of `tracked_tmdb_ids_in` / `tracked_movie_tmdb_ids_in` (finding 6): either reword the LLD Context so search owns the two lookups, or re-annotate them under `shows` / `movies` and list them as consumed.
+3. Annotate `tracked_tmdb_ids_in_handles_empty_and_subset` in backend/tests/db.rs with `// @spec SEARCH-API-006` (finding 7).
 
 ### Nice to Have
-2. Cap `q` length server-side.
-3. Abort in-flight searches on query change.
-4. Reuse `models::show::poster_url` instead of a local base constant.
+4. Cap `q` length server-side (LLD Deferred 1).
+5. Abort in-flight searches on query change (LLD Deferred 3).
+6. Reuse `models::show::poster_url` instead of a local base constant (LLD Deferred 5).
+7. Decide whether per-card add errors should carry the `Error:` prefix (LLD Deferred 4).

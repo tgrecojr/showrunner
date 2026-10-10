@@ -4,7 +4,7 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 
 ## Status
 
-**MAPPED** — sampled 2026-10-10 (git SHA `3b525e1`), not yet audited. Skeleton LLD and EARS specs were reverse-engineered from code; design rationale carries `[inferred]` markers until confirmed.
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 24 specs are implemented, annotated in code, and cited by at least one test; what remains open is confirming the six `[inferred]` decisions in the LLD and the small design items it already lists as deferred.
 
 ## References
 
@@ -15,21 +15,37 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 - docs/intent/app/app-design.md
 
 ### EARS
-- docs/intent/app/app-specs.md (23 specs: 21 implemented, 2 active gaps)
+- docs/intent/app/app-specs.md (24 specs: 24 implemented, 0 deferred, 0 active gaps)
 
 ### Tests
-- backend/src/lib.rs tests — JSON content-type matching, CORS branches including the invalid-origin panic
-- backend/src/config.rs tests — defaults, overrides, missing/blank key, bad port, bad timezone
-- backend/src/db/pool.rs tests — `DB_MAX_CONNECTIONS` parsing; backend/src/error.rs tests — status and body mapping
-- backend/tests/api.rs — health (:76), backend/tests/healthcheck.rs (probe mode), content-type gate (:878-974), CORS parity and wildcard limits (:976-1156)
-- frontend/src/App.test.tsx (7 routes), frontend/src/components/Layout.test.tsx (3), frontend/src/api/client.test.ts (15)
-- Not covered: load shed (503), body limit, timeout (408), security headers, static fallback, the two movie routes in `App.test.tsx`
+- backend/src/config.rs inline tests — `defaults_apply_when_only_required_vars_set`, `overrides_pick_up_env_vars`, `missing_tmdb_api_key_fails`, `empty_tmdb_api_key_fails`, `invalid_port_fails`, `invalid_timezone_fails`, `empty_optional_vars_treated_as_absent`
+- backend/src/db/pool.rs inline tests — `create_pool_runs_migrations_on_memory_db`, `create_pool_uses_default_max_connections_when_env_invalid`
+- backend/src/error.rs inline tests — `not_found_maps_to_404_with_message`, `invalid_data_maps_to_400`, `config_maps_to_500_with_message`, `upstream_maps_to_502`, `database_error_hidden_from_response_body`
+- backend/src/lib.rs inline tests — `log_filter_defaults_to_info_when_rust_log_is_unset`, `log_filter_honours_rust_log`, `cors_invalid_origin_panics`, `security_headers_are_applied_to_responses`
+- backend/src/scheduler.rs inline tests — `start_returns_config_error_for_invalid_cron`
+- backend/tests/api.rs — `health_returns_ok_when_db_responsive`, `health_returns_503_degraded_when_db_unreachable`, `form_encoded_post_to_sync_is_rejected`, `text_plain_post_to_sync_is_rejected`, `json_suffix_and_charset_parameter_are_accepted`, `get_requests_are_unaffected_by_the_content_type_gate`, `wildcard_branch_grants_no_more_than_the_named_origin_branch`, `wildcard_cors_does_not_expose_all_response_headers`, `wildcard_cors_never_allows_credentials`, `wildcard_cors_still_allows_any_origin_with_the_explicit_method_list`, `named_origin_branch_still_denies_other_origins`, `api_routes_live_only_under_the_v1_prefix`, `request_bodies_over_one_mebibyte_are_rejected_with_413`, `the_sixty_fifth_in_flight_request_is_shed_with_503`, `requests_running_past_thirty_seconds_get_408`, `static_fallback_serves_index_for_unknown_paths_but_not_for_api_paths`, `missing_static_dir_leaves_the_app_api_only`
+- backend/tests/healthcheck.rs (4 tests, all on the `--healthcheck` probe)
+- frontend/src/App.test.tsx (7 tests, one per route except `/movies` and `/movies/:tmdbId`)
+- frontend/src/components/Layout.test.tsx (3 tests)
+- frontend/src/api/client.test.ts — `builds /api/v1 URLs with JSON content-type and parses JSON success`, `encodes search query strings safely`, `returns undefined for 204 No Content`, `rejects with ApiError carrying the status and the bare server message`, `falls back to raw text when error body is not JSON`, `falls back to raw text when JSON has no error field`, `listShows hits /shows`
+- frontend/src/pages/*.test.tsx — the error-display tests in Calendar, History, MovieDetail, Movies, Search, Settings, ShowDetail, UpNext, and Watchlist cite APP-SPA-006 alongside their own segment's ID
 
 ### Code
-- backend/src/lib.rs (`with_security_headers` :58, `require_json_content_type` :93, `build_api_router` :120, `build_cors_layer` :184, `run` :234); backend/src/main.rs
-- backend/src/config.rs; backend/src/db/pool.rs; backend/src/error.rs; backend/src/api/health.rs
-- frontend/src/main.tsx; frontend/src/App.tsx; frontend/src/components/Layout.tsx; frontend/src/api/client.ts; frontend/src/types/index.ts; frontend/src/index.css; frontend/index.html; frontend/vite.config.ts
-- env.example
+- backend/src/lib.rs — `with_security_headers`, `require_json_content_type`, `build_api_router`, `build_cors_layer`, `log_filter`, `with_static_fallback`, `run`
+- backend/src/main.rs — `main` (the `--healthcheck` dispatch)
+- backend/src/config.rs — `Config::from_env`
+- backend/src/db/pool.rs — `create_pool`
+- backend/src/error.rs — `AppError::client_message`, `AppError::into_response`
+- backend/src/api/health.rs — `health_check`, `probe`, `probe_from_env`
+- backend/src/scheduler.rs — `start` (the `RESYNC_CRON` parse failure is a startup configuration error)
+- Dockerfile — the `STATIC_DIR` `ENV` and the `HEALTHCHECK` instruction
+- docker-compose.yml — the `app` service (`STATIC_DIR` and `RUST_LOG` environment)
+- frontend/src/App.tsx — `App`
+- frontend/src/components/Layout.tsx — `Layout`
+- frontend/src/api/client.ts — `request`, the `api` object (query encoding)
+- frontend/src/pages/*.tsx (APP-SPA-006 on every page component)
+- Consumed from other segments: `TmdbClient::new` (tmdb), `scheduler::start` and `resync_all` (resync), `AppState::new` (state.rs; `today_in` there belongs to shows), and every feature route handler mounted by `build_api_router`.
+- Consumers: every feature segment — routes are mounted by `build_api_router`, pages are routed by `App` inside `Layout`, handlers return `AppError`, and pages call the API through `request`.
 
 ## Architecture
 
@@ -51,28 +67,30 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 | Health | APP-HEALTH-001 to 003 | 3 | 0 | 0 |
 | SPA | APP-SPA-001 to 006 | 6 | 0 | 0 |
 
-**Summary:** 24 of 24 active specs implemented; no gaps.
+**Summary:** 24 of 24 active specs implemented; 0 deferred. (Specs with no test citation: none.)
 
 ## Key Findings
 
-1. **Two settings bypass `Config`** — `STATIC_DIR` (backend/src/lib.rs:254) and `DB_MAX_CONNECTIONS` (backend/src/db/pool.rs:8); the first is undocumented, the second is not passed by `docker-compose.yml`.
-2. **Invalid `CORS_ALLOWED_ORIGIN` panics** (lib.rs:217) rather than returning the `Config` error every other setting uses; a test pins the panic.
-3. **Unparsable `SERVER_HOST` silently binds `0.0.0.0`** (lib.rs:269).
-4. **The 30 s timeout drops long handlers mid-work** (lib.rs:177-180): a many-season add or a manual sync gets a 408 while the upstream calls continue.
-5. **`Config` error text is client-visible** on 500 responses (backend/src/error.rs:57-61); handlers use it for impossible states.
-6. **No catch-all route** in frontend/src/App.tsx; an unknown path renders an empty shell.
-7. **Eight hand-copied fetch skeletons** with inconsistent loading, error, and empty structure (sweep cross-file note).
-8. **Perimeter layers are untested** — no test exercises load shed, the body limit, the timeout, or the security headers.
+1. **Two settings bypass `Config`** — `STATIC_DIR` (backend/src/lib.rs:`run`) and `DB_MAX_CONNECTIONS` (backend/src/db/pool.rs:`create_pool`). `STATIC_DIR` is set by the Dockerfile and docker-compose.yml but appears in neither env.example nor README; `DB_MAX_CONNECTIONS` is documented in both but is not passed by docker-compose.yml. LLD Deferred item 1.
+2. **Invalid `CORS_ALLOWED_ORIGIN` panics** (backend/src/lib.rs:`build_cors_layer`) rather than returning the `Config` error every other setting uses; `cors_invalid_origin_panics` pins the panic. LLD Deferred item 2.
+3. **Unparsable `SERVER_HOST` silently binds `0.0.0.0`** (backend/src/lib.rs:`run`). LLD Deferred item 3.
+4. **The 30 s timeout drops long handlers mid-work** (backend/src/lib.rs:`build_api_router`): a many-season add or a manual sync gets a 408 while the upstream calls continue. LLD Deferred item 4.
+5. **`Config` error text is client-visible** on 500 responses (backend/src/error.rs:`client_message`); handlers use the variant for impossible states. LLD Deferred item 5.
+6. **No catch-all route** in frontend/src/App.tsx:`App`; an unknown path renders an empty shell. LLD Deferred item 7.
+7. **Eight hand-copied fetch skeletons** — the `cancelled`-flag load pattern is duplicated across the eight data-loading pages with inconsistent loading, error, and empty structure. LLD Deferred item 9.
+8. **`App.test.tsx` does not exercise the two movie routes** — `/movies` and `/movies/:tmdbId` are the only APP-SPA-001 routes without a routing test.
+9. **backend/src/lib.rs is 393 lines**, over the repository's 300-line guideline. LLD Deferred item 10.
 
 ## Work Required
 
 ### Must Fix
-1. Confirm or refute the `[inferred]` decisions (request bounds, localhost CORS default, SQLite mode, Up Next as home, thin fetch wrapper, plain stylesheet).
+1. Confirm or refute the `[inferred]` decisions in the LLD table (request bounds, CORS default, SQLite mode, home route, data layer, styling).
 
 ### Should Fix
-2. Fold `STATIC_DIR` and `DB_MAX_CONNECTIONS` into `Config` and document them.
-3. Add tests for the load shed, body limit, timeout, and security headers.
+2. Fold `STATIC_DIR` and `DB_MAX_CONNECTIONS` into `Config`; document `STATIC_DIR` in env.example and README, and pass `DB_MAX_CONNECTIONS` through docker-compose.yml.
 
 ### Nice to Have
-4. Return a `Config` error for a bad CORS origin instead of panicking.
-5. Add a not-found route and a shared data-loading hook.
+3. Return a `Config` error for a bad CORS origin instead of panicking.
+4. Add a not-found route and a shared data-loading hook.
+5. Add `/movies` and `/movies/:tmdbId` cases to frontend/src/App.test.tsx.
+6. Split backend/src/lib.rs (perimeter middleware and startup are separable) to get under the 300-line guideline.
