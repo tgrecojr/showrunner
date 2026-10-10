@@ -241,6 +241,15 @@ body {
 	color: #166534;
 }
 
+/* Up Next: more than one aired episode is waiting */
+.status-pill-accent {
+	background: #4f46e5;
+	color: #fff;
+	font-weight: 700;
+	font-size: 0.8rem;
+	box-shadow: 0 0 0 1px #4338ca;
+}
+
 .next-air {
 	margin: 0.25rem 0 0 0;
 	font-size: 0.8rem;

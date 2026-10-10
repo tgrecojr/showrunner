@@ -57,6 +57,23 @@ describe("UpNext", () => {
 		expect(screen.getByText("aired 2026-04-01")).toBeInTheDocument();
 	});
 
+	it("accents the remaining pill when more than one aired episode is unwatched", async () => {
+		mockUpNext.mockResolvedValueOnce({ items: [item({ remaining: 2 })] });
+		renderPage();
+		const pill = await screen.findByText("2 remaining");
+		expect(pill).toHaveClass("status-pill", "status-pill-accent");
+		expect(pill).toHaveAttribute("title", "2 aired episodes not yet watched");
+	});
+
+	it("keeps the remaining pill neutral when only one episode is unwatched", async () => {
+		mockUpNext.mockResolvedValueOnce({ items: [item({ remaining: 1 })] });
+		renderPage();
+		const pill = await screen.findByText("1 remaining");
+		expect(pill).toHaveClass("status-pill");
+		expect(pill).not.toHaveClass("status-pill-accent");
+		expect(pill).toHaveAttribute("title", "1 aired episode not yet watched");
+	});
+
 	it("renders a pill per network, and none when the list is empty", async () => {
 		mockUpNext.mockResolvedValueOnce({
 			items: [

@@ -131,7 +131,16 @@ export default function UpNext() {
 								<p className="upnext-ep-overview">{item.episode_overview}</p>
 							)}
 							<div className="meta-row">
-								<span className="status-pill">{item.remaining} remaining</span>
+								<span
+									className={
+										item.remaining > 1
+											? "status-pill status-pill-accent"
+											: "status-pill"
+									}
+									title={`${item.remaining} aired episode${item.remaining === 1 ? "" : "s"} not yet watched`}
+								>
+									{item.remaining} remaining
+								</span>
 								<span className="ep-date">aired {item.air_date}</span>
 							</div>
 						</div>
