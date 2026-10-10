@@ -3,7 +3,7 @@
 mod common;
 
 use chrono::{Duration, Utc};
-use showrunner_backend::datasources::tmdb::{TmdbEpisode, TmdbSeason, TmdbShow};
+use showrunner_backend::datasources::tmdb::{TmdbEpisode, TmdbMovie, TmdbSeason, TmdbShow};
 use showrunner_backend::db::queries::{self, BulkScope};
 use showrunner_backend::state::today_in;
 
@@ -637,6 +637,66 @@ async fn list_watchlist_is_capped() {
         EXPECTED_CAP,
         "expected the result set to be clamped to the server-enforced ceiling"
     );
+}
+
+// @spec MOVIES-API-004
+#[tokio::test]
+async fn insert_movie_stores_only_basic_metadata_and_nulls_empty_strings() {
+    use sqlx::Row;
+    let pool = test_pool().await;
+    let movie: TmdbMovie = serde_json::from_value(serde_json::json!({
+        "id": 27205,
+        "title": "Inception",
+        "overview": "",
+        "poster_path": "/p.jpg",
+        "backdrop_path": "",
+        "release_date": "2010-07-16",
+        "runtime": 148,
+        "credits": {
+            "cast": [{"name": "Leonardo DiCaprio", "character": "Cobb", "order": 0}],
+            "crew": [{"name": "Christopher Nolan", "job": "Director"}]
+        },
+        "watch/providers": {"results": {"US": {"flatrate": [{"provider_name": "Netflix"}]}}}
+    }))
+    .unwrap();
+
+    queries::insert_movie(&pool, &movie).await.unwrap();
+
+    let mut columns: Vec<String> = sqlx::query("PRAGMA table_info(movies)")
+        .fetch_all(&pool)
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| r.get::<String, _>("name"))
+        .collect();
+    columns.sort();
+    assert_eq!(
+        columns,
+        [
+            "added_at",
+            "backdrop_path",
+            "name",
+            "overview",
+            "poster_path",
+            "release_date",
+            "runtime",
+            "tmdb_id",
+        ]
+    );
+
+    let row = sqlx::query("SELECT * FROM movies WHERE tmdb_id = 27205")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(row.get::<String, _>("name"), "Inception");
+    assert_eq!(row.get::<Option<String>, _>("overview"), None);
+    assert_eq!(row.get::<Option<String>, _>("backdrop_path"), None);
+    assert_eq!(
+        row.get::<Option<String>, _>("poster_path").as_deref(),
+        Some("/p.jpg")
+    );
+    assert_eq!(row.get::<Option<i64>, _>("runtime"), Some(148));
+    assert!(row.get::<String, _>("added_at").contains('T'));
 }
 
 // @spec MOVIES-API-005

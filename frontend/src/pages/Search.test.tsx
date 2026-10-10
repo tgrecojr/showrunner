@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -70,6 +70,131 @@ async function flushDebounce() {
 }
 
 describe("Search", () => {
+	// @spec SEARCH-UI-001
+	it("labels the query input and focuses it on mount", () => {
+		renderPage();
+		const input = screen.getByLabelText(SEARCH_LABEL);
+		expect(input).toHaveAttribute("type", "search");
+		expect(input).toHaveFocus();
+	});
+
+	// @spec SEARCH-UI-004
+	it("shows Searching… while a request is pending and keeps the previous results", async () => {
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+		mockSearch.mockResolvedValueOnce({
+			results: [tvResult({ name: "First" })],
+		});
+		let settle: (v: { results: SearchResult[] }) => void = () => {};
+		mockSearch.mockReturnValueOnce(
+			new Promise((resolve) => {
+				settle = resolve;
+			}),
+		);
+		renderPage();
+
+		await user.type(screen.getByLabelText(SEARCH_LABEL), "bear");
+		await flushDebounce();
+		await waitFor(() => expect(screen.getByText("First")).toBeInTheDocument());
+		expect(screen.queryByText("Searching…")).not.toBeInTheDocument();
+
+		await user.type(screen.getByLabelText(SEARCH_LABEL), "s");
+		await flushDebounce();
+		await waitFor(() =>
+			expect(screen.getByText("Searching…")).toBeInTheDocument(),
+		);
+		expect(screen.getByText("First")).toBeInTheDocument();
+
+		settle({ results: [tvResult({ name: "Second" })] });
+		await waitFor(() => expect(screen.getByText("Second")).toBeInTheDocument());
+		expect(screen.queryByText("Searching…")).not.toBeInTheDocument();
+	});
+
+	// @spec SEARCH-UI-010
+	it("disables the clicked card's Add as Adding… while other cards stay enabled", async () => {
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+		mockSearch.mockResolvedValueOnce({
+			results: [
+				tvResult({ tmdb_id: 1, name: "One" }),
+				tvResult({ tmdb_id: 2, name: "Two" }),
+			],
+		});
+		let settle: () => void = () => {};
+		mockAddShow.mockReturnValueOnce(
+			new Promise((resolve) => {
+				settle = () => resolve({} as never);
+			}),
+		);
+		renderPage();
+
+		await user.type(screen.getByLabelText(SEARCH_LABEL), "q");
+		await flushDebounce();
+		const oneCard = (await screen.findByText("One")).closest(
+			"li",
+		) as HTMLElement;
+		const twoCard = screen.getByText("Two").closest("li") as HTMLElement;
+
+		await user.click(within(oneCard).getByRole("button", { name: "Add" }));
+
+		await waitFor(() =>
+			expect(
+				within(oneCard).getByRole("button", { name: "Adding…" }),
+			).toBeDisabled(),
+		);
+		expect(within(twoCard).getByRole("button", { name: "Add" })).toBeEnabled();
+
+		settle();
+		await waitFor(() =>
+			expect(within(oneCard).getByText("On watchlist")).toBeInTheDocument(),
+		);
+	});
+
+	// @spec SEARCH-UI-012
+	it("keys add state by media type and id, and resets it when new results arrive", async () => {
+		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+		mockSearch.mockResolvedValueOnce({
+			results: [
+				tvResult({ tmdb_id: 7, name: "Same Id TV" }),
+				movieResult({ tmdb_id: 7, name: "Same Id Movie" }),
+			],
+		});
+		mockSearch.mockResolvedValueOnce({
+			results: [tvResult({ tmdb_id: 7, name: "Same Id TV" })],
+		});
+		mockAddShow.mockResolvedValueOnce({} as never);
+		renderPage();
+
+		await user.type(screen.getByLabelText(SEARCH_LABEL), "same");
+		await flushDebounce();
+		const tvCard = (await screen.findByText("Same Id TV")).closest(
+			"li",
+		) as HTMLElement;
+		const movieCard = screen
+			.getByText("Same Id Movie")
+			.closest("li") as HTMLElement;
+
+		await user.click(within(tvCard).getByRole("button", { name: "Add" }));
+		await waitFor(() =>
+			expect(within(tvCard).getByText("On watchlist")).toBeInTheDocument(),
+		);
+		expect(
+			within(movieCard).getByRole("button", { name: "Add" }),
+		).toBeEnabled();
+		expect(mockAddMovie).not.toHaveBeenCalled();
+
+		await user.type(screen.getByLabelText(SEARCH_LABEL), " id");
+		await flushDebounce();
+		await waitFor(() => expect(mockSearch).toHaveBeenCalledTimes(2));
+		const refreshedCard = (await screen.findByText("Same Id TV")).closest(
+			"li",
+		) as HTMLElement;
+		await waitFor(() =>
+			expect(
+				within(refreshedCard).getByRole("button", { name: "Add" }),
+			).toBeEnabled(),
+		);
+		expect(screen.queryByText("On watchlist")).not.toBeInTheDocument();
+	});
+
 	// @spec SEARCH-UI-002, SEARCH-UI-007
 	it("debounces query and renders results", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });

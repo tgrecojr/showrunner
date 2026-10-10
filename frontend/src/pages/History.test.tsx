@@ -216,4 +216,19 @@ describe("History", () => {
 		expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
 		expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
 	});
+
+	// @spec WATCHLOG-UI-008
+	it("offers no undo control and points at the show or movie page instead", async () => {
+		mockWatchLog.mockResolvedValueOnce(page([entry()]));
+		renderAt();
+		await waitFor(() =>
+			expect(screen.getByText("Severance")).toBeInTheDocument(),
+		);
+		expect(
+			screen.queryByRole("button", { name: /undo|revert|unwatch/i }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByText(/Undo mistakes from the show or movie page\./),
+		).toBeInTheDocument();
+	});
 });
