@@ -33,7 +33,7 @@ A TMDB 429 on detail is mapped by the TMDB client to `TMDB is rate-limiting requ
 
 ## Pages
 
-**Movies** (frontend/src/pages/Movies.tsx): a card grid. The poster is a link to `/movies/{id}` labelled `View details for <name>`; the title is plain text. Each card has **Mark Watched** and **Remove**, both routed through one `removeMovie` helper (:28-49) that asks for confirmation, calls the matching endpoint, and on success filters the card out of local state without refetching. `pending[tmdb_id]` disables both buttons on that card. A failed call sets `error`, and because the error branch returns early (:51-58), the whole list is replaced by `Error: <message>`; the intended behavior is a banner with the list kept (`MOVIES-UI-010`). States: loading, error, and an empty state linking to Search.
+**Movies** (frontend/src/pages/Movies.tsx): a card grid. The poster is a link to `/movies/{id}` labelled `View details for <name>`; the title is plain text. Each card has **Mark Watched** and **Remove**, both routed through one `removeMovie` helper (:28-49) that asks for confirmation, calls the matching endpoint, and on success filters the card out of local state without refetching. `pending[tmdb_id]` disables both buttons on that card. A failed call sets `error`, which renders as a banner above the grid with the list intact and that card's buttons re-enabled; the banner clears when the next Mark Watched or Remove attempt begins. Only a failed initial load replaces the page with `Error: <message>`, because there is no list to keep. States: loading, load error, action-error banner over the grid, and an empty state linking to Search.
 
 **MovieDetail** (frontend/src/pages/MovieDetail.tsx): backdrop hero with poster, name, year, `N min` pill when runtime is truthy, `Director:`/`Directors:` by count, `Watch on:` providers, overview, then a cast grid with photo or "No photo" and `as <character>`; "No cast information available." when the cast is empty. A non-finite route id short-circuits to `Invalid movie id`. **Mark Watched** and **Remove** confirm, call the endpoint, and navigate to `/movies`; failures render a banner with the page intact.
 
@@ -56,7 +56,7 @@ Every error on this page passes through `friendlyError` (:6-15): it strips the `
 ## Open Questions & Future Decisions
 
 ### Resolved
-1. ✅ **A failed mark or remove keeps the list.** The Movies page shows the error as a banner and leaves the grid in place with that card re-enabled. The page currently drops the grid (Movies.tsx:51-58); tracked as `MOVIES-UI-010`.
+*(none yet)*
 
 ### Deferred
 1. **Live TMDB on every detail view.** A TMDB outage makes a listed movie's page a 502 even though the row exists. Should credits and providers be cached at add time, with movies joining resync?
