@@ -15,6 +15,7 @@ const MAX_TMDB_BODY_BYTES: u64 = 16 * 1024 * 1024;
 
 /// Deserialize a response as JSON, rejecting an oversized advertised body
 /// before buffering it into memory.
+// @spec TMDB-CLIENT-005
 pub(crate) async fn json_within_cap<T: serde::de::DeserializeOwned>(
     resp: reqwest::Response,
 ) -> Result<T> {
@@ -28,6 +29,7 @@ pub(crate) async fn json_within_cap<T: serde::de::DeserializeOwned>(
     Ok(resp.json().await?)
 }
 
+// @spec TMDB-CLIENT-007
 #[derive(Clone)]
 pub struct TmdbClient {
     http: Client,
@@ -36,10 +38,12 @@ pub struct TmdbClient {
 }
 
 impl TmdbClient {
+    // @spec TMDB-CLIENT-001
     pub fn new(api_key: String) -> Self {
         Self::with_base_url(api_key, TMDB_BASE_URL.to_string())
     }
 
+    // @spec TMDB-CLIENT-001
     pub fn with_base_url(api_key: String, base_url: String) -> Self {
         let http = Client::builder()
             .timeout(TMDB_HTTP_TIMEOUT)
@@ -58,6 +62,7 @@ impl TmdbClient {
 
     /// Send `GET {base}/{path}` with the API key and the given extra query
     /// parameters. The key never leaves this method.
+    // @spec TMDB-CLIENT-001
     async fn get(&self, path: &str, params: &[(&str, &str)]) -> Result<reqwest::Response> {
         let url = format!("{}/{}", self.base_url, path);
         let mut query: Vec<(&str, &str)> = vec![("api_key", self.api_key.as_str())];
@@ -176,6 +181,7 @@ pub struct TmdbMultiResult {
     pub poster_path: Option<String>,
 }
 
+// @spec TMDB-CLIENT-006
 #[derive(Debug, Deserialize)]
 pub struct TmdbShow {
     pub id: i64,
@@ -206,6 +212,7 @@ pub struct TmdbSeasonSummary {
     pub season_number: i64,
 }
 
+// @spec TMDB-CLIENT-006
 #[derive(Debug, Deserialize)]
 pub struct TmdbSeason {
     pub season_number: i64,
@@ -226,6 +233,7 @@ pub struct TmdbEpisode {
     pub runtime: Option<i64>,
 }
 
+// @spec TMDB-CLIENT-006
 #[derive(Debug, Deserialize)]
 pub struct TmdbMovie {
     pub id: i64,
@@ -242,6 +250,7 @@ pub struct TmdbMovie {
     pub watch_providers: Option<TmdbWatchProvidersWrapper>,
 }
 
+// @spec TMDB-CLIENT-006
 #[derive(Debug, Deserialize)]
 pub struct TmdbCredits {
     #[serde(default)]
@@ -292,12 +301,14 @@ pub struct TmdbProvider {
 
 impl TmdbShow {
     /// Extract a simple list of US streaming/free/ads provider names.
+    // @spec TMDB-SHAPE-001
     pub fn us_providers(&self) -> Vec<String> {
         us_providers_from(self.watch_providers.as_ref())
     }
 
     /// Network names (broadcast/cable channels and streaming originals alike),
     /// in TMDB's order, without blanks or duplicates.
+    // @spec TMDB-SHAPE-002
     pub fn network_names(&self) -> Vec<String> {
         let mut names: Vec<String> = Vec::new();
         for n in &self.networks {
@@ -311,10 +322,12 @@ impl TmdbShow {
 }
 
 impl TmdbMovie {
+    // @spec TMDB-SHAPE-001
     pub fn us_providers(&self) -> Vec<String> {
         us_providers_from(self.watch_providers.as_ref())
     }
 
+    // @spec TMDB-SHAPE-003
     pub fn directors(&self) -> Vec<String> {
         let Some(credits) = &self.credits else {
             return Vec::new();
@@ -357,6 +370,7 @@ mod tests {
         serde_json::from_value(json).unwrap()
     }
 
+    // @spec TMDB-CLIENT-006, TMDB-SHAPE-001
     #[test]
     fn us_providers_returns_empty_when_no_wrapper() {
         let show = show_with_region(serde_json::json!({
@@ -365,6 +379,7 @@ mod tests {
         assert!(show.us_providers().is_empty());
     }
 
+    // @spec TMDB-SHAPE-002
     #[test]
     fn network_names_keeps_order_and_drops_blanks_and_duplicates() {
         let show = show_with_region(serde_json::json!({
@@ -382,12 +397,14 @@ mod tests {
         );
     }
 
+    // @spec TMDB-CLIENT-006, TMDB-SHAPE-002
     #[test]
     fn network_names_is_empty_when_field_missing() {
         let show = show_with_region(serde_json::json!({"id": 1, "name": "X"}));
         assert!(show.network_names().is_empty());
     }
 
+    // @spec TMDB-CLIENT-006, TMDB-SHAPE-001
     #[test]
     fn us_providers_returns_empty_when_no_us_region() {
         let show = show_with_region(serde_json::json!({
@@ -397,6 +414,7 @@ mod tests {
         assert!(show.us_providers().is_empty());
     }
 
+    // @spec TMDB-SHAPE-001
     #[test]
     fn us_providers_concatenates_flatrate_free_and_ads_sorted_unique() {
         let show = show_with_region(serde_json::json!({
@@ -421,18 +439,21 @@ mod tests {
         );
     }
 
+    // @spec TMDB-CLIENT-001
     #[test]
     fn new_uses_real_tmdb_base_url() {
         let c = TmdbClient::new("k".into());
         assert_eq!(c.base_url(), TMDB_BASE_URL);
     }
 
+    // @spec TMDB-CLIENT-001
     #[test]
     fn with_base_url_overrides() {
         let c = TmdbClient::with_base_url("k".into(), "http://example".into());
         assert_eq!(c.base_url(), "http://example");
     }
 
+    // @spec TMDB-CLIENT-001, TMDB-CLIENT-002
     #[tokio::test]
     async fn get_show_parses_response() {
         let server = MockServer::start().await;
@@ -554,6 +575,7 @@ mod tests {
         assert_eq!(msg, "TMDB season 3 returned 404 Not Found");
     }
 
+    // @spec TMDB-CLIENT-004
     #[tokio::test]
     async fn get_season_parses_episodes() {
         let server = MockServer::start().await;
@@ -578,6 +600,7 @@ mod tests {
         assert_eq!(season.episodes[0].runtime, Some(30));
     }
 
+    // @spec TMDB-CLIENT-001, TMDB-CLIENT-003, TMDB-SHAPE-001, TMDB-SHAPE-003
     #[tokio::test]
     async fn get_movie_parses_response() {
         let server = MockServer::start().await;
@@ -648,6 +671,7 @@ mod tests {
         }
     }
 
+    // @spec TMDB-ERR-001
     #[tokio::test]
     async fn get_movie_404_maps_to_not_found() {
         let server = MockServer::start().await;
@@ -674,7 +698,7 @@ mod tests {
         );
     }
 
-    // @spec TMDB-CLIENT-007
+    // @spec TMDB-CLIENT-007, TMDB-CLIENT-001
     #[tokio::test]
     async fn search_multi_sends_query_key_and_adult_filter() {
         let server = MockServer::start().await;
@@ -714,6 +738,7 @@ mod tests {
         );
     }
 
+    // @spec TMDB-ERR-003
     #[tokio::test]
     async fn get_season_non_2xx_maps_to_upstream() {
         let server = MockServer::start().await;

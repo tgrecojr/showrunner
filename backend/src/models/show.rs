@@ -4,11 +4,13 @@ use sqlx::FromRow;
 const POSTER_BASE: &str = "https://image.tmdb.org/t/p/w185";
 const BACKDROP_BASE: &str = "https://image.tmdb.org/t/p/w780";
 
+// @spec TMDB-SHAPE-004
 pub fn poster_url(path: Option<&str>) -> Option<String> {
     path.filter(|p| !p.is_empty())
         .map(|p| format!("{}{}", POSTER_BASE, p))
 }
 
+// @spec TMDB-SHAPE-004
 pub fn backdrop_url(path: Option<&str>) -> Option<String> {
     path.filter(|p| !p.is_empty())
         .map(|p| format!("{}{}", BACKDROP_BASE, p))
@@ -155,6 +157,7 @@ pub struct AddShowRequest {
 mod tests {
     use super::*;
 
+    // @spec TMDB-SHAPE-004
     #[test]
     fn poster_url_prepends_base_when_path_present() {
         assert_eq!(
@@ -163,16 +166,19 @@ mod tests {
         );
     }
 
+    // @spec TMDB-SHAPE-004
     #[test]
     fn poster_url_treats_empty_string_as_none() {
         assert_eq!(poster_url(Some("")), None);
     }
 
+    // @spec TMDB-SHAPE-004
     #[test]
     fn poster_url_returns_none_for_none() {
         assert_eq!(poster_url(None), None);
     }
 
+    // @spec TMDB-SHAPE-004
     #[test]
     fn backdrop_url_uses_w780_base() {
         assert_eq!(

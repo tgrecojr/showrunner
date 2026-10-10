@@ -5,6 +5,7 @@ use crate::error::{AppError, Result};
 use crate::logic::resync;
 use crate::state::AppState;
 
+// @spec RESYNC-TRIGGER-001, RESYNC-TRIGGER-002, APP-CONFIG-002
 pub async fn start(state: AppState, schedule: ScheduleConfig) -> Result<JobScheduler> {
     let scheduler = JobScheduler::new()
         .await
@@ -69,6 +70,7 @@ mod tests {
         AppState::new(pool, tmdb, UTC)
     }
 
+    // @spec RESYNC-TRIGGER-001
     #[tokio::test]
     async fn start_succeeds_with_valid_cron_and_returns_scheduler() {
         let state = fresh_state().await;
@@ -79,6 +81,7 @@ mod tests {
         scheduler.shutdown().await.unwrap();
     }
 
+    // @spec RESYNC-TRIGGER-002, APP-CONFIG-002
     #[tokio::test]
     async fn start_returns_config_error_for_invalid_cron() {
         let state = fresh_state().await;

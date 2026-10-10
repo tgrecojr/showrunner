@@ -105,7 +105,7 @@ async fn health_returns_503_degraded_when_db_unreachable() {
 
 // ============================ Search ============================
 
-// @spec SEARCH-API-001, SEARCH-API-003, SEARCH-API-004, SEARCH-API-005, SEARCH-API-006, SEARCH-API-007, SEARCH-API-009
+// @spec SEARCH-API-001, SEARCH-API-003, SEARCH-API-004, SEARCH-API-005, SEARCH-API-006, SEARCH-API-007, SEARCH-API-009, TMDB-CLIENT-001, TMDB-SHAPE-004
 #[tokio::test]
 async fn search_returns_mixed_results_with_already_tracked_flag() {
     let app = build_app().await;
@@ -172,7 +172,7 @@ async fn search_rejects_blank_query() {
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
 
-// @spec SEARCH-API-010
+// @spec SEARCH-API-010, TMDB-ERR-003
 #[tokio::test]
 async fn search_returns_502_with_unavailable_message_on_tmdb_5xx() {
     let app = build_app().await;
@@ -193,7 +193,7 @@ async fn search_returns_502_with_unavailable_message_on_tmdb_5xx() {
     );
 }
 
-// @spec SEARCH-API-010
+// @spec SEARCH-API-010, TMDB-ERR-002
 #[tokio::test]
 async fn search_returns_502_with_rate_limit_message_on_tmdb_429() {
     let app = build_app().await;
@@ -214,7 +214,7 @@ async fn search_returns_502_with_rate_limit_message_on_tmdb_429() {
     );
 }
 
-// @spec SEARCH-API-008
+// @spec SEARCH-API-008, TMDB-ERR-004
 #[tokio::test]
 async fn search_returns_502_with_raw_status_on_other_tmdb_errors() {
     let app = build_app().await;
@@ -358,7 +358,7 @@ async fn add_show_rejects_duplicate() {
     assert!(v["error"].as_str().unwrap().contains("already"));
 }
 
-// @spec SHOWS-API-003
+// @spec SHOWS-API-003, TMDB-ERR-001
 #[tokio::test]
 async fn add_show_returns_404_when_tmdb_missing() {
     let app = build_app().await;
@@ -741,6 +741,7 @@ async fn movies_are_absent_from_up_next_calendar_and_resync() {
 
 // ============================ Sync ============================
 
+// @spec RESYNC-RUN-003, RESYNC-TRIGGER-003, TMDB-CLIENT-006
 #[tokio::test]
 async fn sync_returns_per_show_results() {
     let app = build_app().await;
@@ -791,7 +792,7 @@ async fn list_movies_returns_empty_initially() {
     assert!(v["movies"].as_array().unwrap().is_empty());
 }
 
-// @spec MOVIES-API-001
+// @spec MOVIES-API-001, TMDB-CLIENT-006
 #[tokio::test]
 async fn add_movie_fetches_from_tmdb_and_inserts() {
     let app = build_app().await;
@@ -854,7 +855,7 @@ async fn add_movie_rejects_duplicate() {
     assert!(v["error"].as_str().unwrap().contains("already"));
 }
 
-// @spec MOVIES-API-003
+// @spec MOVIES-API-003, TMDB-ERR-001
 #[tokio::test]
 async fn add_movie_returns_404_when_tmdb_missing() {
     let app = build_app().await;
@@ -874,7 +875,7 @@ async fn add_movie_returns_404_when_tmdb_missing() {
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
-// @spec MOVIES-API-006
+// @spec MOVIES-API-006, TMDB-SHAPE-001, TMDB-SHAPE-003, TMDB-SHAPE-004
 #[tokio::test]
 async fn get_movie_detail_returns_cast_and_providers() {
     let app = build_app().await;
@@ -937,7 +938,7 @@ async fn get_movie_detail_returns_404_when_not_on_watchlist() {
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
-// @spec MOVIES-API-008
+// @spec MOVIES-API-008, TMDB-ERR-002
 #[tokio::test]
 async fn get_movie_detail_maps_tmdb_429_to_friendly_message() {
     let app = build_app().await;
@@ -1381,6 +1382,7 @@ fn sync_request() -> Request<Body> {
         .unwrap()
 }
 
+// @spec RESYNC-TRIGGER-003, RESYNC-TRIGGER-004
 #[tokio::test]
 async fn repeated_sync_within_the_cooldown_is_rejected() {
     let pool = test_pool().await;
@@ -1416,6 +1418,7 @@ async fn repeated_sync_within_the_cooldown_is_rejected() {
     );
 }
 
+// @spec RESYNC-TRIGGER-005
 #[tokio::test]
 async fn cooldown_is_per_app_state_not_process_global() {
     let server = tmdb_answering_every_show().await;

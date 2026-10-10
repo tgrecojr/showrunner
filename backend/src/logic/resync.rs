@@ -17,6 +17,7 @@ pub struct ResyncError {
     pub message: String,
 }
 
+// @spec RESYNC-SHOW-001, RESYNC-SHOW-002, RESYNC-SHOW-003, RESYNC-SHOW-004, RESYNC-SHOW-005
 pub async fn resync_show(pool: &SqlitePool, tmdb: &TmdbClient, tmdb_id: i64) -> Result<()> {
     let show = tmdb.get_show(tmdb_id).await?;
     queries::upsert_show_metadata(pool, &show).await?;
@@ -47,7 +48,7 @@ pub async fn resync_show(pool: &SqlitePool, tmdb: &TmdbClient, tmdb_id: i64) -> 
 /// watchlist; the point is to bound the multiplier, not to ration normal use.
 pub const MAX_SHOWS_PER_RESYNC: usize = 100;
 
-// @spec RESYNC-RUN-001, RESYNC-RUN-002, RESYNC-RUN-003, RESYNC-RUN-004, RESYNC-RUN-005, RESYNC-RUN-006
+// @spec RESYNC-RUN-001, RESYNC-RUN-002, RESYNC-RUN-003, RESYNC-RUN-004, RESYNC-RUN-005, RESYNC-RUN-006, RESYNC-TRIGGER-006
 pub async fn resync_all(pool: &SqlitePool, tmdb: &TmdbClient) -> Result<ResyncReport> {
     let started = Instant::now();
     // Eligible shows, least recently synced first, so the ceiling below

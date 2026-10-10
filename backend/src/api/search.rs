@@ -8,6 +8,7 @@ use crate::db::queries;
 use crate::error::{AppError, Result};
 use crate::state::AppState;
 
+// @spec TMDB-SHAPE-004
 const POSTER_BASE: &str = "https://image.tmdb.org/t/p/w185";
 
 #[derive(Debug, Deserialize)]

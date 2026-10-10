@@ -24,6 +24,7 @@ impl RateGate {
     /// Record a run and return true, or return false if one happened less than
     /// `min_interval` ago. Checking and recording are one critical section, so
     /// concurrent callers can't both pass.
+    // @spec RESYNC-TRIGGER-004, RESYNC-TRIGGER-005
     pub fn try_acquire(&self, min_interval: Duration) -> bool {
         let mut last = self.last_run.lock().expect("sync gate mutex poisoned");
         let now = Instant::now();
@@ -46,6 +47,7 @@ pub struct AppState {
 }
 
 impl AppState {
+    // @spec RESYNC-TRIGGER-005
     pub fn new(pool: SqlitePool, tmdb: TmdbClient, tz: Tz) -> Self {
         Self {
             pool,

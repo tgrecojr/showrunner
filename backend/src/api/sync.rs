@@ -18,6 +18,7 @@ pub struct SyncResponse {
     pub errors: Vec<SyncError>,
 }
 
+// @spec RESYNC-TRIGGER-003, RESYNC-TRIGGER-004, RESYNC-TRIGGER-006
 pub async fn manual_sync(State(state): State<AppState>) -> Result<Json<SyncResponse>> {
     // resync_all caps how much work one run does; this caps how often a run can
     // start, so an unauthenticated caller can't reapply that ceiling in a loop.

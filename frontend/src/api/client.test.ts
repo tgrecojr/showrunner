@@ -144,6 +144,7 @@ describe("api client", () => {
 		expect(url).toBe("/api/v1/calendar?start=2026-01-01&end=2026-01-31");
 	});
 
+	// @spec RESYNC-UI-002
 	it("sync hits POST /sync", async () => {
 		fetchSpy.mockResolvedValueOnce(
 			jsonResponse(200, { shows_synced: 0, errors: [] }),

@@ -185,6 +185,7 @@ async fn tracked_tmdb_ids_in_handles_empty_and_subset() {
     assert_eq!(subset, vec![1, 5]);
 }
 
+// @spec RESYNC-SHOW-001
 #[tokio::test]
 async fn upsert_show_metadata_updates_existing() {
     let pool = test_pool().await;
@@ -210,6 +211,7 @@ async fn upsert_show_metadata_updates_existing() {
     assert_eq!(row.1, 0);
 }
 
+// @spec RESYNC-SHOW-002
 #[tokio::test]
 async fn upsert_season_inserts_then_updates_on_conflict() {
     let pool = test_pool().await;
@@ -240,6 +242,7 @@ async fn upsert_season_inserts_then_updates_on_conflict() {
     assert_eq!(row.1, 1);
 }
 
+// @spec RESYNC-SHOW-003
 #[tokio::test]
 async fn upsert_episode_preserves_watched_state() {
     let pool = test_pool().await;

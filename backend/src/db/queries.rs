@@ -518,6 +518,7 @@ fn empty_to_none(s: Option<&str>) -> Option<&str> {
 // === Resync upserts ===
 
 /// Update mutable show fields from a fresh TMDB response.
+// @spec RESYNC-SHOW-001
 pub async fn upsert_show_metadata(pool: &SqlitePool, show: &TmdbShow) -> Result<()> {
     let providers_json = serde_json::to_string(&show.us_providers())?;
     let networks_json = serde_json::to_string(&show.network_names())?;
@@ -555,6 +556,7 @@ pub async fn upsert_show_metadata(pool: &SqlitePool, show: &TmdbShow) -> Result<
     Ok(())
 }
 
+// @spec RESYNC-SHOW-002
 pub async fn upsert_season(
     pool: &SqlitePool,
     show_tmdb_id: i64,
@@ -582,6 +584,7 @@ pub async fn upsert_season(
 
 /// Insert or update an episode. On conflict, preserves `watched` and
 /// `watched_at` so a TMDB resync never undoes user progress.
+// @spec RESYNC-SHOW-003, RESYNC-SHOW-004
 pub async fn upsert_episode_preserving_watched(
     pool: &SqlitePool,
     show_tmdb_id: i64,
