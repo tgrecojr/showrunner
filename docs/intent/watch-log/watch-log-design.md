@@ -31,7 +31,7 @@ Index `idx_watch_log_order (occurred_at DESC, id DESC)` matches the read order. 
 
 ## Writing
 
-`insert_entry` (backend/src/db/watch_log.rs:15-40) takes `&mut Transaction`, not a pool, so a caller cannot log outside the transaction that performs the change. It stamps `occurred_at` itself. `NewWatchLogEntry` (backend/src/models/watch_log.rs:49) is built by the writer with borrowed strings; `action_str` maps the boolean to `watched` / `unwatched`.
+`insert_entry` (backend/src/db/watch_log.rs) takes `&mut Transaction`, not a pool, so a caller cannot log outside the transaction that performs the change. It stamps `occurred_at` itself. `NewWatchLogEntry` (backend/src/models/watch_log.rs) is built by the writer with borrowed strings; `action_str` maps the boolean to `watched` / `unwatched`.
 
 Writers and what they record:
 
@@ -45,18 +45,18 @@ Adding, removing a show, removing a movie, and resync never write a row. There i
 
 ## Reading
 
-`GET /api/v1/watch-log?page=&per_page=` (backend/src/api/watch_log.rs): `page` defaults to 1 and must be ≥ 1 (else 400 `page must be >= 1`); `per_page` defaults to 50, must be ≥ 1 (else 400 `per_page must be >= 1`), and is silently clamped to 100. `list_entries` (watch_log.rs:51-94) re-clamps defensively, runs `COUNT(*)` and then the page query (`ORDER BY occurred_at DESC, id DESC LIMIT ? OFFSET ?`) as two separate statements, maps `poster_path` to a w185 `poster_url`, and returns `{ entries, page, per_page, total }` with the effective `per_page` echoed. A page past the end returns empty `entries` with the unchanged `total`.
+`GET /api/v1/watch-log?page=&per_page=` (backend/src/api/watch_log.rs): `page` defaults to 1 and must be ≥ 1 (else 400 `page must be >= 1`); `per_page` defaults to 50, must be ≥ 1 (else 400 `per_page must be >= 1`), and is silently clamped to 100. `list_entries` (backend/src/db/watch_log.rs) re-clamps defensively, runs `COUNT(*)` and then the page query (`ORDER BY occurred_at DESC, id DESC LIMIT ? OFFSET ?`) as two separate statements, maps `poster_path` to a w185 `poster_url`, and returns `{ entries, page, per_page, total }` with the effective `per_page` echoed. A page past the end returns empty `entries` with the unchanged `total`.
 
 ## History page
 
 `History` (frontend/src/pages/History.tsx):
 
-- The page number comes from the `?page=` search param; anything that is not an integer ≥ 1 reads as 1 (:21-24). Navigation writes the param back, omitting it for page 1 (:50-52), so the browser's back button and bookmarks work.
-- Requests always use `per_page` 50 (:7, :36). `totalPages` is computed from the server's echoed `per_page` (:81).
-- States: `Error:` when nothing has loaded; "Loading…"; "Nothing logged yet" when `total` is 0 (:54-79). On a page change the previous page stays visible until the new one arrives; if that request fails, `Error:` renders above the still-visible previous page and clears when the next page request starts.
-- Rows reuse the Up Next row classes: poster or "No poster"; the title links to `/shows/{id}` for `tv` and is plain text for `movie` because the movie row no longer exists; a one-line sentence from `describeEntry`; a `<time dateTime>` showing `occurred_at` in the browser's locale and zone (:9-19, :92-129). `unwatched` rows get `history-row-unwatched` and render muted.
-- The copy states the page is read-only: "Undo mistakes from the show or movie page." (:87-88).
-- Pager: `Page X of Y · N entries`, Previous disabled on page 1, Next disabled on the last page (:131-154).
+- The page number comes from the `?page=` search param; anything that is not an integer ≥ 1 reads as 1 (`parsePage`). Navigation writes the param back, omitting it for page 1 (`goTo`), so the browser's back button and bookmarks work.
+- Requests always use `per_page` 50 (the `PER_PAGE` const passed to `api.watchLog`). `totalPages` is computed from the server's echoed `per_page`.
+- States: `Error:` when nothing has loaded; "Loading…"; "Nothing logged yet" when `total` is 0 (the early returns in `History`). On a page change the previous page stays visible until the new one arrives; if that request fails, `Error:` renders above the still-visible previous page and clears when the next page request starts.
+- Rows reuse the Up Next row classes: poster or "No poster"; the title links to `/shows/{id}` for `tv` and is plain text for `movie` because the movie row no longer exists; a one-line sentence from `describeEntry`; a `<time dateTime>` showing `occurred_at` in the browser's locale and zone (`formatTime` and the `upnext-list` rows in `History`). `unwatched` rows get `history-row-unwatched` and render muted.
+- The copy states the page is read-only: "Undo mistakes from the show or movie page." (the intro `status` paragraph in `History`).
+- Pager: `Page X of Y · N entries`, Previous disabled on page 1, Next disabled on the last page (the `pager` block in `History`).
 
 `describeEntry` (frontend/src/pages/watchLogText.ts) is a separate module because the lint configuration forbids non-component exports from component files. Its sentence matrix:
 
@@ -74,13 +74,13 @@ The verb is `unwatched` for `unwatched` rows; missing season or episode numbers 
 
 | Decision | Chosen | Alternatives Considered | Rationale |
 |----------|--------|------------------------|-----------|
-| Durability | Append-only, no foreign keys, title and poster snapshotted | FK to shows/movies with cascade | History must outlive the thing it describes; a watched movie's row is deleted (add_watch_log.sql:1-4). |
-| Atomicity | `insert_entry` takes the caller's transaction | Log after commit | A log row is committed with the change it describes, never without it (watch_log.rs:1-2). |
+| Durability | Append-only, no foreign keys, title and poster snapshotted | FK to shows/movies with cascade | History must outlive the thing it describes; a watched movie's row is deleted (header comment of add_watch_log.sql). |
+| Atomicity | `insert_entry` takes the caller's transaction | Log after commit | A log row is committed with the change it describes, never without it (module doc comment of backend/src/db/watch_log.rs). |
 | Bulk granularity | One row per bulk action carrying `episode_count` | One row per episode | A season mark is one user action; the count still says how much changed (CLAUDE.md). |
-| What is logged | Watched and unwatched changes only | Also adds and removals | The log answers "what did I watch?"; removing a movie is a change of mind, not a viewing (backend/src/api/movies.rs:86-88). |
-| Pagination | Offset, 1-based, `per_page` capped at 100 | Cursor | A single-user history is small; the cap bounds an unauthenticated response (api/watch_log.rs:16-18). |
+| What is logged | Watched and unwatched changes only | Also adds and removals | The log answers "what did I watch?"; removing a movie is a change of mind, not a viewing (doc comments on `mark_movie_watched` and `delete_movie` in backend/src/api/movies.rs). |
+| Pagination | Offset, 1-based, `per_page` capped at 100 | Cursor | A single-user history is small; the cap bounds an unauthenticated response (doc comment on `list_watch_log` in backend/src/api/watch_log.rs). |
 | Order | Newest first by `occurred_at`, then `id` | Oldest first | Recent mistakes are what the page is for; `id` breaks same-instant ties (index definition). |
-| Undo | None on this page | Inline undo button | Undo is the show or movie page's job; keeping History read-only keeps it a record (History.tsx:87-88, CLAUDE.md). |
+| Undo | None on this page | Inline undo button | Undo is the show or movie page's job; keeping History read-only keeps it a record (the intro `status` paragraph in History.tsx, CLAUDE.md). |
 | Vocabulary columns | Free TEXT with documented values | CHECK constraints or lookup tables | `[inferred]` Writers are few and in one file; constraints were not judged worth a migration. |
 | Movie titles | Plain text, not linked | Link to `/movies/{id}` | `[inferred]` The movie row is gone once watched, so the link would 404. |
 | Page in URL | `?page=` search param | Component state | `[inferred]` Back button and bookmarks. |
@@ -106,6 +106,6 @@ The verb is `unwatched` for `unwatched` rows; missing season or episode numbers 
 - backend/src/db/watch_log.rs; backend/src/api/watch_log.rs; backend/src/models/watch_log.rs
 - backend/src/db/migrations/20260911000000_add_watch_log.sql
 - frontend/src/pages/History.tsx; frontend/src/pages/watchLogText.ts
-- backend/tests/db.rs:631-882 (writer side effects, pagination, clamping); backend/tests/api.rs:1263-1382
-- frontend/src/pages/History.test.tsx (7 tests incl. the `describeEntry` matrix)
+- backend/tests/db.rs: writer side effects (`set_episode_watched_logs_watch_and_unwatch` through `watch_log_survives_show_removal`), pagination (`list_entries_paginates_newest_first`), clamping (`list_entries_clamps_per_page`); backend/tests/api.rs: `watch_log_exposes_no_update_or_delete_route`, `watch_log_returns_page_shape`, `watch_log_rejects_bad_page_and_clamps_per_page`, `mark_movie_watched_returns_204_then_404`, `delete_movie_writes_no_log_entry`
+- frontend/src/pages/History.test.tsx (9 tests incl. the `describeEntry` matrix)
 - Writers: `shows` (`set_episode_watched`, `bulk_set_watched`), `movies` (`mark_movie_watched`)

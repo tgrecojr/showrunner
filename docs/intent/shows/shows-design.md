@@ -23,32 +23,32 @@ Tables (backend/src/db/migrations/20260509000000_initial.sql, extended by 202609
 
 All dates are `TEXT` in `YYYY-MM-DD`; timestamps are UTC RFC3339 strings. Date comparisons in SQL are bytewise, which is correct only while every stored and bound value is zero-padded `YYYY-MM-DD`. `watched` and `in_production` are stored as integers and converted with `!= 0`.
 
-Wire shapes (backend/src/models/show.rs): `WatchlistItem` (:68) carries progress counts and `next_episode_air_date` but no providers or networks; `ShowDetail` (:81) carries `watch_providers` and the full `seasons[].episodes[]` tree but no networks; `networks_json` is read only by `up-next-calendar`. `ShowRow` (:24) omits `networks_json` even though the column exists.
+Wire shapes (backend/src/models/show.rs): `WatchlistItem` carries progress counts and `next_episode_air_date` but no providers or networks; `ShowDetail` carries `watch_providers` and the full `seasons[].episodes[]` tree but no networks; `networks_json` is read only by `up-next-calendar`. `ShowRow` omits `networks_json` even though the column exists.
 
 ## Adding a show
 
-`add_show` (backend/src/api/shows.rs:22-54):
+`add_show` (backend/src/api/shows.rs):
 
-1. Reject a `tmdb_id` already on the watchlist with 400 `show N is already on the watchlist` before any TMDB call (:26-31). The check and the later insert are separate statements; a concurrent duplicate add would hit the primary key and surface as a 500.
+1. Reject a `tmdb_id` already on the watchlist with 400 `show N is already on the watchlist` before any TMDB call (the `show_exists` guard). The check and the later insert are separate statements; a concurrent duplicate add would hit the primary key and surface as a 500.
 2. Fetch the show from TMDB; a TMDB 404 becomes HTTP 404 (`tmdb` owns that mapping).
-3. Fetch every season with `season_number > 0`, one serial TMDB call each (:35-46). Season 0 (Specials) is never fetched or stored. All fetches complete before anything is written, so a failure mid-way persists nothing. The whole add runs under the perimeter's 30 s request timeout.
-4. `insert_show_full` (backend/src/db/queries.rs:31-92) inserts show, seasons, and episodes in one transaction. US watch providers and network names are serialized as JSON arrays; empty strings become NULL; `last_synced_at` is stamped now. A season's stored `episode_count` is the number of episodes TMDB returned for it (:81), not TMDB's summary count.
-5. Respond 201 with the new `WatchlistItem` (:50-53).
+3. Fetch every season with `season_number > 0`, one serial TMDB call each (the `get_season` loop in `add_show`). Season 0 (Specials) is never fetched or stored. All fetches complete before anything is written, so a failure mid-way persists nothing. The whole add runs under the perimeter's 30 s request timeout.
+4. `insert_show_full` (backend/src/db/queries.rs) inserts show, seasons, and episodes in one transaction. US watch providers and network names are serialized as JSON arrays; empty strings become NULL; `last_synced_at` is stamped now. A season's stored `episode_count` is the number of episodes TMDB returned for it (the `INSERT INTO seasons` statement binds `season.episodes.len()`), not TMDB's summary count.
+5. Respond 201 with the new `WatchlistItem` (re-read via `get_watchlist_item`).
 
 ## Reading
 
-- **Watchlist** — `list_watchlist` (queries.rs:137-168) selects up to `MAX_LIST_ROWS` (500) shows ordered by name case-insensitively, then issues two further queries per show (`episode_counts`, `next_unaired_air_date`), so a full list costs 1 + 2N statements.
+- **Watchlist** — `list_watchlist` (queries.rs) selects up to `MAX_LIST_ROWS` (500) shows ordered by name case-insensitively, then issues two further queries per show (`episode_counts`, `next_unaired_air_date`), so a full list costs 1 + 2N statements.
 - **Detail** — `get_show_detail` (queries.rs) takes today's date, reads the show, parses `watch_providers_json` (unparseable → empty list), computes the show-level `watched_count`, `aired_count`, and `total_count` with the same `episode_counts` helper the watchlist uses, then reads seasons by number and episodes per season by number (3 + S statements). Each season's own `watched_count` counts every watched episode regardless of air date; the show-level counts are the aired-only ones the header displays.
 - **Not found** — detail, delete, and bulk-watch all answer 404 `show N not on watchlist` for an unknown id.
 
 ## "Today" and aired
 
-`today_in(tz)` (backend/src/state.rs:60-62) is the current UTC instant shifted into the configured `TIMEZONE` and formatted `YYYY-MM-DD`. An episode is **aired** when `air_date IS NOT NULL AND air_date <= today`. On the watchlist (`episode_counts`, queries.rs:451-469):
+`today_in(tz)` (backend/src/state.rs) is the current UTC instant shifted into the configured `TIMEZONE` and formatted `YYYY-MM-DD`. An episode is **aired** when `air_date IS NOT NULL AND air_date <= today`. On the watchlist (`episode_counts`, queries.rs):
 
 - `watched_count` = episodes that are watched **and** aired
 - `aired_count` = aired episodes
 - `total_count` = all episodes, including unaired and undated
-- `next_episode_air_date` = earliest `air_date > today`, else null (queries.rs:471-486)
+- `next_episode_air_date` = earliest `air_date > today`, else null (`next_unaired_air_date`, queries.rs)
 
 An episode marked watched before it airs (possible via the single-episode toggle) therefore counts in `total_count` but not `watched_count` until its air date passes.
 
@@ -56,10 +56,10 @@ An episode marked watched before it airs (possible via the single-episode toggle
 
 | Path | Filter | Idempotent | Log rows | Returns |
 |---|---|---|---|---|
-| `PATCH /episodes/{show}/{season}/{ep}` → `set_episode_watched` (queries.rs:746-819) | none (any air date) | yes: `watched != ?` guard, so re-sending the current state touches neither `watched` nor `watched_at` | exactly one when the flag changed, scope `episode`, with show name, poster, and episode name snapshotted; none when it did not | full `ShowDetail` either way |
-| `POST /shows/{id}/bulk-watch` → `bulk_set_watched` (queries.rs:838-952) | `watched != ?` and aired | yes: only rows whose state differs are touched, so `watched_at` on already-watched episodes is preserved | one row only if ≥1 episode changed, scope `show` / `season` / `through_episode`, `episode_count` = rows changed | full `ShowDetail` |
+| `PATCH /episodes/{show}/{season}/{ep}` → `set_episode_watched` (queries.rs) | none (any air date) | yes: `watched != ?` guard, so re-sending the current state touches neither `watched` nor `watched_at` | exactly one when the flag changed, scope `episode`, with show name, poster, and episode name snapshotted; none when it did not | full `ShowDetail` either way |
+| `POST /shows/{id}/bulk-watch` → `bulk_set_watched` (queries.rs) | `watched != ?` and aired | yes: only rows whose state differs are touched, so `watched_at` on already-watched episodes is preserved | one row only if ≥1 episode changed, scope `show` / `season` / `through_episode`, `episode_count` = rows changed | full `ShowDetail` |
 
-Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every earlier season plus the named season up to and including the named episode). The request body is a tagged object: `{"scope": {"type": "season", "season_number": 2}, "watched": true}` (shows.rs:80-97). Both paths snapshot names inside the transaction so the log row stays meaningful after the show is removed, and both rely on transaction drop for rollback when the target row is missing.
+Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every earlier season plus the named season up to and including the named episode). The request body is a tagged object: `{"scope": {"type": "season", "season_number": 2}, "watched": true}` (`BulkWatchScopeBody` and `BulkWatchRequest` in shows.rs). Both paths snapshot names inside the transaction so the log row stays meaningful after the show is removed, and both rely on transaction drop for rollback when the target row is missing.
 
 ## Pages
 
@@ -67,7 +67,7 @@ Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every
 
 **ShowDetail** (frontend/src/pages/ShowDetail.tsx):
 
-- A non-numeric route id short-circuits to `Invalid show id` (:18-22). While the detail loads the page shows `Loading…`; a rejected initial load replaces the page with `Error: <message>`; a show with no seasons renders `No seasons available yet.` where the season list would be.
+- A non-numeric route id short-circuits to `Invalid show id` (the `Number.isFinite(id)` guard in the load effect). While the detail loads the page shows `Loading…`; a rejected initial load replaces the page with `Error: <message>`; a show with no seasons renders `No seasons available yet.` where the season list would be.
 - The year range compares the years of `first_air_date` and `last_air_date`, so two dates in one year render a single year.
 - The header chip reads the response's show-level `watched_count/aired_count`, the same aired-only numbers as the Watchlist card, so the two never disagree.
 - The header button flips to "Mark all unwatched" when `watched_count` equals `aired_count` and `aired_count` is above zero; unaired episodes do not hold it open. `seasonAllWatched` still compares a season's `watched_count` against its `episode_count`, which includes unaired episodes.
@@ -79,19 +79,19 @@ Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every
 
 | Decision | Chosen | Alternatives Considered | Rationale |
 |----------|--------|------------------------|-----------|
-| What "adding" fetches | Whole season/episode tree once, then nightly resync | Fetch seasons lazily on first open | The watchlist needs per-show progress counts immediately; one upfront cost per add (README.md:249-250). |
-| Season 0 | Skipped on add and resync | Store Specials | Specials would pollute progress counts (comment at shows.rs:35). `[inferred]` beyond that comment. |
-| Add atomicity | All TMDB fetches first, then one transaction | Insert show then stream seasons | No partial shows on the watchlist; doc comment at queries.rs:29. |
-| List bound | `MAX_LIST_ROWS = 500`, no pagination | Cursor pagination | Unauthenticated callers can grow the table; a hard bound caps response size and query count (queries.rs:16-26). |
-| Bulk actions | Aired episodes only | Any episode in scope | Accidental marks must not apply to future airings (queries.rs:833-837, CLAUDE.md). |
-| Single toggle | No air-date filter | Same filter as bulk | The checkbox is the explicit escape hatch (queries.rs:743-745). |
+| What "adding" fetches | Whole season/episode tree once, then nightly resync | Fetch seasons lazily on first open | The watchlist needs per-show progress counts immediately; one upfront cost per add (README.md, Troubleshooting: "Adding a long-running show takes 5–10 seconds"). |
+| Season 0 | Skipped on add and resync | Store Specials | Specials would pollute progress counts (the `// Skip season 0 (Specials).` comment in `add_show`). `[inferred]` beyond that comment. |
+| Add atomicity | All TMDB fetches first, then one transaction | Insert show then stream seasons | No partial shows on the watchlist; doc comment on `insert_show_full`. |
+| List bound | `MAX_LIST_ROWS = 500`, no pagination | Cursor pagination | Unauthenticated callers can grow the table; a hard bound caps response size and query count (doc comment on `MAX_LIST_ROWS`). |
+| Bulk actions | Aired episodes only | Any episode in scope | Accidental marks must not apply to future airings (doc comment on `bulk_set_watched`, CLAUDE.md). |
+| Single toggle | No air-date filter | Same filter as bulk | The checkbox is the explicit escape hatch (doc comment on `set_episode_watched`). |
 | Change detection | `watched != ?` guard on both the single toggle and bulk | Unconditional UPDATE | Returned count and log rows reflect real changes and `watched_at` is preserved; a stale client (second tab, double-click) re-sending the current state is a no-op rather than a duplicate history row. Existence is checked separately so a missing episode is still a 404. |
-| Watch log timing | Inserted inside the mutation's transaction | Fire-and-forget after commit | A log row is committed atomically with the change it describes (backend/src/db/watch_log.rs:1-2). |
-| "Today" | Configured `TIMEZONE`, default America/New_York | Server UTC; browser-local | Aired means aired where the user lives (CLAUDE.md, env.example:14). |
-| Progress format | `watched/aired`, no percentage | Percentage bar | CLAUDE.md:99; aired is the denominator that can actually change. |
+| Watch log timing | Inserted inside the mutation's transaction | Fire-and-forget after commit | A log row is committed atomically with the change it describes (module doc comment of backend/src/db/watch_log.rs). |
+| "Today" | Configured `TIMEZONE`, default America/New_York | Server UTC; browser-local | Aired means aired where the user lives (CLAUDE.md, `TIMEZONE` in env.example). |
+| Progress format | `watched/aired`, no percentage | Percentage bar | CLAUDE.md "Progress display" key pattern; aired is the denominator that can actually change. |
 | Detail progress counts | Server-computed aired counts on `ShowDetail`, from the same helper as the watchlist | Page sums season counts; page filters episodes by the browser's date; a separate counts endpoint | "Aired" means aired in the server's `TIMEZONE`, which the page cannot know; one helper gives both views one definition and the detail page one fewer thing to compute. |
 | Mutation response | Full `ShowDetail` | Changed episode or count only | `[inferred]` Lets the page replace state wholesale without client-side merging. |
-| Dates in SQL | `TEXT` compared bytewise | Julian day or epoch columns | `[inferred]` Simple and sufficient while inputs are zero-padded; the hazard is documented at backend/src/api/calendar.rs:44-48. |
+| Dates in SQL | `TEXT` compared bytewise | Julian day or epoch columns | `[inferred]` Simple and sufficient while inputs are zero-padded; the hazard is documented in the comment above the `list_calendar_episodes` call in `get_calendar` (backend/src/api/calendar.rs). |
 | Providers and networks | JSON text columns on `shows` | Normalized join tables | `[inferred]` Read-only lists displayed as pills; no querying by provider. |
 | Where mutations live | Detail page only; Watchlist is read-only | Quick actions on cards | `[inferred]` |
 | After remove | Navigate to `/` (Up Next) | Back to Watchlist | `[inferred]` Up Next is the home route. |
@@ -102,22 +102,22 @@ Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every
 *(none yet)*
 
 ### Deferred
-1. **Per-season `watched_count` on detail** counts watched episodes regardless of air date (queries.rs:245), unlike the watchlist count.
-2. **Query fan-out.** `list_watchlist` runs 1 + 2N statements and `get_show_detail` 2 + S. Acceptable at 500-row bound, or worth collapsing into joins?
-3. **Duplicate-add race.** Check-then-insert (shows.rs:26, queries.rs:43) can surface a primary-key violation as 500 rather than 400.
+1. **Per-season `watched_count` on detail** counts watched episodes regardless of air date (the per-season `watched_count` computed in `get_show_detail`), unlike the watchlist count.
+2. **Query fan-out.** `list_watchlist` runs 1 + 2N statements and `get_show_detail` 3 + S. Acceptable at 500-row bound, or worth collapsing into joins?
+3. **Duplicate-add race.** Check-then-insert (`show_exists` in `add_show`, then the `INSERT INTO shows` in `insert_show_full`) can surface a primary-key violation as 500 rather than 400.
 4. **Add under the request timeout.** N+1 serial TMDB calls for an N-season show all run inside the perimeter's 30 s timeout; the response is cut off but the fetches are not cancelled.
-5. **`seasons.episode_count` semantics.** Derived from fetched episodes (queries.rs:81), not TMDB's summary count.
+5. **`seasons.episode_count` semantics.** Derived from fetched episodes (`season.episodes.len()` bound in `insert_show_full`), not TMDB's summary count.
 6. **`networks_json`** is absent from `ShowRow` and `ShowDetail`; only Up Next surfaces it. Should detail show networks too?
-7. **Impossible-state errors** use `AppError::Config("show vanished after insert")` (shows.rs:52), whose text reaches the client as a 500 body.
+7. **Impossible-state errors** use `AppError::Config("show vanished after insert")` (after `get_watchlist_item` in `add_show`), whose text reaches the client as a 500 body.
 8. **Global `mutating` lock** disables every control on the page during one checkbox toggle.
 9. **Timezone coverage.** Every backend test uses UTC; the midnight boundary in the configured zone is untested.
-10. **Stale doc comment** at queries.rs:30 names a parameter `season_episodes` that does not exist.
+10. **Stale doc comment** on `insert_show_full` names a parameter `season_episodes` that does not exist.
 11. **Cascade from resync.** Resync upserts never delete episodes TMDB has dropped; stale rows stay on the tree and in progress counts (owned by `resync`, noted here because the counts are this segment's).
 
 ## References
 
 - backend/src/api/shows.rs, backend/src/api/episodes.rs
-- backend/src/db/queries.rs:1-282 (add, exists, delete, list, detail), :445-490 (counts, next air date), :744-940 (watched mutations)
+- backend/src/db/queries.rs: `insert_show_full`, `show_exists`, `delete_show`, `list_watchlist`, `get_watchlist_item`, `get_show_detail` (add, exists, delete, list, detail); `episode_counts`, `next_unaired_air_date` (counts, next air date); `set_episode_watched`, `bulk_set_watched` (watched mutations)
 - backend/src/models/show.rs, backend/src/state.rs (`today_in`)
 - backend/src/db/migrations/20260509000000_initial.sql, 20260808000000_drop_notifications.sql, 20260921000000_add_show_networks.sql
 - frontend/src/pages/Watchlist.tsx, frontend/src/pages/ShowDetail.tsx
