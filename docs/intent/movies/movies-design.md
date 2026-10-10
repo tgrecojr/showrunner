@@ -35,7 +35,7 @@ A TMDB 429 on detail is mapped by the TMDB client to `TMDB is rate-limiting requ
 
 **Movies** (frontend/src/pages/Movies.tsx): a card grid. The poster is a link to `/movies/{id}` labelled `View details for <name>`; the title is plain text. Each card has **Mark Watched** and **Remove**, both routed through one `removeMovie` helper (:28-49) that asks for confirmation, calls the matching endpoint, and on success filters the card out of local state without refetching. `pending[tmdb_id]` disables both buttons on that card. A failed call sets `error`, which renders as a banner above the grid with the list intact and that card's buttons re-enabled; the banner clears when the next Mark Watched or Remove attempt begins. Only a failed initial load replaces the page with `Error: <message>`, because there is no list to keep. States: loading, load error, action-error banner over the grid, and an empty state linking to Search.
 
-**MovieDetail** (frontend/src/pages/MovieDetail.tsx): backdrop hero with poster, name, year, `N min` pill when runtime is truthy, `Director:`/`Directors:` by count, `Watch on:` providers, overview, then a cast grid with photo or "No photo" and `as <character>`; "No cast information available." when the cast is empty. A non-finite route id short-circuits to `Invalid movie id`. **Mark Watched** and **Remove** confirm, call the endpoint, and navigate to `/movies`; failures render a banner with the page intact.
+**MovieDetail** (frontend/src/pages/MovieDetail.tsx): backdrop hero with poster, name, year, `N min` pill when runtime is present and non-zero, `Director:`/`Directors:` by count, `Watch on:` providers, overview, then a cast grid with photo or "No photo" and `as <character>`; "No cast information available." when the cast is empty. A non-finite route id short-circuits to `Invalid movie id`. **Mark Watched** and **Remove** confirm, call the endpoint, and navigate to `/movies`; failures render a banner with the page intact.
 
 Errors on this page are shown as the API client delivered them, like every other page; the wording of a TMDB rate limit or outage is the server's (`tmdb`).
 
@@ -60,13 +60,12 @@ Errors on this page are shown as the API client delivered them, like every other
 ### Deferred
 1. **Live TMDB on every detail view.** A TMDB outage makes a listed movie's page a 502 even though the row exists. Should credits and providers be cached at add time, with movies joining resync?
 2. **Stale metadata.** Because movies are outside resync, poster, overview, runtime, and release date are frozen at add time.
-3. **`runtime` of 0** is hidden by the truthiness check (MovieDetail.tsx:93).
-4. **Cast card key** is `name-character`, which collides for duplicate pairs (MovieDetail.tsx:145).
-5. **Impossible-state error text** `movie vanished after insert` reaches the client as a 500 body (movies.rs:82).
-6. **Near-duplicate handlers.** `mark_movie_watched` and `delete_movie` differ only in the query called (movies.rs:89-116).
-7. **`#[allow(dead_code)]` on `MovieRow`** (models/movie.rs:11) looks stale; every field is read.
-8. **Test gaps.** `App.test.tsx` covers neither movie route; `client.test.ts` covers none of the six movie and watch-log client methods.
-9. **Check-then-insert race** on add, as with shows.
+3. **Cast card key** is `name-character`, which collides for duplicate pairs (MovieDetail.tsx:145).
+4. **Impossible-state error text** `movie vanished after insert` reaches the client as a 500 body (movies.rs:82).
+5. **Near-duplicate handlers.** `mark_movie_watched` and `delete_movie` differ only in the query called (movies.rs:89-116).
+6. **`#[allow(dead_code)]` on `MovieRow`** (models/movie.rs:11) looks stale; every field is read.
+7. **Test gaps.** `App.test.tsx` covers neither movie route; `client.test.ts` covers none of the six movie and watch-log client methods.
+8. **Check-then-insert race** on add, as with shows.
 
 ## References
 

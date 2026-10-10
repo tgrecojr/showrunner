@@ -67,7 +67,8 @@ Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every
 
 **ShowDetail** (frontend/src/pages/ShowDetail.tsx):
 
-- A non-numeric route id short-circuits to `Invalid show id` (:18-22).
+- A non-numeric route id short-circuits to `Invalid show id` (:18-22). While the detail loads the page shows `Loading…`; a rejected initial load replaces the page with `Error: <message>`; a show with no seasons renders `No seasons available yet.` where the season list would be.
+- The year range compares the years of `first_air_date` and `last_air_date`, so two dates in one year render a single year.
 - The header chip reads the response's show-level `watched_count/aired_count`, the same aired-only numbers as the Watchlist card, so the two never disagree.
 - The header button flips to "Mark all unwatched" when `watched_count` equals `aired_count` and `aired_count` is above zero; unaired episodes do not hold it open. `seasonAllWatched` still compares a season's `watched_count` against its `episode_count`, which includes unaired episodes.
 - Seasons start collapsed; the toggle carries `aria-expanded`; rows show `SxxExx`, name or `—`, air date, a checkbox labelled `Mark S{s}E{e} watched`, and a `Mark through here` button that always sends `watched: true`.
@@ -109,10 +110,9 @@ Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every
 6. **`networks_json`** is absent from `ShowRow` and `ShowDetail`; only Up Next surfaces it. Should detail show networks too?
 7. **Impossible-state errors** use `AppError::Config("show vanished after insert")` (shows.rs:52), whose text reaches the client as a 500 body.
 8. **Global `mutating` lock** disables every control on the page during one checkbox toggle.
-9. **Year range** renders `2024–2024` when first and last air dates differ within one year (ShowDetail.tsx:128-131).
-10. **Timezone coverage.** Every backend test uses UTC; the midnight boundary in the configured zone is untested.
-11. **Stale doc comment** at queries.rs:30 names a parameter `season_episodes` that does not exist.
-12. **Cascade from resync.** Resync upserts never delete episodes TMDB has dropped; stale rows stay on the tree and in progress counts (owned by `resync`, noted here because the counts are this segment's).
+9. **Timezone coverage.** Every backend test uses UTC; the midnight boundary in the configured zone is untested.
+10. **Stale doc comment** at queries.rs:30 names a parameter `season_episodes` that does not exist.
+11. **Cascade from resync.** Resync upserts never delete episodes TMDB has dropped; stale rows stay on the tree and in progress counts (owned by `resync`, noted here because the counts are this segment's).
 
 ## References
 

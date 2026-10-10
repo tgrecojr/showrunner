@@ -204,4 +204,15 @@ describe("MovieDetail", () => {
 		expect(screen.queryByText("148 min")).not.toBeInTheDocument();
 		expect(screen.queryByText("2010")).not.toBeInTheDocument();
 	});
+
+	// @spec MOVIES-UI-006
+	it("renders neither a runtime pill nor a stray 0 when runtime is 0", async () => {
+		mockGet.mockResolvedValueOnce(movie({ runtime: 0 }));
+		const { container } = renderPage();
+		await waitFor(() =>
+			expect(screen.getByText("Inception")).toBeInTheDocument(),
+		);
+		expect(screen.queryByText(/min$/)).not.toBeInTheDocument();
+		expect(container.querySelector(".meta-row")?.textContent).toBe("2010");
+	});
 });

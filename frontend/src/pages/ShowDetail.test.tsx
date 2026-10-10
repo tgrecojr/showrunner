@@ -121,6 +121,20 @@ describe("ShowDetail", () => {
 	});
 
 	// @spec SHOWS-UI-004
+	it("omits year-range dash when both air dates fall in the same year", async () => {
+		mockGet.mockResolvedValueOnce(
+			show({ first_air_date: "2024-01-01", last_air_date: "2024-06-01" }),
+		);
+		const { container } = renderAt("/shows/1");
+		await waitFor(() =>
+			expect(screen.getByText("My Show")).toBeInTheDocument(),
+		);
+		const yearSpan = container.querySelector(".year");
+		expect(yearSpan).toHaveTextContent("2024");
+		expect(yearSpan?.textContent ?? "").not.toContain("–");
+	});
+
+	// @spec SHOWS-UI-004
 	it("shows placeholder poster when poster_url missing", async () => {
 		mockGet.mockResolvedValueOnce(show({ poster_url: null }));
 		renderAt("/shows/1");
@@ -135,6 +149,7 @@ describe("ShowDetail", () => {
 		expect(screen.getByText("Error: Invalid show id")).toBeInTheDocument();
 	});
 
+	// @spec SHOWS-UI-014
 	it("shows API error when getShow rejects", async () => {
 		mockGet.mockRejectedValueOnce(new Error("boom"));
 		renderAt("/shows/1");
@@ -143,6 +158,7 @@ describe("ShowDetail", () => {
 		);
 	});
 
+	// @spec SHOWS-UI-014
 	it("shows generic load error for non-Error rejection", async () => {
 		mockGet.mockRejectedValueOnce("weird");
 		renderAt("/shows/1");
@@ -473,6 +489,7 @@ describe("ShowDetail", () => {
 		);
 	});
 
+	// @spec SHOWS-UI-015
 	it('Renders "No seasons available yet" when seasons array is empty', async () => {
 		mockGet.mockResolvedValueOnce(show({ seasons: [] }));
 		renderAt("/shows/1");

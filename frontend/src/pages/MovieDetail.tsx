@@ -76,9 +76,9 @@ export default function MovieDetail() {
 						<h1>{movie.name}</h1>
 						<div className="meta-row">
 							{year && <span className="year">{year}</span>}
-							{movie.runtime && (
+							{movie.runtime ? (
 								<span className="status-pill">{movie.runtime} min</span>
-							)}
+							) : null}
 						</div>
 						{movie.directors.length > 0 && (
 							<p className="providers">

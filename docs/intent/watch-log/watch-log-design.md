@@ -53,7 +53,7 @@ Adding, removing a show, removing a movie, and resync never write a row. There i
 
 - The page number comes from the `?page=` search param; anything that is not an integer ≥ 1 reads as 1 (:21-24). Navigation writes the param back, omitting it for page 1 (:50-52), so the browser's back button and bookmarks work.
 - Requests always use `per_page` 50 (:7, :36). `totalPages` is computed from the server's echoed `per_page` (:81).
-- States: `Error:` when nothing has loaded; "Loading…"; "Nothing logged yet" when `total` is 0 (:54-79). On a page change the previous page stays visible until the new one arrives.
+- States: `Error:` when nothing has loaded; "Loading…"; "Nothing logged yet" when `total` is 0 (:54-79). On a page change the previous page stays visible until the new one arrives; if that request fails, `Error:` renders above the still-visible previous page and clears when the next page request starts.
 - Rows reuse the Up Next row classes: poster or "No poster"; the title links to `/shows/{id}` for `tv` and is plain text for `movie` because the movie row no longer exists; a one-line sentence from `describeEntry`; a `<time dateTime>` showing `occurred_at` in the browser's locale and zone (:9-19, :92-129). `unwatched` rows get `history-row-unwatched` and render muted.
 - The copy states the page is read-only: "Undo mistakes from the show or movie page." (:87-88).
 - Pager: `Page X of Y · N entries`, Previous disabled on page 1, Next disabled on the last page (:131-154).

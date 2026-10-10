@@ -4,7 +4,7 @@ import type { BulkWatchScope } from "../api/client";
 import { api } from "../api/client";
 import type { ShowDetail as ShowDetailType } from "../types";
 
-// @spec SHOWS-UI-003, SHOWS-UI-004, SHOWS-UI-005, SHOWS-UI-006, SHOWS-UI-007, SHOWS-UI-008, SHOWS-UI-009, SHOWS-UI-010, SHOWS-UI-011, SHOWS-UI-012, SHOWS-UI-013
+// @spec SHOWS-UI-003, SHOWS-UI-004, SHOWS-UI-005, SHOWS-UI-006, SHOWS-UI-007, SHOWS-UI-008, SHOWS-UI-009, SHOWS-UI-010, SHOWS-UI-011, SHOWS-UI-012, SHOWS-UI-013, SHOWS-UI-014, SHOWS-UI-015
 export default function ShowDetail() {
 	const { tmdbId } = useParams<{ tmdbId: string }>();
 	const navigate = useNavigate();
@@ -123,7 +123,8 @@ export default function ShowDetail() {
 							<span className="year">
 								{show.first_air_date.slice(0, 4)}
 								{show.last_air_date &&
-								show.last_air_date !== show.first_air_date
+								show.last_air_date.slice(0, 4) !==
+									show.first_air_date.slice(0, 4)
 									? `–${show.last_air_date.slice(0, 4)}`
 									: ""}
 							</span>
