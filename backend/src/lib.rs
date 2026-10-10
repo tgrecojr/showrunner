@@ -241,14 +241,16 @@ pub fn log_filter() -> EnvFilter {
 }
 
 /// Serve the SPA from `static_dir` behind the API routes, with history
-/// fallback to its `index.html`. Without an `index.html` there, the app runs
+/// fallback to its `index.html` under a 200 (tower-http's `not_found_service`
+/// would keep the body but stamp a 404, which reads as a missing page to
+/// anything that checks status). Without an `index.html` there, the app runs
 /// API-only and says so.
 // @spec APP-CONFIG-004, APP-HTTP-001
 pub fn with_static_fallback(app: Router, static_dir: &str) -> Router {
     let static_path = PathBuf::from(static_dir);
     let index_file = static_path.join("index.html");
     if index_file.exists() {
-        let serve_dir = ServeDir::new(&static_path).not_found_service(ServeFile::new(&index_file));
+        let serve_dir = ServeDir::new(&static_path).fallback(ServeFile::new(&index_file));
         tracing::info!("Serving static files from {}", static_dir);
         app.fallback_service(serve_dir)
     } else {

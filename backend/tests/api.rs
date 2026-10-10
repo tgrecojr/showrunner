@@ -1823,11 +1823,7 @@ async fn static_fallback_serves_index_for_unknown_paths_but_not_for_api_paths() 
     let status = resp.status();
     let text = collect_text(resp).await;
     assert_eq!(text, "<html>spa</html>");
-    // tower-http's `not_found_service` serves the fallback body under a 404.
-    // Browsers render it, so client-side routes resolve, but the status is
-    // not what a history fallback usually returns; APP-CONFIG-004 is silent
-    // on the status, and this pins the behavior until that is decided.
-    assert_eq!(status, StatusCode::NOT_FOUND, "body: {text}");
+    assert_eq!(status, StatusCode::OK, "body: {text}");
 
     let resp = router
         .clone()
