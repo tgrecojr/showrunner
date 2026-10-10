@@ -56,8 +56,8 @@ An episode marked watched before it airs (possible via the single-episode toggle
 
 | Path | Filter | Idempotent | Log rows | Returns |
 |---|---|---|---|---|
-| `PATCH /episodes/{show}/{season}/{ep}` → `set_episode_watched` (queries.rs:744-807) | none (any air date) | no today (intended: yes, `SHOWS-WATCHED-010`): the UPDATE runs even when the flag already matches, refreshing `watched_at` and logging again | exactly one, scope `episode`, with show name, poster, and episode name snapshotted | full `ShowDetail` |
-| `POST /shows/{id}/bulk-watch` → `bulk_set_watched` (queries.rs:826-940) | `watched != ?` and aired | yes: only rows whose state differs are touched, so `watched_at` on already-watched episodes is preserved | one row only if ≥1 episode changed, scope `show` / `season` / `through_episode`, `episode_count` = rows changed | full `ShowDetail` |
+| `PATCH /episodes/{show}/{season}/{ep}` → `set_episode_watched` (queries.rs:746-819) | none (any air date) | yes: `watched != ?` guard, so re-sending the current state touches neither `watched` nor `watched_at` | exactly one when the flag changed, scope `episode`, with show name, poster, and episode name snapshotted; none when it did not | full `ShowDetail` either way |
+| `POST /shows/{id}/bulk-watch` → `bulk_set_watched` (queries.rs:838-952) | `watched != ?` and aired | yes: only rows whose state differs are touched, so `watched_at` on already-watched episodes is preserved | one row only if ≥1 episode changed, scope `show` / `season` / `through_episode`, `episode_count` = rows changed | full `ShowDetail` |
 
 Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every earlier season plus the named season up to and including the named episode). The request body is a tagged object: `{"scope": {"type": "season", "season_number": 2}, "watched": true}` (shows.rs:80-97). Both paths snapshot names inside the transaction so the log row stays meaningful after the show is removed, and both rely on transaction drop for rollback when the target row is missing.
 
@@ -82,9 +82,9 @@ Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every
 | Season 0 | Skipped on add and resync | Store Specials | Specials would pollute progress counts (comment at shows.rs:35). `[inferred]` beyond that comment. |
 | Add atomicity | All TMDB fetches first, then one transaction | Insert show then stream seasons | No partial shows on the watchlist; doc comment at queries.rs:29. |
 | List bound | `MAX_LIST_ROWS = 500`, no pagination | Cursor pagination | Unauthenticated callers can grow the table; a hard bound caps response size and query count (queries.rs:16-26). |
-| Bulk actions | Aired episodes only | Any episode in scope | Accidental marks must not apply to future airings (queries.rs:821-825, CLAUDE.md). |
-| Single toggle | No air-date filter | Same filter as bulk | The checkbox is the explicit escape hatch (queries.rs:741-743). |
-| Bulk change detection | `watched != ?` guard | Unconditional UPDATE | Returned count and log row reflect real changes; `watched_at` preserved (queries.rs:823-825). |
+| Bulk actions | Aired episodes only | Any episode in scope | Accidental marks must not apply to future airings (queries.rs:833-837, CLAUDE.md). |
+| Single toggle | No air-date filter | Same filter as bulk | The checkbox is the explicit escape hatch (queries.rs:743-745). |
+| Change detection | `watched != ?` guard on both the single toggle and bulk | Unconditional UPDATE | Returned count and log rows reflect real changes and `watched_at` is preserved; a stale client (second tab, double-click) re-sending the current state is a no-op rather than a duplicate history row. Existence is checked separately so a missing episode is still a 404. |
 | Watch log timing | Inserted inside the mutation's transaction | Fire-and-forget after commit | A log row is committed atomically with the change it describes (backend/src/db/watch_log.rs:1-2). |
 | "Today" | Configured `TIMEZONE`, default America/New_York | Server UTC; browser-local | Aired means aired where the user lives (CLAUDE.md, env.example:14). |
 | Progress format | `watched/aired`, no percentage | Percentage bar | CLAUDE.md:99; aired is the denominator that can actually change. |
@@ -97,8 +97,7 @@ Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every
 ## Open Questions & Future Decisions
 
 ### Resolved
-1. ✅ **Single-episode PATCH is idempotent by intent.** Re-sending the current state must not touch `watched_at` or write a log row. The code does not yet do this (queries.rs:776-786); tracked as `SHOWS-WATCHED-010`.
-2. ✅ **Progress is aired-based everywhere.** The detail header chip and the "Mark all unwatched" flip use aired-only counts, matching the Watchlist. The page currently sums total episodes (ShowDetail.tsx:94-102); tracked as `SHOWS-UI-006` and `SHOWS-UI-013`. Supplying aired counts to the detail page is an API change for this segment to design.
+1. ✅ **Progress is aired-based everywhere.** The detail header chip and the "Mark all unwatched" flip use aired-only counts, matching the Watchlist. The page currently sums total episodes (ShowDetail.tsx:94-102); tracked as `SHOWS-UI-006` and `SHOWS-UI-013`. Supplying aired counts to the detail page is an API change for this segment to design.
 
 ### Deferred
 1. **Per-season `watched_count` on detail** counts watched episodes regardless of air date (queries.rs:245), unlike the watchlist count.

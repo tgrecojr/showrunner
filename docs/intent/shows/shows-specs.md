@@ -25,16 +25,16 @@ Prefix `SHOWS`. Facets: `API` (add, list, detail, delete endpoints and persisten
 
 ## Watched
 
-- [x] **SHOWS-WATCHED-001**: When `PATCH /api/v1/episodes/{show}/{season}/{episode}` is called with `{"watched": <bool>}`, the system shall set that episode's watched flag regardless of its air date, set `watched_at` to the current UTC time when true and to NULL when false, and respond 200 with the full show detail.
+- [x] **SHOWS-WATCHED-001**: When `PATCH /api/v1/episodes/{show}/{season}/{episode}` is called with `{"watched": <bool>}` and the value differs from the episode's current watched flag, the system shall set the flag regardless of the episode's air date, set `watched_at` to the current UTC time when true and to NULL when false, and respond 200 with the full show detail.
 - [x] **SHOWS-WATCHED-002**: If the episode named by `PATCH /api/v1/episodes/{show}/{season}/{episode}` does not exist, then the system shall respond 404 and write no watch-log row.
-- [x] **SHOWS-WATCHED-003**: When a single-episode PATCH updates an episode, the system shall write exactly one watch-log row (media type `tv`, scope `episode`, snapshotting the show name, poster, and episode name) in the same transaction as the update.
+- [x] **SHOWS-WATCHED-003**: When a single-episode PATCH changes an episode's watched flag, the system shall write exactly one watch-log row (media type `tv`, scope `episode`, snapshotting the show name, poster, and episode name) in the same transaction as the update.
 - [x] **SHOWS-WATCHED-004**: When `POST /api/v1/shows/{id}/bulk-watch` is called with scope `all`, `season`, or `through_episode` and a `watched` value, the system shall update only episodes within that scope that are aired and whose watched state differs from the requested value, then respond 200 with the full show detail.
 - [x] **SHOWS-WATCHED-005**: The `through_episode` scope shall include every episode of earlier seasons and every episode of the named season with an episode number less than or equal to the named one.
 - [x] **SHOWS-WATCHED-006**: When a bulk action targets an episode already in the requested state, the system shall leave that episode's `watched_at` unchanged.
 - [x] **SHOWS-WATCHED-007**: When a bulk action changes at least one episode, the system shall write exactly one watch-log row (media type `tv`; scope `show`, `season`, or `through_episode` matching the request; `episode_count` equal to the number of episodes changed) in the same transaction; when it changes none, it shall write no row.
 - [x] **SHOWS-WATCHED-008**: The bulk-watch request body shall be `{"scope": <scope>, "watched": <bool>}` where `<scope>` is `{"type":"all"}`, `{"type":"season","season_number":N}`, or `{"type":"through_episode","season_number":N,"episode_number":M}`.
 - [x] **SHOWS-WATCHED-009**: When a bulk action is called with `watched: false`, the system shall clear both `watched` and `watched_at` on the aired episodes in scope.
-- [ ] **SHOWS-WATCHED-010**: If a single-episode PATCH requests the watched state the episode already has, then the system shall leave `watched_at` unchanged and write no watch-log row, and shall still respond 200 with the show detail.
+- [x] **SHOWS-WATCHED-010**: If a single-episode PATCH requests the watched state the episode already has, then the system shall leave `watched_at` unchanged and write no watch-log row, and shall still respond 200 with the show detail.
 
 ## UI
 

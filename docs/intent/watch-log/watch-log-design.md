@@ -92,15 +92,14 @@ The verb is `unwatched` for `unwatched` rows; missing season or episode numbers 
 *(none yet)*
 
 ### Deferred
-1. **Duplicate rows from a repeated single-episode mark.** `shows` has resolved that PATCH is to be idempotent (`SHOWS-WATCHED-010`); until implemented, re-marking an already-watched episode writes a second `watched` row.
-2. **Vocabulary enforcement.** No CHECK constraints on `media_type`, `action`, `scope`; a writer bug would persist silently.
-3. **`total` and the page are two statements**, so `total` can drift from the page under concurrent writes.
-4. **Unbounded `page`.** `per_page` is capped but `page` is not; a huge offset scans.
-5. **Page past the end** renders `Page 7 of 3` with an empty list and Next disabled; no clamp or redirect.
-6. **Time zone of display.** Browser-local, whereas the rest of the app's "today" is the server's `TIMEZONE`.
-7. **Styling reuse.** Rows borrow `upnext-*` classes; the `history-page` wrapper class has no stylesheet rule.
-8. **No loading indicator on page change**; stale entries remain until the next page arrives.
-9. **Test hygiene.** History.test.tsx has no `afterEach(vi.restoreAllMocks)`, unlike sibling page tests.
+1. **Vocabulary enforcement.** No CHECK constraints on `media_type`, `action`, `scope`; a writer bug would persist silently.
+2. **`total` and the page are two statements**, so `total` can drift from the page under concurrent writes.
+3. **Unbounded `page`.** `per_page` is capped but `page` is not; a huge offset scans.
+4. **Page past the end** renders `Page 7 of 3` with an empty list and Next disabled; no clamp or redirect.
+5. **Time zone of display.** Browser-local, whereas the rest of the app's "today" is the server's `TIMEZONE`.
+6. **Styling reuse.** Rows borrow `upnext-*` classes; the `history-page` wrapper class has no stylesheet rule.
+7. **No loading indicator on page change**; stale entries remain until the next page arrives.
+8. **Test hygiene.** History.test.tsx has no `afterEach(vi.restoreAllMocks)`, unlike sibling page tests.
 
 ## References
 

@@ -739,8 +739,10 @@ pub async fn list_calendar_episodes(
 // === Episode mutations ===
 
 /// Toggle a single episode's watched state. No air_date filtering — caller's
-/// explicit choice. Returns whether the row existed. Writes a `watch_log`
-/// entry in the same transaction.
+/// explicit choice. Returns whether the row existed. Idempotent: when the
+/// requested state matches the current one nothing is written. Otherwise a
+/// `watch_log` entry is written in the same transaction.
+// @spec SHOWS-WATCHED-001, SHOWS-WATCHED-002, SHOWS-WATCHED-003, SHOWS-WATCHED-010
 pub async fn set_episode_watched(
     pool: &SqlitePool,
     show_tmdb_id: i64,
@@ -773,17 +775,27 @@ pub async fn set_episode_watched(
         return Ok(false);
     };
 
-    sqlx::query(
+    // Only rows whose state differs are touched, so re-sending the current
+    // state preserves watched_at and writes no history row (the episode still
+    // exists, so the caller still gets `true`).
+    let changed = sqlx::query(
         "UPDATE episodes SET watched = ?, watched_at = ?
-         WHERE show_tmdb_id = ? AND season_number = ? AND episode_number = ?",
+         WHERE show_tmdb_id = ? AND season_number = ? AND episode_number = ?
+           AND watched != ?",
     )
     .bind(if watched { 1_i64 } else { 0_i64 })
     .bind(watched_at)
     .bind(show_tmdb_id)
     .bind(season_number)
     .bind(episode_number)
+    .bind(if watched { 1_i64 } else { 0_i64 })
     .execute(&mut *tx)
-    .await?;
+    .await?
+    .rows_affected();
+
+    if changed == 0 {
+        return Ok(true);
+    }
 
     watch_log::insert_entry(
         &mut tx,
