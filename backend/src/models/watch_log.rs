@@ -45,6 +45,7 @@ pub struct WatchLogPage {
 
 /// What a mutation records. Built by the query layer at the moment the state
 /// change is applied, inside the same transaction.
+// @spec WATCHLOG-DATA-001
 #[derive(Debug, Clone)]
 pub struct NewWatchLogEntry<'a> {
     pub media_type: &'a str,
@@ -71,6 +72,7 @@ pub fn action_str(watched: bool) -> &'static str {
 mod tests {
     use super::*;
 
+    // @spec WATCHLOG-DATA-001
     #[test]
     fn action_str_maps_bool() {
         assert_eq!(action_str(true), "watched");

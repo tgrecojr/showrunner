@@ -24,10 +24,12 @@ use crate::state::today_in;
 /// This is a bound, not pagination: there is no cursor and no way to fetch past
 /// it. 500 is far above any realistic personal watchlist while still capping the
 /// response at a size the process can serialize cheaply.
+// @spec SHOWS-API-008, MOVIES-API-005, AIRING-UPNEXT-003
 pub const MAX_LIST_ROWS: i64 = 500;
 
 /// Insert show + seasons + episodes in one transaction. Skips season 0 (Specials).
 /// `season_episodes` is parallel to the seasons in `show.seasons` after filtering.
+// @spec SHOWS-API-001, SHOWS-API-006, SHOWS-API-007
 pub async fn insert_show_full(
     pool: &SqlitePool,
     show: &TmdbShow,
@@ -126,6 +128,7 @@ pub async fn show_exists(pool: &SqlitePool, tmdb_id: i64) -> Result<bool> {
     Ok(row.0 > 0)
 }
 
+// @spec SHOWS-API-011
 pub async fn delete_show(pool: &SqlitePool, tmdb_id: i64) -> Result<bool> {
     let result = sqlx::query("DELETE FROM shows WHERE tmdb_id = ?")
         .bind(tmdb_id)
@@ -134,6 +137,7 @@ pub async fn delete_show(pool: &SqlitePool, tmdb_id: i64) -> Result<bool> {
     Ok(result.rows_affected() > 0)
 }
 
+// @spec SHOWS-API-008, SHOWS-PROGRESS-002, SHOWS-PROGRESS-003
 pub async fn list_watchlist(pool: &SqlitePool, tz: Tz) -> Result<Vec<WatchlistItem>> {
     let today = today_in(tz);
 
@@ -295,6 +299,7 @@ pub async fn get_show_detail(
 }
 
 // === Movies ===
+// @spec MOVIES-API-011
 
 pub async fn movie_exists(pool: &SqlitePool, tmdb_id: i64) -> Result<bool> {
     let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM movies WHERE tmdb_id = ?")
@@ -304,6 +309,7 @@ pub async fn movie_exists(pool: &SqlitePool, tmdb_id: i64) -> Result<bool> {
     Ok(row.0 > 0)
 }
 
+// @spec MOVIES-API-001, MOVIES-API-004
 pub async fn insert_movie(pool: &SqlitePool, movie: &TmdbMovie) -> Result<()> {
     let now = Utc::now().to_rfc3339();
     sqlx::query(
@@ -325,6 +331,7 @@ pub async fn insert_movie(pool: &SqlitePool, movie: &TmdbMovie) -> Result<()> {
     Ok(())
 }
 
+// @spec MOVIES-API-005
 pub async fn list_movies(pool: &SqlitePool) -> Result<Vec<MovieWatchlistItem>> {
     let rows: Vec<MovieRow> = sqlx::query_as(
         "SELECT tmdb_id, name, overview, poster_path, backdrop_path,
@@ -373,6 +380,7 @@ pub async fn get_movie(pool: &SqlitePool, tmdb_id: i64) -> Result<Option<MovieWa
     }))
 }
 
+// @spec MOVIES-API-010
 pub async fn delete_movie(pool: &SqlitePool, tmdb_id: i64) -> Result<bool> {
     let result = sqlx::query("DELETE FROM movies WHERE tmdb_id = ?")
         .bind(tmdb_id)
@@ -384,6 +392,7 @@ pub async fn delete_movie(pool: &SqlitePool, tmdb_id: i64) -> Result<bool> {
 /// "Mark watched" for a movie: deletes the row (there is no watched-movie
 /// state) and records a `watch_log` entry with the title snapshot, in one
 /// transaction. Returns whether the movie was on the list.
+// @spec MOVIES-API-009
 pub async fn mark_movie_watched(pool: &SqlitePool, tmdb_id: i64) -> Result<bool> {
     let mut tx = pool.begin().await?;
 
@@ -422,6 +431,7 @@ pub async fn mark_movie_watched(pool: &SqlitePool, tmdb_id: i64) -> Result<bool>
     Ok(true)
 }
 
+// @spec SEARCH-API-006
 pub async fn tracked_movie_tmdb_ids_in(pool: &SqlitePool, ids: &[i64]) -> Result<Vec<i64>> {
     if ids.is_empty() {
         return Ok(Vec::new());
@@ -437,6 +447,7 @@ pub async fn tracked_movie_tmdb_ids_in(pool: &SqlitePool, ids: &[i64]) -> Result
     Ok(rows.into_iter().map(|r| r.0).collect())
 }
 
+// @spec SEARCH-API-006
 pub async fn tracked_tmdb_ids_in(pool: &SqlitePool, ids: &[i64]) -> Result<Vec<i64>> {
     if ids.is_empty() {
         return Ok(Vec::new());
@@ -461,6 +472,7 @@ struct EpisodeCounts {
     total: i64,
 }
 
+// @spec SHOWS-PROGRESS-001, SHOWS-PROGRESS-002, SHOWS-PROGRESS-004
 async fn episode_counts(pool: &SqlitePool, tmdb_id: i64, today: &str) -> Result<EpisodeCounts> {
     let row: (i64, i64, i64) = sqlx::query_as(
         "SELECT
@@ -481,6 +493,7 @@ async fn episode_counts(pool: &SqlitePool, tmdb_id: i64, today: &str) -> Result<
     })
 }
 
+// @spec SHOWS-PROGRESS-003, SHOWS-PROGRESS-004
 async fn next_unaired_air_date(
     pool: &SqlitePool,
     tmdb_id: i64,
@@ -631,6 +644,7 @@ pub async fn list_resync_candidates(pool: &SqlitePool) -> Result<Vec<i64>> {
     Ok(rows.into_iter().map(|r| r.0).collect())
 }
 
+// @spec AIRING-UPNEXT-001, AIRING-UPNEXT-002, AIRING-UPNEXT-003, AIRING-UPNEXT-004, AIRING-UPNEXT-005
 pub async fn list_up_next(pool: &SqlitePool, tz: Tz) -> Result<Vec<UpNextItem>> {
     let today = today_in(tz);
 
@@ -714,6 +728,7 @@ pub async fn list_up_next(pool: &SqlitePool, tz: Tz) -> Result<Vec<UpNextItem>> 
         .collect())
 }
 
+// @spec AIRING-CAL-005
 pub async fn list_calendar_episodes(
     pool: &SqlitePool,
     start: &str,
@@ -870,6 +885,7 @@ pub enum BulkScope {
 /// Only rows whose state actually changes are touched, so the returned count
 /// (and the single `watch_log` entry written when it is non-zero) reflects
 /// real changes, and `watched_at` on already-watched episodes is preserved.
+// @spec SHOWS-WATCHED-004, SHOWS-WATCHED-005, SHOWS-WATCHED-006, SHOWS-WATCHED-007, SHOWS-WATCHED-009
 pub async fn bulk_set_watched(
     pool: &SqlitePool,
     show_tmdb_id: i64,

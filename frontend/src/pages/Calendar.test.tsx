@@ -48,6 +48,7 @@ afterEach(() => {
 });
 
 describe("Calendar", () => {
+	// @spec AIRING-CAL-006, AIRING-CAL-009
 	it("renders current month title and episode in correct cell", async () => {
 		mockCalendar.mockResolvedValueOnce({ episodes: [ep()] });
 		renderPage();
@@ -57,6 +58,7 @@ describe("Calendar", () => {
 		expect(screen.getByText("S02E05")).toBeInTheDocument();
 	});
 
+	// @spec AIRING-CAL-006, AIRING-CAL-007
 	it("queries with a 42-cell range covering the visible grid", async () => {
 		mockCalendar.mockResolvedValueOnce({ episodes: [] });
 		renderPage();
@@ -68,6 +70,7 @@ describe("Calendar", () => {
 		expect(end).toBe("2026-06-06");
 	});
 
+	// @spec AIRING-CAL-008
 	it("navigates to previous month", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockCalendar.mockResolvedValue({ episodes: [] });
@@ -80,6 +83,7 @@ describe("Calendar", () => {
 		);
 	});
 
+	// @spec AIRING-CAL-008
 	it("navigates next and crosses year boundary forward", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockCalendar.mockResolvedValue({ episodes: [] });
@@ -95,6 +99,7 @@ describe("Calendar", () => {
 		);
 	});
 
+	// @spec AIRING-CAL-008
 	it("navigates prev across year boundary backward", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockCalendar.mockResolvedValue({ episodes: [] });
@@ -109,6 +114,7 @@ describe("Calendar", () => {
 		);
 	});
 
+	// @spec AIRING-CAL-008
 	it("Today button returns to current month", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockCalendar.mockResolvedValue({ episodes: [] });
@@ -126,6 +132,7 @@ describe("Calendar", () => {
 		);
 	});
 
+	// @spec AIRING-CAL-012
 	it("shows error when calendar fetch rejects", async () => {
 		mockCalendar.mockRejectedValueOnce(new Error("range too big"));
 		renderPage();
@@ -134,6 +141,7 @@ describe("Calendar", () => {
 		);
 	});
 
+	// @spec AIRING-CAL-012
 	it("shows generic error for non-Error rejection", async () => {
 		mockCalendar.mockRejectedValueOnce("weird");
 		renderPage();
@@ -142,6 +150,7 @@ describe("Calendar", () => {
 		);
 	});
 
+	// @spec AIRING-CAL-010
 	it("renders watched episodes with the watched class and groups by date", async () => {
 		mockCalendar.mockResolvedValueOnce({
 			episodes: [
@@ -161,6 +170,7 @@ describe("Calendar", () => {
 		expect(watched).not.toBeNull();
 	});
 
+	// @spec AIRING-CAL-009
 	it("handles missing episode poster and link wraps each episode", async () => {
 		mockCalendar.mockResolvedValueOnce({
 			episodes: [ep({ poster_url: null, episode_name: null })],

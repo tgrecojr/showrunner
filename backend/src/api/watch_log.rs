@@ -16,6 +16,7 @@ pub struct WatchLogQuery {
 /// `GET /api/v1/watch-log?page=&per_page=` — newest-first history of
 /// watched/unwatched actions. `page` is 1-based; `per_page` is clamped to
 /// `1..=MAX_PER_PAGE` so a caller can't request an unbounded response.
+// @spec WATCHLOG-API-001, WATCHLOG-API-002, WATCHLOG-API-003
 pub async fn list_watch_log(
     State(state): State<AppState>,
     Query(q): Query<WatchLogQuery>,

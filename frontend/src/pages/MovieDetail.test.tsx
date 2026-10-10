@@ -57,6 +57,7 @@ afterEach(() => {
 });
 
 describe("MovieDetail", () => {
+	// @spec MOVIES-UI-006, MOVIES-UI-007
 	it("renders movie details, director, providers, and cast", async () => {
 		mockGet.mockResolvedValueOnce(movie());
 		renderPage();
@@ -93,6 +94,7 @@ describe("MovieDetail", () => {
 		);
 	});
 
+	// @spec MOVIES-UI-008
 	it("Mark Watched calls markMovieWatched and navigates to /movies", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(movie());
@@ -111,6 +113,7 @@ describe("MovieDetail", () => {
 		);
 	});
 
+	// @spec MOVIES-UI-008
 	it("Remove calls deleteMovie and navigates to /movies", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(movie());
@@ -129,6 +132,7 @@ describe("MovieDetail", () => {
 		);
 	});
 
+	// @spec MOVIES-UI-008
 	it("shows banner error and stays on page when marking fails", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(movie());
@@ -146,6 +150,7 @@ describe("MovieDetail", () => {
 		expect(screen.getByText("Inception")).toBeInTheDocument();
 	});
 
+	// @spec MOVIES-UI-005
 	it("shows error for an invalid movie id in the URL", async () => {
 		render(
 			<MemoryRouter initialEntries={["/movies/not-a-number"]}>
@@ -167,6 +172,7 @@ describe("MovieDetail", () => {
 		);
 	});
 
+	// @spec MOVIES-UI-006, MOVIES-UI-007
 	it("renders an empty cast section when TMDB returns no cast", async () => {
 		mockGet.mockResolvedValueOnce(
 			movie({ cast: [], directors: [], watch_providers: [] }),
@@ -181,6 +187,7 @@ describe("MovieDetail", () => {
 		expect(screen.queryByText("Watch on:")).not.toBeInTheDocument();
 	});
 
+	// @spec MOVIES-UI-006
 	it("handles missing poster, backdrop, runtime, and release date gracefully", async () => {
 		mockGet.mockResolvedValueOnce(
 			movie({

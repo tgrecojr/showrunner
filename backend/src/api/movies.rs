@@ -18,11 +18,13 @@ pub struct MovieListResponse {
     pub movies: Vec<MovieWatchlistItem>,
 }
 
+// @spec MOVIES-API-005
 pub async fn list_movies(State(state): State<AppState>) -> Result<Json<MovieListResponse>> {
     let movies = queries::list_movies(&state.pool).await?;
     Ok(Json(MovieListResponse { movies }))
 }
 
+// @spec MOVIES-API-006, MOVIES-API-007, MOVIES-API-008
 pub async fn get_movie_detail(
     State(state): State<AppState>,
     Path(tmdb_id): Path<i64>,
@@ -63,6 +65,7 @@ pub async fn get_movie_detail(
     }))
 }
 
+// @spec MOVIES-API-001, MOVIES-API-002, MOVIES-API-003
 pub async fn add_movie(
     State(state): State<AppState>,
     Json(req): Json<AddMovieRequest>,
@@ -86,6 +89,7 @@ pub async fn add_movie(
 /// "Mark watched": deletes the row like `delete_movie`, but also records the
 /// action in the watch log. The two are separate routes so the log only ever
 /// contains things the user actually watched.
+// @spec MOVIES-API-009
 pub async fn mark_movie_watched(
     State(state): State<AppState>,
     Path(tmdb_id): Path<i64>,
@@ -101,6 +105,7 @@ pub async fn mark_movie_watched(
 }
 
 // "Remove" — deletes the row without logging anything.
+// @spec MOVIES-API-010
 pub async fn delete_movie(
     State(state): State<AppState>,
     Path(tmdb_id): Path<i64>,

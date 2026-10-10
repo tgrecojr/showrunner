@@ -47,6 +47,7 @@ afterEach(() => {
 });
 
 describe("UpNext", () => {
+	// @spec AIRING-UPNEXT-006
 	it("renders items with padded SxxExx code, episode name, remaining, and air date", async () => {
 		mockUpNext.mockResolvedValueOnce({ items: [item()] });
 		renderPage();
@@ -57,6 +58,7 @@ describe("UpNext", () => {
 		expect(screen.getByText("aired 2026-04-01")).toBeInTheDocument();
 	});
 
+	// @spec AIRING-UPNEXT-007
 	it("accents the remaining pill when more than one aired episode is unwatched", async () => {
 		mockUpNext.mockResolvedValueOnce({ items: [item({ remaining: 2 })] });
 		renderPage();
@@ -65,6 +67,7 @@ describe("UpNext", () => {
 		expect(pill).toHaveAttribute("title", "2 aired episodes not yet watched");
 	});
 
+	// @spec AIRING-UPNEXT-007
 	it("keeps the remaining pill neutral when only one episode is unwatched", async () => {
 		mockUpNext.mockResolvedValueOnce({ items: [item({ remaining: 1 })] });
 		renderPage();
@@ -74,6 +77,7 @@ describe("UpNext", () => {
 		expect(pill).toHaveAttribute("title", "1 aired episode not yet watched");
 	});
 
+	// @spec AIRING-UPNEXT-006
 	it("renders a pill per network, and none when the list is empty", async () => {
 		mockUpNext.mockResolvedValueOnce({
 			items: [
@@ -88,6 +92,7 @@ describe("UpNext", () => {
 		expect(container.querySelectorAll(".network-pill")).toHaveLength(2);
 	});
 
+	// @spec AIRING-UPNEXT-006
 	it("handles missing poster and missing episode name", async () => {
 		mockUpNext.mockResolvedValueOnce({
 			items: [item({ poster_url: null, episode_name: null })],
@@ -99,6 +104,7 @@ describe("UpNext", () => {
 		expect(screen.queryByText("The Episode")).not.toBeInTheDocument();
 	});
 
+	// @spec AIRING-UPNEXT-008
 	it('uses singular "show" when only one item', async () => {
 		mockUpNext.mockResolvedValueOnce({ items: [item()] });
 		renderPage();
@@ -107,6 +113,7 @@ describe("UpNext", () => {
 		);
 	});
 
+	// @spec AIRING-UPNEXT-008
 	it('uses plural "shows" when multiple items', async () => {
 		mockUpNext.mockResolvedValueOnce({
 			items: [item({ show_tmdb_id: 1 }), item({ show_tmdb_id: 2 })],
@@ -117,6 +124,7 @@ describe("UpNext", () => {
 		);
 	});
 
+	// @spec AIRING-UPNEXT-009
 	it("shows caught-up empty state", async () => {
 		mockUpNext.mockResolvedValueOnce({ items: [] });
 		renderPage();
@@ -129,6 +137,7 @@ describe("UpNext", () => {
 		);
 	});
 
+	// @spec AIRING-UPNEXT-010
 	it("shows error when initial load rejects", async () => {
 		mockUpNext.mockRejectedValueOnce(new Error("nope"));
 		renderPage();
@@ -137,6 +146,7 @@ describe("UpNext", () => {
 		);
 	});
 
+	// @spec AIRING-UPNEXT-010
 	it("shows generic error when rejection is not an Error", async () => {
 		mockUpNext.mockRejectedValueOnce("boom");
 		renderPage();
@@ -145,6 +155,7 @@ describe("UpNext", () => {
 		);
 	});
 
+	// @spec AIRING-UPNEXT-011
 	it("mark watched: calls API, reloads list, removes item when caught up", async () => {
 		const user = userEvent.setup();
 		mockUpNext.mockResolvedValueOnce({ items: [item()] });
@@ -161,6 +172,7 @@ describe("UpNext", () => {
 		);
 	});
 
+	// @spec AIRING-UPNEXT-012
 	it("mark watched: surfaces an error from the API call", async () => {
 		const user = userEvent.setup();
 		mockUpNext.mockResolvedValueOnce({ items: [item()] });
@@ -175,6 +187,7 @@ describe("UpNext", () => {
 		);
 	});
 
+	// @spec AIRING-UPNEXT-012
 	it("mark watched: handles non-Error rejection", async () => {
 		const user = userEvent.setup();
 		mockUpNext.mockResolvedValueOnce({ items: [item()] });

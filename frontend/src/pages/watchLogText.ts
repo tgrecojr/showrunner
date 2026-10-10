@@ -13,6 +13,7 @@ export function plural(n: number, one: string, many: string): string {
 }
 
 /** One human sentence per log row, e.g. `Marked S02E05 "Title" watched`. */
+// @spec WATCHLOG-UI-006
 export function describeEntry(entry: WatchLogEntry): string {
 	const verb = entry.action === "watched" ? "watched" : "unwatched";
 	const count = ` · ${plural(entry.episode_count, "episode", "episodes")}`;

@@ -106,6 +106,7 @@ describe("ShowDetail", () => {
 		expect(screen.getByText(/Hulu/)).toBeInTheDocument();
 	});
 
+	// @spec SHOWS-UI-004
 	it("omits year-range dash when first and last air dates are identical", async () => {
 		mockGet.mockResolvedValueOnce(
 			show({ first_air_date: "2024-01-01", last_air_date: "2024-01-01" }),
@@ -119,6 +120,7 @@ describe("ShowDetail", () => {
 		expect(yearSpan?.textContent ?? "").not.toContain("–");
 	});
 
+	// @spec SHOWS-UI-004
 	it("shows placeholder poster when poster_url missing", async () => {
 		mockGet.mockResolvedValueOnce(show({ poster_url: null }));
 		renderAt("/shows/1");
@@ -127,6 +129,7 @@ describe("ShowDetail", () => {
 		);
 	});
 
+	// @spec SHOWS-UI-003
 	it("shows error when invalid id in URL", () => {
 		renderAt("/shows/notanumber");
 		expect(screen.getByText("Error: Invalid show id")).toBeInTheDocument();
@@ -148,6 +151,7 @@ describe("ShowDetail", () => {
 		);
 	});
 
+	// @spec SHOWS-UI-005
 	it("toggles a season and renders episode list", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(show());
@@ -199,6 +203,7 @@ describe("ShowDetail", () => {
 		);
 	});
 
+	// @spec SHOWS-UI-012
 	it("shows error when episode toggle fails", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(show());
@@ -214,6 +219,7 @@ describe("ShowDetail", () => {
 		);
 	});
 
+	// @spec SHOWS-UI-012
 	it("shows generic update error for non-Error rejection", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(show());
@@ -229,6 +235,7 @@ describe("ShowDetail", () => {
 		);
 	});
 
+	// @spec SHOWS-UI-006
 	it("Mark all watched calls bulkWatch with type=all and watched=true", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(show());
@@ -319,6 +326,7 @@ describe("ShowDetail", () => {
 		);
 	});
 
+	// @spec SHOWS-UI-007
 	it("Mark season scope calls bulkWatch with season type", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(show());
@@ -341,6 +349,7 @@ describe("ShowDetail", () => {
 		);
 	});
 
+	// @spec SHOWS-UI-009
 	it("Mark through-episode bulk-watches up to that episode", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(show());
@@ -364,6 +373,7 @@ describe("ShowDetail", () => {
 		);
 	});
 
+	// @spec SHOWS-UI-007
 	it("Disables season action when episode_count is 0", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(
@@ -391,6 +401,7 @@ describe("ShowDetail", () => {
 		await waitFor(() => expect(mockBulk).toHaveBeenCalledTimes(1));
 	});
 
+	// @spec SHOWS-UI-011
 	it("Removes show after confirm and navigates home", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(show());
@@ -409,6 +420,7 @@ describe("ShowDetail", () => {
 		);
 	});
 
+	// @spec SHOWS-UI-011
 	it("Aborts removal when user cancels confirm()", async () => {
 		const user = userEvent.setup();
 		vi.spyOn(window, "confirm").mockReturnValue(false);
@@ -424,6 +436,7 @@ describe("ShowDetail", () => {
 		expect(mockDelete).not.toHaveBeenCalled();
 	});
 
+	// @spec SHOWS-UI-012
 	it("Shows error and stays on page when delete fails", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(show());
@@ -442,6 +455,7 @@ describe("ShowDetail", () => {
 		expect(screen.queryByText("HomePage")).not.toBeInTheDocument();
 	});
 
+	// @spec SHOWS-UI-012
 	it("Shows generic delete error for non-Error rejection", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(show());
@@ -467,6 +481,7 @@ describe("ShowDetail", () => {
 		);
 	});
 
+	// @spec SHOWS-UI-005
 	it('Falls back to "Season N" label when season name missing', async () => {
 		mockGet.mockResolvedValueOnce(
 			show({
@@ -489,6 +504,7 @@ describe("ShowDetail", () => {
 		);
 	});
 
+	// @spec SHOWS-UI-005
 	it("Falls back to em-dash when episode name missing", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(

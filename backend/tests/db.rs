@@ -21,6 +21,7 @@ fn deser_season(json: serde_json::Value) -> TmdbSeason {
     serde_json::from_value(json).unwrap()
 }
 
+// @spec SHOWS-API-001, SHOWS-API-006, SHOWS-API-007, SHOWS-API-009
 #[tokio::test]
 async fn insert_show_full_persists_show_seasons_and_episodes() {
     let pool = test_pool().await;
@@ -66,6 +67,7 @@ async fn insert_show_full_persists_show_seasons_and_episodes() {
     assert_eq!(detail.seasons[0].episodes.len(), 2);
 }
 
+// @spec SHOWS-API-011
 #[tokio::test]
 async fn show_exists_and_delete_show() {
     let pool = test_pool().await;
@@ -79,6 +81,7 @@ async fn show_exists_and_delete_show() {
     assert!(!queries::delete_show(&pool, 1).await.unwrap());
 }
 
+// @spec SHOWS-API-011
 #[tokio::test]
 async fn delete_show_cascades_to_seasons_and_episodes() {
     let pool = test_pool().await;
@@ -99,6 +102,7 @@ async fn delete_show_cascades_to_seasons_and_episodes() {
     assert_eq!(counts.0, 0);
 }
 
+// @spec SHOWS-API-008, SHOWS-PROGRESS-001, SHOWS-PROGRESS-002, SHOWS-PROGRESS-003, SHOWS-PROGRESS-004
 #[tokio::test]
 async fn list_watchlist_includes_progress_and_next_air_date() {
     let pool = test_pool().await;
@@ -147,6 +151,7 @@ async fn get_show_detail_returns_none_for_unknown() {
         .is_none());
 }
 
+// @spec SHOWS-API-009
 #[tokio::test]
 async fn get_show_detail_handles_invalid_providers_json() {
     let pool = test_pool().await;
@@ -332,6 +337,7 @@ async fn list_resync_candidates_orders_by_last_synced_then_name() {
     assert_eq!(ids, vec![3, 4, 2, 1]);
 }
 
+// @spec AIRING-UPNEXT-001, AIRING-UPNEXT-003, AIRING-UPNEXT-004
 #[tokio::test]
 async fn list_up_next_picks_oldest_unwatched_aired_per_show() {
     let pool = test_pool().await;
@@ -360,6 +366,7 @@ async fn list_up_next_picks_oldest_unwatched_aired_per_show() {
     assert_eq!(items[1].remaining, 1);
 }
 
+// @spec AIRING-UPNEXT-005, SHOWS-API-006
 #[tokio::test]
 async fn list_up_next_includes_networks_and_resync_backfills_them() {
     let pool = test_pool().await;
@@ -401,6 +408,7 @@ async fn list_up_next_includes_networks_and_resync_backfills_them() {
     assert_eq!(items[1].networks, vec!["NBC".to_string()]);
 }
 
+// @spec AIRING-UPNEXT-002
 #[tokio::test]
 async fn list_up_next_skips_shows_with_no_unwatched_aired_episodes() {
     let pool = test_pool().await;
@@ -412,6 +420,7 @@ async fn list_up_next_skips_shows_with_no_unwatched_aired_episodes() {
     assert!(items.is_empty());
 }
 
+// @spec AIRING-CAL-005
 #[tokio::test]
 async fn list_calendar_episodes_filters_by_range() {
     let pool = test_pool().await;
@@ -467,6 +476,7 @@ async fn set_episode_watched_toggles_state() {
     assert_eq!(row.1, None);
 }
 
+// @spec SHOWS-WATCHED-002
 #[tokio::test]
 async fn set_episode_watched_returns_false_when_episode_missing() {
     let pool = test_pool().await;
@@ -477,6 +487,7 @@ async fn set_episode_watched_returns_false_when_episode_missing() {
     assert!(!updated);
 }
 
+// @spec SHOWS-WATCHED-004
 #[tokio::test]
 async fn bulk_set_watched_all_filters_to_aired_only() {
     let pool = test_pool().await;
@@ -499,6 +510,7 @@ async fn bulk_set_watched_all_filters_to_aired_only() {
     assert_eq!(row.0, 0, "future episode must remain unwatched");
 }
 
+// @spec SHOWS-WATCHED-004
 #[tokio::test]
 async fn bulk_set_watched_season_scope() {
     let pool = test_pool().await;
@@ -533,6 +545,7 @@ async fn bulk_set_watched_season_scope() {
     assert_eq!(s2.0, 1);
 }
 
+// @spec SHOWS-WATCHED-004, SHOWS-WATCHED-005
 #[tokio::test]
 async fn bulk_set_watched_through_episode_inclusive_and_aired_only() {
     let pool = test_pool().await;
@@ -570,6 +583,7 @@ async fn bulk_set_watched_through_episode_inclusive_and_aired_only() {
     assert_eq!(unwatched.0, 1);
 }
 
+// @spec SHOWS-WATCHED-009
 #[tokio::test]
 async fn bulk_set_unwatched_clears_state() {
     let pool = test_pool().await;
@@ -603,6 +617,7 @@ const OVER_CAP: i64 = 600;
 /// constant fails this test instead of silently redefining what "capped" means.
 const EXPECTED_CAP: i64 = 500;
 
+// @spec SHOWS-API-008
 #[tokio::test]
 async fn list_watchlist_is_capped() {
     let pool = test_pool().await;
@@ -624,6 +639,7 @@ async fn list_watchlist_is_capped() {
     );
 }
 
+// @spec MOVIES-API-005
 #[tokio::test]
 async fn list_movies_is_capped() {
     let pool = test_pool().await;
@@ -641,6 +657,7 @@ async fn list_movies_is_capped() {
     assert_eq!(items.len() as i64, EXPECTED_CAP);
 }
 
+// @spec AIRING-UPNEXT-003
 #[tokio::test]
 async fn list_up_next_is_capped() {
     let pool = test_pool().await;
@@ -703,7 +720,7 @@ async fn log_rows(pool: &sqlx::SqlitePool) -> Vec<LogRow> {
     .unwrap()
 }
 
-// @spec SHOWS-WATCHED-003
+// @spec SHOWS-WATCHED-003, WATCHLOG-DATA-001
 #[tokio::test]
 async fn set_episode_watched_logs_watch_and_unwatch() {
     let pool = test_pool().await;
@@ -796,6 +813,7 @@ async fn set_episode_watched_missing_episode_logs_nothing() {
     assert!(log_rows(&pool).await.is_empty());
 }
 
+// @spec SHOWS-WATCHED-007
 #[tokio::test]
 async fn bulk_set_watched_logs_one_entry_with_changed_count() {
     let pool = test_pool().await;
@@ -838,6 +856,7 @@ async fn bulk_set_watched_logs_one_entry_with_changed_count() {
     assert_eq!(log_rows(&pool).await.len(), 1);
 }
 
+// @spec SHOWS-WATCHED-006
 #[tokio::test]
 async fn bulk_set_watched_preserves_watched_at_on_already_watched() {
     let pool = test_pool().await;
@@ -864,6 +883,7 @@ async fn bulk_set_watched_preserves_watched_at_on_already_watched() {
     assert_eq!(row.0, "2020-01-01T00:00:00+00:00");
 }
 
+// @spec SHOWS-WATCHED-007, SHOWS-WATCHED-009
 #[tokio::test]
 async fn bulk_scopes_map_to_log_scopes() {
     let pool = test_pool().await;
@@ -899,6 +919,7 @@ async fn bulk_scopes_map_to_log_scopes() {
     assert_eq!(rows[1].episode_count, 1);
 }
 
+// @spec MOVIES-API-009, WATCHLOG-DATA-001, WATCHLOG-DATA-003
 #[tokio::test]
 async fn mark_movie_watched_deletes_and_logs_snapshot() {
     let pool = test_pool().await;
@@ -920,6 +941,7 @@ async fn mark_movie_watched_deletes_and_logs_snapshot() {
     assert_eq!(log_rows(&pool).await.len(), 1);
 }
 
+// @spec MOVIES-API-010, WATCHLOG-DATA-005
 #[tokio::test]
 async fn delete_movie_does_not_log() {
     let pool = test_pool().await;
@@ -928,6 +950,7 @@ async fn delete_movie_does_not_log() {
     assert!(log_rows(&pool).await.is_empty());
 }
 
+// @spec SHOWS-API-011, WATCHLOG-DATA-003, WATCHLOG-DATA-005
 #[tokio::test]
 async fn watch_log_survives_show_removal() {
     let pool = test_pool().await;
@@ -944,6 +967,7 @@ async fn watch_log_survives_show_removal() {
     assert_eq!(rows[0].title, "Gone");
 }
 
+// @spec WATCHLOG-API-001, WATCHLOG-API-004
 #[tokio::test]
 async fn list_entries_paginates_newest_first() {
     use showrunner_backend::db::watch_log;
@@ -979,6 +1003,7 @@ async fn list_entries_paginates_newest_first() {
     assert_eq!(page4.total, 5);
 }
 
+// @spec WATCHLOG-API-003
 #[tokio::test]
 async fn list_entries_clamps_per_page() {
     use showrunner_backend::db::watch_log;
@@ -988,7 +1013,7 @@ async fn list_entries_clamps_per_page() {
     assert_eq!(page.per_page, watch_log::MAX_PER_PAGE);
 }
 
-// @spec SHOWS-API-009, SHOWS-PROGRESS-002
+// @spec SHOWS-API-009, SHOWS-PROGRESS-002, SHOWS-PROGRESS-004
 #[tokio::test]
 async fn get_show_detail_carries_aired_based_show_counts() {
     let pool = test_pool().await;
