@@ -38,7 +38,7 @@ Wire shapes (backend/src/models/show.rs): `WatchlistItem` (:68) carries progress
 ## Reading
 
 - **Watchlist** — `list_watchlist` (queries.rs:137-168) selects up to `MAX_LIST_ROWS` (500) shows ordered by name case-insensitively, then issues two further queries per show (`episode_counts`, `next_unaired_air_date`), so a full list costs 1 + 2N statements.
-- **Detail** — `get_show_detail` (queries.rs:204-282) reads the show, parses `watch_providers_json` (unparseable → empty list), reads seasons by number, then episodes per season by number (2 + S statements). Each season's `watched_count` counts every watched episode regardless of air date, which differs from the watchlist's aired-only `watched_count`.
+- **Detail** — `get_show_detail` (queries.rs) takes today's date, reads the show, parses `watch_providers_json` (unparseable → empty list), computes the show-level `watched_count`, `aired_count`, and `total_count` with the same `episode_counts` helper the watchlist uses, then reads seasons by number and episodes per season by number (3 + S statements). Each season's own `watched_count` counts every watched episode regardless of air date; the show-level counts are the aired-only ones the header displays.
 - **Not found** — detail, delete, and bulk-watch all answer 404 `show N not on watchlist` for an unknown id.
 
 ## "Today" and aired
@@ -68,8 +68,8 @@ Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every
 **ShowDetail** (frontend/src/pages/ShowDetail.tsx):
 
 - A non-numeric route id short-circuits to `Invalid show id` (:18-22).
-- The header chip sums `seasons[].watched_count` over `seasons[].episode_count` — total episodes including unaired — so it can disagree with the watchlist chip for the same show (:94-101).
-- `allWatched` and `seasonAllWatched` compare against total episode counts (:102, :167-169); a show with unaired episodes can never flip the header button to "Mark all unwatched". The intended rule is aired-only (`SHOWS-UI-006`, `SHOWS-UI-013`).
+- The header chip reads the response's show-level `watched_count/aired_count`, the same aired-only numbers as the Watchlist card, so the two never disagree.
+- The header button flips to "Mark all unwatched" when `watched_count` equals `aired_count` and `aired_count` is above zero; unaired episodes do not hold it open. `seasonAllWatched` still compares a season's `watched_count` against its `episode_count`, which includes unaired episodes.
 - Seasons start collapsed; the toggle carries `aria-expanded`; rows show `SxxExx`, name or `—`, air date, a checkbox labelled `Mark S{s}E{e} watched`, and a `Mark through here` button that always sends `watched: true`.
 - One `mutating` flag disables every checkbox and bulk button while any mutation is in flight; each response replaces the whole `show` object (no optimistic update).
 - Remove asks for confirmation, calls DELETE, and navigates to `/` (Up Next). Failures render a banner above the header with the show still visible.
@@ -88,6 +88,7 @@ Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every
 | Watch log timing | Inserted inside the mutation's transaction | Fire-and-forget after commit | A log row is committed atomically with the change it describes (backend/src/db/watch_log.rs:1-2). |
 | "Today" | Configured `TIMEZONE`, default America/New_York | Server UTC; browser-local | Aired means aired where the user lives (CLAUDE.md, env.example:14). |
 | Progress format | `watched/aired`, no percentage | Percentage bar | CLAUDE.md:99; aired is the denominator that can actually change. |
+| Detail progress counts | Server-computed aired counts on `ShowDetail`, from the same helper as the watchlist | Page sums season counts; page filters episodes by the browser's date; a separate counts endpoint | "Aired" means aired in the server's `TIMEZONE`, which the page cannot know; one helper gives both views one definition and the detail page one fewer thing to compute. |
 | Mutation response | Full `ShowDetail` | Changed episode or count only | `[inferred]` Lets the page replace state wholesale without client-side merging. |
 | Dates in SQL | `TEXT` compared bytewise | Julian day or epoch columns | `[inferred]` Simple and sufficient while inputs are zero-padded; the hazard is documented at backend/src/api/calendar.rs:44-48. |
 | Providers and networks | JSON text columns on `shows` | Normalized join tables | `[inferred]` Read-only lists displayed as pills; no querying by provider. |
@@ -97,7 +98,7 @@ Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every
 ## Open Questions & Future Decisions
 
 ### Resolved
-1. ✅ **Progress is aired-based everywhere.** The detail header chip and the "Mark all unwatched" flip use aired-only counts, matching the Watchlist. The page currently sums total episodes (ShowDetail.tsx:94-102); tracked as `SHOWS-UI-006` and `SHOWS-UI-013`. Supplying aired counts to the detail page is an API change for this segment to design.
+*(none yet)*
 
 ### Deferred
 1. **Per-season `watched_count` on detail** counts watched episodes regardless of air date (queries.rs:245), unlike the watchlist count.

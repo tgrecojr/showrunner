@@ -1472,3 +1472,23 @@ async fn watch_log_rejects_bad_page_and_clamps_per_page() {
     assert_eq!(v["total"], 0);
     assert!(v["entries"].as_array().unwrap().is_empty());
 }
+
+// @spec SHOWS-API-009
+#[tokio::test]
+async fn get_show_detail_response_includes_show_level_counts() {
+    let app = build_app().await;
+    insert_show(&app.pool, 1, "X", None, None, &[]).await;
+    insert_season(&app.pool, 1, 1, 2).await;
+    insert_episode(&app.pool, 1, 1, 1, Some(&iso_offset(-1)), true).await;
+    insert_episode(&app.pool, 1, 1, 2, Some(&iso_offset(7)), false).await;
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(empty_request(Method::GET, "/api/v1/shows/1"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v = body_to_value(resp).await;
+    assert_eq!(v["watched_count"], 1);
+    assert_eq!(v["aired_count"], 1);
+    assert_eq!(v["total_count"], 2);
+}

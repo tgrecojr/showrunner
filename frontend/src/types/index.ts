@@ -136,6 +136,10 @@ export interface ShowDetail {
 	first_air_date: string | null;
 	last_air_date: string | null;
 	watch_providers: string[];
+	/** Aired-only progress for the whole show, same definition as the watchlist. */
+	watched_count: number;
+	aired_count: number;
+	total_count: number;
 	seasons: SeasonDetail[];
 }
 

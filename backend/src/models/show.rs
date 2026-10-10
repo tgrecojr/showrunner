@@ -89,6 +89,11 @@ pub struct ShowDetail {
     pub first_air_date: Option<String>,
     pub last_air_date: Option<String>,
     pub watch_providers: Vec<String>,
+    /// Aired-only progress for the whole show, same definition as the
+    /// watchlist (SHOWS-PROGRESS-002); per-season counts below are not.
+    pub watched_count: i64,
+    pub aired_count: i64,
+    pub total_count: i64,
     pub seasons: Vec<SeasonDetail>,
 }
 

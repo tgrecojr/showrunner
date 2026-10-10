@@ -50,7 +50,11 @@ async fn resync_show_updates_metadata_and_episodes_preserving_watched() {
     let tmdb = TmdbClient::with_base_url("k".into(), server.uri());
     resync::resync_show(&pool, &tmdb, 42).await.unwrap();
 
-    let detail = queries::get_show_detail(&pool, 42).await.unwrap().unwrap();
+    let detail =
+        queries::get_show_detail(&pool, 42, &showrunner_backend::state::today_in(utc_tz()))
+            .await
+            .unwrap()
+            .unwrap();
     assert_eq!(detail.name, "NewName");
     assert_eq!(detail.seasons.len(), 1);
     assert_eq!(
