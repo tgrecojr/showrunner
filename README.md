@@ -56,7 +56,7 @@ Your TMDB API key stays on the server — it's never shipped to the browser.
 You need:
 
 - **Docker** and the **Docker Compose** plugin.
-- A free **TMDB API key** — sign up at <https://www.themoviedb.org/settings/api> and copy the **API Read Access Token (v3 auth)**.
+- A free **TMDB API key** — sign up at <https://www.themoviedb.org/settings/api> and copy the **API Key** (the v3 key, not the v4 "API Read Access Token").
 
 A prebuilt, signed image is published to the GitHub Container Registry, so you don't need to clone the repo or build anything. Create a folder with two files:
 
