@@ -130,7 +130,7 @@ Falsification signals; any one of these means the project is broken:
 
 Project-level questions the segment designs could not settle:
 
-1. **Whose "today" the calendar highlights.** The grid highlight is browser-local while every other date rule is the server's `TIMEZONE`; by the third tenet the server should supply it, which needs a small API addition (`up-next-calendar`).
+*(none open)*
 
 ## References
 

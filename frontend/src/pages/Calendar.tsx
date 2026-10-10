@@ -52,18 +52,21 @@ function buildVisibleRange(year: number, month: number): VisibleRange {
 	};
 }
 
-// @spec AIRING-CAL-006, AIRING-CAL-007, AIRING-CAL-008, AIRING-CAL-009, AIRING-CAL-010, AIRING-CAL-011, AIRING-CAL-012, APP-SPA-006
+// @spec AIRING-CAL-006, AIRING-CAL-007, AIRING-CAL-008, AIRING-CAL-009, AIRING-CAL-010, AIRING-CAL-011, AIRING-CAL-012, AIRING-CAL-013, APP-SPA-006
 export default function Calendar() {
 	const today = useMemo(() => new Date(), []);
 	const [year, setYear] = useState(today.getFullYear());
 	const [month, setMonth] = useState(today.getMonth());
 
 	const [episodes, setEpisodes] = useState<CalendarEpisode[]>([]);
+	// The server's today in its TIMEZONE, once a response has carried it; the
+	// browser-local date stands in only until then.
+	const [serverToday, setServerToday] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
 	const range = useMemo(() => buildVisibleRange(year, month), [year, month]);
-	const todayIso = useMemo(() => isoDate(today), [today]);
+	const todayIso = serverToday ?? isoDate(today);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -72,7 +75,10 @@ export default function Calendar() {
 		api
 			.calendar(range.startIso, range.endIso)
 			.then((res) => {
-				if (!cancelled) setEpisodes(res.episodes);
+				if (!cancelled) {
+					setEpisodes(res.episodes);
+					setServerToday(res.today);
+				}
 			})
 			.catch((err: unknown) => {
 				if (!cancelled) {
@@ -116,6 +122,12 @@ export default function Calendar() {
 	}
 
 	function goToday() {
+		if (serverToday) {
+			const [y, m] = serverToday.split("-").map(Number);
+			setYear(y as number);
+			setMonth((m as number) - 1);
+			return;
+		}
 		setYear(today.getFullYear());
 		setMonth(today.getMonth());
 	}

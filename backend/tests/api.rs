@@ -9,6 +9,7 @@ use chrono::{Duration, Utc};
 use http_body_util::BodyExt;
 use serde_json::Value;
 use showrunner_backend::db::queries;
+use showrunner_backend::state::today_in;
 use showrunner_backend::{build_api_router, with_static_fallback};
 use sqlx::SqlitePool;
 use std::str::FromStr;
@@ -636,6 +637,30 @@ async fn calendar_returns_episodes_in_range() {
     assert_eq!(v["episodes"].as_array().unwrap().len(), 1);
 }
 
+// @spec AIRING-CAL-013
+#[tokio::test]
+async fn calendar_reports_the_servers_today_in_the_configured_timezone() {
+    for tz in [utc_tz(), ny_tz()] {
+        let pool = test_pool().await;
+        let tmdb_server = MockServer::start().await;
+        let state = app_state(pool, tmdb_server.uri(), tz);
+        let resp = build_api_router(state)
+            .oneshot(empty_request(
+                Method::GET,
+                "/api/v1/calendar?start=2026-05-01&end=2026-05-31",
+            ))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let v = body_to_value(resp).await;
+        assert_eq!(
+            v["today"],
+            today_in(tz),
+            "today must follow the configured zone ({tz})"
+        );
+    }
+}
+
 // @spec AIRING-CAL-001
 #[tokio::test]
 async fn calendar_rejects_invalid_dates() {
@@ -1018,16 +1043,17 @@ async fn calendar_signed_year_does_not_bypass_the_92_day_cap() {
 
     let (status, v) = get_calendar(app.state.clone(), "start=%2B009999-10-01&end=9999-12-31").await;
 
-    if status.is_success() {
-        let episodes = v["episodes"].as_array().unwrap();
-        assert!(
-            episodes.len() < 3,
-            "signed-year range returned all {} episodes — the 92-day cap was bypassed",
-            episodes.len()
-        );
-    } else {
-        assert_eq!(status, StatusCode::BAD_REQUEST);
-    }
+    // A signed year parses, so the request is well-formed and the window is
+    // inside the cap; what must not happen is the raw string reaching SQL and
+    // sorting below every stored date, which would return the whole spread.
+    assert_eq!(status, StatusCode::OK);
+    let episodes = v["episodes"].as_array().unwrap();
+    assert_eq!(
+        episodes.len(),
+        0,
+        "a far-future window returned {} episodes — the raw string reached SQL",
+        episodes.len()
+    );
 }
 
 // @spec AIRING-CAL-004
@@ -1052,15 +1078,12 @@ async fn calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql() {
 
     let (status, v) = get_calendar(app.state.clone(), &query).await;
 
-    if status.is_success() {
-        assert_eq!(
-            v["episodes"].as_array().unwrap().len(),
-            1,
-            "expected the one in-window episode — the raw string reached SQL"
-        );
-    } else {
-        assert_eq!(status, StatusCode::BAD_REQUEST);
-    }
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        v["episodes"].as_array().unwrap().len(),
+        1,
+        "expected the one in-window episode — the raw string reached SQL"
+    );
 }
 
 // @spec AIRING-CAL-005

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::db::queries;
 use crate::error::{AppError, Result};
 use crate::models::show::CalendarEpisode;
-use crate::state::AppState;
+use crate::state::{today_in, AppState};
 
 const MAX_RANGE_DAYS: i64 = 92;
 
@@ -18,10 +18,13 @@ pub struct CalendarQuery {
 
 #[derive(Debug, Serialize)]
 pub struct CalendarResponse {
+    /// The server's current date in the configured `TIMEZONE`, so the page
+    /// highlights the same day the aired rules use rather than the browser's.
+    pub today: String,
     pub episodes: Vec<CalendarEpisode>,
 }
 
-// @spec AIRING-CAL-001, AIRING-CAL-002, AIRING-CAL-003, AIRING-CAL-004, AIRING-CAL-005
+// @spec AIRING-CAL-001, AIRING-CAL-002, AIRING-CAL-003, AIRING-CAL-004, AIRING-CAL-005, AIRING-CAL-013
 pub async fn get_calendar(
     State(state): State<AppState>,
     Query(q): Query<CalendarQuery>,
@@ -53,5 +56,8 @@ pub async fn get_calendar(
         &end.format("%Y-%m-%d").to_string(),
     )
     .await?;
-    Ok(Json(CalendarResponse { episodes }))
+    Ok(Json(CalendarResponse {
+        today: today_in(state.tz),
+        episodes,
+    }))
 }

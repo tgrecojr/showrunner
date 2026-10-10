@@ -122,6 +122,8 @@ export interface CalendarEpisode {
 }
 
 export interface CalendarResponse {
+	/** The server's today in its TIMEZONE, YYYY-MM-DD. */
+	today: string;
 	episodes: CalendarEpisode[];
 }
 
