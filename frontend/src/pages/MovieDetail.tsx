@@ -3,17 +3,7 @@ import { useNavigate, useParams } from "react-router";
 import { api } from "../api/client";
 import type { MovieDetail as MovieDetailType } from "../types";
 
-function friendlyError(raw: string): string {
-	const stripped = raw.replace(/^API \d+:\s*/, "");
-	if (/rate.?limit/i.test(stripped) || /TMDB returned 429/i.test(stripped)) {
-		return "We couldn't load this movie's details right now — TMDB is rate-limiting requests. Please try again in a moment.";
-	}
-	if (/TMDB returned 5\d\d/i.test(stripped) || /Upstream/i.test(stripped)) {
-		return "We couldn't load this movie's details from TMDB right now. Please try again shortly.";
-	}
-	return stripped;
-}
-
+// @spec MOVIES-UI-005, MOVIES-UI-006, MOVIES-UI-007, MOVIES-UI-008, APP-SPA-006
 export default function MovieDetail() {
 	const { tmdbId } = useParams<{ tmdbId: string }>();
 	const navigate = useNavigate();
@@ -36,9 +26,7 @@ export default function MovieDetail() {
 			})
 			.catch((err: unknown) => {
 				if (!cancelled) {
-					setError(
-						friendlyError(err instanceof Error ? err.message : "Load failed"),
-					);
+					setError(err instanceof Error ? err.message : "Load failed");
 				}
 			});
 		return () => {
@@ -55,9 +43,7 @@ export default function MovieDetail() {
 			else await api.deleteMovie(movie.tmdb_id);
 			navigate("/movies");
 		} catch (err) {
-			setError(
-				friendlyError(err instanceof Error ? err.message : "Update failed"),
-			);
+			setError(err instanceof Error ? err.message : "Update failed");
 			setPending(false);
 		}
 	}

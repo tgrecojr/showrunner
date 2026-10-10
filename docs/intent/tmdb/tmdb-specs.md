@@ -8,6 +8,7 @@ Prefix `TMDB`. Facets: `CLIENT` (requests and response handling), `SHAPE` (reduc
 - [x] **TMDB-CLIENT-002**: When asked for a show, the TMDB client shall request `GET /tv/{id}` with `append_to_response=watch/providers`.
 - [x] **TMDB-CLIENT-003**: When asked for a movie, the TMDB client shall request `GET /movie/{id}` with `append_to_response=credits,watch/providers`.
 - [x] **TMDB-CLIENT-004**: When asked for a season, the TMDB client shall request `GET /tv/{id}/season/{n}`.
+- [ ] **TMDB-CLIENT-007**: When asked to search, the TMDB client shall request `GET /search/multi` with `query` set to the given text and `include_adult=false`, and the client shall expose no accessor for the API key or the underlying HTTP client.
 - [x] **TMDB-CLIENT-005**: If a TMDB response advertises a `Content-Length` greater than 16 MiB, then the TMDB client shall reject it with the upstream error `TMDB response was unexpectedly large` before reading the body.
 - [x] **TMDB-CLIENT-006**: The TMDB client shall deserialize only the fields the application uses and shall treat absent `seasons`, `networks`, `episodes`, `credits`, `cast`, `crew`, and `watch/providers` as empty rather than failing.
 
@@ -22,6 +23,6 @@ Prefix `TMDB`. Facets: `CLIENT` (requests and response handling), `SHAPE` (reduc
 
 - [x] **TMDB-ERR-001**: If TMDB responds 404 to a show or movie request, then the TMDB client shall return a not-found error naming the id (`show <id> not found on TMDB` / `movie <id> not found on TMDB`), which the API surfaces as HTTP 404.
 - [ ] **TMDB-ERR-002**: If TMDB responds 429 to any request made by the TMDB client, then the client shall return an upstream error whose message is the user-readable sentence `TMDB is rate-limiting requests right now. Please try again in a moment.` rather than the raw status text.
-- [ ] **TMDB-ERR-003**: If TMDB responds with any 5xx status to any request made by the TMDB client, then the client shall return an upstream error whose message is a user-readable sentence stating that TMDB is unavailable right now and to try again shortly, rather than the raw status text.
-- [x] **TMDB-ERR-004**: If TMDB responds with a non-2xx status that is not 404 (and, until TMDB-ERR-002 and TMDB-ERR-003 are implemented, not 429 on a movie request), then the TMDB client shall return an upstream error carrying `TMDB returned <status>` (or `TMDB season <n> returned <status>` for a season), which the API surfaces as HTTP 502.
+- [ ] **TMDB-ERR-003**: If TMDB responds with any 5xx status to any request made by the TMDB client, then the client shall return an upstream error whose message is the user-readable sentence `TMDB is unavailable right now. Please try again shortly.` rather than the raw status text.
+- [x] **TMDB-ERR-004**: If TMDB responds with a non-2xx status that is not 404 on a show or movie request, not 429, and not 5xx, then the TMDB client shall return an upstream error carrying `TMDB returned <status>` (or `TMDB season <n> returned <status>` for a season), which the API surfaces as HTTP 502.
 - [x] **TMDB-ERR-005**: When an outbound TMDB request fails at the HTTP layer, the system shall store the error without its request URL so that the API key never appears in any error message, log line, or response body.

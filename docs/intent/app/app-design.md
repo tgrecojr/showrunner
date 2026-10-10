@@ -55,10 +55,10 @@ Two more are read outside `Config`: `DB_MAX_CONNECTIONS` (default 5; an unparsab
 - **Entry** (frontend/src/main.tsx) mounts `App` into `#root` under `StrictMode`; effects double-invoke in development, which is why every page guards its fetch with a `cancelled` flag.
 - **Router** (frontend/src/App.tsx) — `BrowserRouter`, one `Layout` parent, nine child routes: `/` Up Next, `/watchlist`, `/movies`, `/movies/:tmdbId`, `/search`, `/shows/:tmdbId`, `/calendar`, `/history`, `/settings`. There is no catch-all; an unknown path renders the shell with an empty outlet. All pages are statically imported.
 - **Layout** (frontend/src/components/Layout.tsx) — a sticky top bar with the brand link to `/` and seven `NavLink`s in the order Up Next, Watchlist, Movies, Search, Calendar, History, Settings; Up Next uses `end` so it is active only at exactly `/`. No mobile navigation.
-- **Fetch wrapper** (frontend/src/api/client.ts:15-33) — prefixes `/api/v1`, always sends `Content-Type: application/json` (so the server's gate is satisfied on every method), sends no credentials, has no timeout or retry. A non-2xx response becomes `Error("API <status>: <message>")` where `<message>` is the body's `error` field when the body is JSON and the raw text otherwise; 204 resolves to `undefined`; any other success is parsed as JSON. Query values are URL-encoded; numeric path parameters are interpolated.
+- **Fetch wrapper** (frontend/src/api/client.ts:15-33) — prefixes `/api/v1`, always sends `Content-Type: application/json` (so the server's gate is satisfied on every method), sends no credentials, has no timeout or retry. A non-2xx response rejects with an `ApiError` (a subclass of `Error`) whose `status` is the HTTP status and whose `message` is the body's `error` field when the body is JSON and the raw text otherwise, with no prefix; 204 resolves to `undefined`; any other success is parsed as JSON. Query values are URL-encoded; numeric path parameters are interpolated.
 - **Types** (frontend/src/types/index.ts) mirror the Rust response structs in snake_case with no mapping layer. `BulkWatchScope` lives in the client module because the lint rules forbid non-component exports from component files.
 - **Styles** (frontend/src/index.css) — one plain stylesheet: no custom properties, no media queries, light theme only; layout responsiveness comes from auto-fill grids and `flex-wrap`.
-- **Error presentation** — pages render `Error: <message>` with the wrapper's `API <status>:` prefix intact, except MovieDetail, which strips it. The intended rule is that every page strips the prefix and shows the server's message (`APP-SPA-006`); the wording of upstream errors is the `tmdb` client's responsibility.
+- **Error presentation** — pages render `Error: <message>` with the message exactly as the wrapper delivered it, which is the server's own text. No page interprets statuses or rewrites messages; the wording of upstream errors is the `tmdb` client's responsibility, and the status is available on `ApiError` for any page that ever needs to branch on it.
 
 ## Decisions & Alternatives
 
@@ -74,6 +74,7 @@ Two more are read outside `Config`: `DB_MAX_CONNECTIONS` (default 5; an unparsab
 | Header placement | Security headers wrap the whole app, last | API router only | The static HTML is where CSP and anti-framing matter (lib.rs:55-57). |
 | SPA delivery | Backend serves `dist/` with `index.html` fallback | Separate web server | One container, one process (README.md:5, CLAUDE.md). |
 | Error bodies | `{"error": …}` with generic text for internal variants | Pass-through messages | sqlx and reqwest internals must never reach a client (error.rs:49-54). |
+| Client error shape | `ApiError` with `status` as a field and the server message as `message` | `Error` with `API <status>: <message>` as the message, stripped per page | The status is data, not part of the sentence; carrying it as a field means every page shows the server's wording without each one parsing a prefix. |
 | Health status code | Intended: 503 when degraded, 200 when ok (`APP-HEALTH-002`); today always 200 | State in the body only | A container or proxy health check keys on the status code; the body alone cannot fail a probe. |
 | SQLite mode | WAL, `synchronous=NORMAL`, 30 s busy timeout, foreign keys on | Default journal | `[inferred]` Concurrent reads during the serial resync writer; FK cascades are relied on by delete. |
 | Home route | Up Next at `/` | Watchlist | `[inferred]` "What do I watch next" is the daily question. |
@@ -84,7 +85,6 @@ Two more are read outside `Config`: `DB_MAX_CONNECTIONS` (default 5; an unparsab
 
 ### Resolved
 1. ✅ **Degraded health is a 503.** `/api/v1/health` answers 503 when the database probe fails so container and proxy checks can act on it; the body keeps `status` and `database` for humans. Not yet implemented; tracked as `APP-HEALTH-002`.
-2. ✅ **Upstream error wording is the server's.** The `tmdb` client produces user-readable messages for rate limits and outages; the UI's job is to drop the `API <status>:` prefix on every page (`APP-SPA-006`), not to interpret statuses.
 
 ### Deferred
 1. **Configuration outside `Config`.** `STATIC_DIR` (lib.rs:254) and `DB_MAX_CONNECTIONS` (pool.rs:8) bypass `Config::from_env`; `STATIC_DIR` is documented nowhere and `DB_MAX_CONNECTIONS` is missing from CLAUDE.md and not passed by compose.
@@ -95,7 +95,7 @@ Two more are read outside `Config`: `DB_MAX_CONNECTIONS` (default 5; an unparsab
 6. **`DELETE` and the content-type gate.** HTML forms cannot issue `DELETE`, so the gap is theoretical, but worth stating as a rule.
 7. **No catch-all route.** An unknown SPA path renders an empty shell rather than a not-found page.
 8. **Responsive layout.** No breakpoints, no mobile navigation, light theme only.
-9. **Duplicated page scaffolding.** The fetch-with-`cancelled` skeleton is hand-copied into eight pages with inconsistent loading, error, and empty structures; a shared hook would also give `APP-SPA-006` one place to live.
+9. **Duplicated page scaffolding.** The fetch-with-`cancelled` skeleton is hand-copied into eight pages with inconsistent loading, error, and empty structures.
 10. **`lib.rs` is 351 lines**, over the repository's 300-line guideline.
 
 ## References

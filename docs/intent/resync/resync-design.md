@@ -71,10 +71,9 @@ The steps are separate autocommit statements, not one transaction: `last_synced_
 5. **Partial updates.** `resync_show` is not transactional and stamps `last_synced_at` before season work, so a mid-run TMDB failure leaves a show marked synced with a half-updated tree.
 6. **Stale rows.** Episodes TMDB has removed stay in the tree and in progress counts (surfaced to `shows`).
 7. **Manual sync under the request timeout.** A library large enough to exceed 30 s gets a 408 while the gate window stays consumed.
-8. **Upstream error wording.** `get_show` and `get_season` surface raw `TMDB returned 429`; those strings appear verbatim in the Settings error list. The app-wide intent is a friendly message; the mapping is `tmdb`'s.
-9. **No visibility of scheduled runs.** Outcomes are only logged; Settings shows neither the schedule, the timezone, nor the last result.
-10. **Shape duplication.** `SyncError` / `SyncResponse` duplicate `ResyncError` / `ResyncReport` field for field (sync.rs:9-19 vs resync.rs:8-18).
-11. **Scheduler lifetime.** Held as `_scheduler` and never shut down (backend/src/lib.rs:250).
+8. **No visibility of scheduled runs.** Outcomes are only logged; Settings shows neither the schedule, the timezone, nor the last result.
+9. **Shape duplication.** `SyncError` / `SyncResponse` duplicate `ResyncError` / `ResyncReport` field for field (sync.rs:9-19 vs resync.rs:8-18).
+10. **Scheduler lifetime.** Held as `_scheduler` and never shut down (backend/src/lib.rs:250).
 
 ## References
 

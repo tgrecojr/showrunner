@@ -12,6 +12,22 @@ import type {
 	WatchlistResponse,
 } from "../types";
 
+/**
+ * A non-2xx API response. `message` is the server's own text (the body's
+ * `error` field, or the raw body) with nothing prepended, so pages can show
+ * it as-is; the HTTP status rides along as data for anything that needs it.
+ */
+export class ApiError extends Error {
+	readonly status: number;
+
+	constructor(status: number, message: string) {
+		super(message);
+		this.name = "ApiError";
+		this.status = status;
+	}
+}
+
+// @spec APP-SPA-003, APP-SPA-004, APP-SPA-005
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
 	const res = await fetch(`/api/v1${path}`, {
 		headers: { "Content-Type": "application/json" },
@@ -26,7 +42,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 		} catch {
 			// body wasn't JSON; use raw text
 		}
-		throw new Error(`API ${res.status}: ${message}`);
+		throw new ApiError(res.status, message);
 	}
 	if (res.status === 204) return undefined as T;
 	return res.json() as Promise<T>;

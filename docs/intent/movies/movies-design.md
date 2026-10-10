@@ -37,7 +37,7 @@ A TMDB 429 on detail is mapped by the TMDB client to `TMDB is rate-limiting requ
 
 **MovieDetail** (frontend/src/pages/MovieDetail.tsx): backdrop hero with poster, name, year, `N min` pill when runtime is truthy, `Director:`/`Directors:` by count, `Watch on:` providers, overview, then a cast grid with photo or "No photo" and `as <character>`; "No cast information available." when the cast is empty. A non-finite route id short-circuits to `Invalid movie id`. **Mark Watched** and **Remove** confirm, call the endpoint, and navigate to `/movies`; failures render a banner with the page intact.
 
-Every error on this page passes through `friendlyError` (:6-15): it strips the `API <status>:` prefix the fetch wrapper adds, replaces rate-limit text with a fixed sentence, replaces `TMDB returned 5xx` / `Upstream` with another fixed sentence, and otherwise shows the stripped message. No other page has this mapping.
+Errors on this page are shown as the API client delivered them, like every other page; the wording of a TMDB rate limit or outage is the server's (`tmdb`).
 
 ## Decisions & Alternatives
 
@@ -51,7 +51,6 @@ Every error on this page passes through `friendlyError` (:6-15): it strips the `
 | List order | Newest added first, then name | Alphabetical like shows | `[inferred]` A queue reads newest-first. |
 | After mutation on the list page | Filter locally, no refetch | Refetch the list | `[inferred]` One fewer request; the server response is 204 anyway. |
 | After mutation on the detail page | Navigate to `/movies` | Stay with a confirmation | `[inferred]` The movie no longer exists on the list. |
-| Error wording | `friendlyError` on the detail page | Raw `API <status>: …` | A TMDB outage or rate limit should read as a transient condition, not an API dump; app-wide intent, implemented here first. |
 
 ## Open Questions & Future Decisions
 
@@ -61,14 +60,13 @@ Every error on this page passes through `friendlyError` (:6-15): it strips the `
 ### Deferred
 1. **Live TMDB on every detail view.** A TMDB outage makes a listed movie's page a 502 even though the row exists. Should credits and providers be cached at add time, with movies joining resync?
 2. **Stale metadata.** Because movies are outside resync, poster, overview, runtime, and release date are frozen at add time.
-3. **`friendlyError` placement.** The mapping is app-wide intent but lives only on this page; moving it into the fetch wrapper is `app`'s cascade.
-4. **`runtime` of 0** is hidden by the truthiness check (MovieDetail.tsx:93).
-5. **Cast card key** is `name-character`, which collides for duplicate pairs (MovieDetail.tsx:145).
-6. **Impossible-state error text** `movie vanished after insert` reaches the client as a 500 body (movies.rs:82).
-7. **Near-duplicate handlers.** `mark_movie_watched` and `delete_movie` differ only in the query called (movies.rs:89-116).
-8. **`#[allow(dead_code)]` on `MovieRow`** (models/movie.rs:11) looks stale; every field is read.
-9. **Test gaps.** `App.test.tsx` covers neither movie route; `client.test.ts` covers none of the six movie and watch-log client methods.
-10. **Check-then-insert race** on add, as with shows.
+3. **`runtime` of 0** is hidden by the truthiness check (MovieDetail.tsx:93).
+4. **Cast card key** is `name-character`, which collides for duplicate pairs (MovieDetail.tsx:145).
+5. **Impossible-state error text** `movie vanished after insert` reaches the client as a 500 body (movies.rs:82).
+6. **Near-duplicate handlers.** `mark_movie_watched` and `delete_movie` differ only in the query called (movies.rs:89-116).
+7. **`#[allow(dead_code)]` on `MovieRow`** (models/movie.rs:11) looks stale; every field is read.
+8. **Test gaps.** `App.test.tsx` covers neither movie route; `client.test.ts` covers none of the six movie and watch-log client methods.
+9. **Check-then-insert race** on add, as with shows.
 
 ## References
 
