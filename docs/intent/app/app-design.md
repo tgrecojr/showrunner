@@ -40,7 +40,7 @@ Two more are read outside `Config`: `DB_MAX_CONNECTIONS` (default 5; an unparsab
 
 `with_security_headers` (lib.rs:55-75) wraps the whole app last so static HTML gets them too: a CSP that locks scripts and connections to same-origin, allows images from `https://image.tmdb.org` and `data:`, permits inline styles, denies framing; plus `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`. Each is added only if not already present.
 
-**Static delivery** (`with_static_fallback` in lib.rs): if `STATIC_DIR/index.html` exists, every non-API path is served from that directory with `index.html` as the not-found fallback so client-side routes resolve; otherwise the process logs a warning and runs API-only.
+**Static delivery** (`with_static_fallback` in lib.rs): if `STATIC_DIR/index.html` exists, every non-API path is served from that directory, and a path with no matching file gets `index.html` with status 200 so client-side routes resolve for browsers and for anything that checks the status; otherwise the process logs a warning and runs API-only.
 
 ## Error responses
 
