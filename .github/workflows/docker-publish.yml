@@ -7,6 +7,10 @@ on:
   pull_request:
     branches: [main]
 
+# @spec SHIP-CI-003
+permissions:
+  contents: read
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}

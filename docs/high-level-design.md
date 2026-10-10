@@ -106,6 +106,17 @@ Each decision names the segment design where its rationale and alternatives are 
 7. **One process, one container, one file.** The backend serves the SPA with history fallback; SQLite in WAL mode on a named volume; a distroless non-root runtime built from lockfiles with every base image and action digest-pinned (`app`, `build-ship`).
 8. **Dates are local, timestamps are UTC.** "Today" is computed in the configured `TIMEZONE`; `watched_at`, `added_at`, `last_synced_at`, and `occurred_at` are RFC3339 UTC (`shows`, `watch-log`).
 
+## Annotation Conventions
+
+`@spec` comments tie code and tests to EARS IDs so a prefix grep gathers a segment. Beyond the placement rule in the LID skill (annotate the entry point of the behavior in each subsystem, and the test that directly asserts the clause), this project applies:
+
+- **One line per site, IDs merged.** A site that implements clauses from two segments carries both IDs on one `@spec` line (a watch-log survival test cites `SHOWS-API-011` and `WATCHLOG-DATA-003`). Never a second line.
+- **Specs implemented by absence anchor on the owning module.** "Movies never appear in resync" is cited on the movies query module, not on resync functions that happen not to mention movies.
+- **Private helpers are annotated when they alone own the behavior.** The aired predicate lives in `episode_counts`, so that is where `SHOWS-PROGRESS-001` sits even though the function is private.
+- **Never annotate SQL migrations.** sqlx checksums every applied migration; a comment added later makes the app refuse to start against an existing volume. Cite the Rust module that owns the table instead.
+- **Build and CI files carry `#` annotations.** A CI gate step is both the specified behavior and its own check, so `SHIP-CI`, `SHIP-SUPPLY`, and `SHIP-RELEASE` specs are covered by the step itself. Specs about the built image (`SHIP-IMAGE`) need a separate check and are counted as untested until one exists.
+- **Not annotated:** properties inside the `api` object literal, CSS rules, and JSON files (which cannot carry comments). `SHIP-SUPPLY-004` (Renovate rules) therefore has no code anchor; its LLD section is the only home.
+
 ## Success Metrics
 
 Falsification signals; any one of these means the project is broken:
