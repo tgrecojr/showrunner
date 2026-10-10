@@ -107,6 +107,10 @@ See `env.example` for the full list. Required: `TMDB_API_KEY`. Optional: `TIMEZO
 - Mode: Full
 - Version: 1.3.0
 
+## LID Tooling
+
+- **Coherence check**: `scripts/coherence-check.mjs` — `node scripts/coherence-check.mjs` reports @spec integrity, citation coverage (every `[x]` spec cited in code and by a test or CI gate), arrow reference integrity, and staleness; `--strict` exits non-zero on a reverse orphan or an implemented spec with no code citation. Authoritative for those deterministic checks; LID skills invoke it instead of auditing in-prompt.
+
 ## Linked-Intent Development (MANDATORY)
 
 **Consult the `linked-intent-dev` skill for ALL code changes.** All changes flow through the arrow of intent in one direction:
