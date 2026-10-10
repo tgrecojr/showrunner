@@ -24,9 +24,20 @@ jobs:
     secrets:
       SOCKET_SECURITY_API_KEY: ${{ secrets.SOCKET_SECURITY_API_KEY }}
 
+  # The merge gates, run here on pushes and tags so an untested commit can
+  # never publish. Pull requests already run them via ci.yml's own trigger.
+  # @spec SHIP-CI-001, SHIP-RELEASE-001
+  ci:
+    name: CI
+    if: ${{ github.event_name != 'pull_request' }}
+    uses: ./.github/workflows/ci.yml
+
   # @spec SHIP-RELEASE-001
   build-and-push:
-    needs: supply-chain
+    needs: [supply-chain, ci]
+    # `ci` is skipped on pull requests; a skipped dependency must not block
+    # the build-only PR run, but a failed one must block a publish.
+    if: ${{ !cancelled() && needs.supply-chain.result == 'success' && (needs.ci.result == 'success' || needs.ci.result == 'skipped') }}
     runs-on: ubuntu-latest
     # @spec SHIP-CI-003
     permissions:

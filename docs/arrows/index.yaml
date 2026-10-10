@@ -123,7 +123,7 @@ arrows:
     blocks: []
     blockedBy: [app]
     detail: build-ship.md
-    next: "require the CI jobs as branch-protection checks and gate publish on them (decided, pending); add an image-inspection CI job for SHIP-IMAGE-002..006"
+    next: "add an image-inspection CI job for SHIP-IMAGE-002..006"
     drift: null
 
 # Items found during mapping that don't yet belong to a segment.

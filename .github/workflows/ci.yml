@@ -2,10 +2,12 @@ name: CI
 
 # @spec SHIP-CI-001, SHIP-CI-004
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  # Pushes to main and v* tags run these gates inside docker-publish.yml (its
+  # `ci` job calls this workflow), so a publish cannot start until they pass
+  # and a merge does not run them twice.
+  workflow_call:
   # Weekly absolute supply-chain scan of main. PR scans run in OSV diff mode
   # (only vulnerabilities a PR introduces fail it), so this is what surfaces an
   # advisory that lands against already-merged dependencies.
