@@ -154,6 +154,31 @@ describe("History", () => {
 		);
 	});
 
+	// @spec WATCHLOG-UI-009
+	it("keeps the current entries visible under an error when a page change fails", async () => {
+		const user = userEvent.setup();
+		mockWatchLog.mockResolvedValueOnce(
+			page([entry({ id: 51, title: "Severance" })], {
+				page: 1,
+				per_page: 50,
+				total: 120,
+			}),
+		);
+		mockWatchLog.mockRejectedValueOnce(new Error("boom"));
+		renderAt();
+		await waitFor(() =>
+			expect(screen.getByText("Severance")).toBeInTheDocument(),
+		);
+
+		await user.click(screen.getByRole("button", { name: "Next" }));
+
+		await waitFor(() =>
+			expect(screen.getByText("Error: boom")).toBeInTheDocument(),
+		);
+		expect(screen.getByText("Severance")).toBeInTheDocument();
+		expect(mockWatchLog).toHaveBeenLastCalledWith(2, 50);
+	});
+
 	// @spec WATCHLOG-UI-001, WATCHLOG-UI-002, WATCHLOG-UI-007
 	it("reads the page from the URL and pages with Previous/Next", async () => {
 		const user = userEvent.setup();
