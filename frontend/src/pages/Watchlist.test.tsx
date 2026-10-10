@@ -44,6 +44,7 @@ afterEach(() => {
 });
 
 describe("Watchlist", () => {
+	// @spec SHOWS-UI-001, SHOWS-UI-002
 	it("shows loading then renders shows with progress chip", async () => {
 		mockListShows.mockResolvedValueOnce({
 			shows: [
@@ -79,6 +80,7 @@ describe("Watchlist", () => {
 		expect(screen.getByText("No poster")).toBeInTheDocument();
 	});
 
+	// @spec SHOWS-UI-002
 	it("shows empty state with link to Search when watchlist is empty", async () => {
 		mockListShows.mockResolvedValueOnce({ shows: [] });
 		renderPage();
@@ -90,6 +92,7 @@ describe("Watchlist", () => {
 		).toHaveAttribute("href", "/search");
 	});
 
+	// @spec SHOWS-UI-002
 	it("shows error state when API call rejects", async () => {
 		mockListShows.mockRejectedValueOnce(new Error("boom"));
 		renderPage();
@@ -98,6 +101,7 @@ describe("Watchlist", () => {
 		);
 	});
 
+	// @spec SHOWS-UI-002
 	it("shows generic error when rejection is not an Error", async () => {
 		mockListShows.mockRejectedValueOnce("weird");
 		renderPage();

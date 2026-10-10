@@ -70,6 +70,7 @@ async function flushDebounce() {
 }
 
 describe("Search", () => {
+	// @spec SEARCH-UI-002, SEARCH-UI-007
 	it("debounces query and renders results", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockSearch.mockResolvedValueOnce({ results: [tvResult({ tmdb_id: 99 })] });
@@ -85,6 +86,7 @@ describe("Search", () => {
 		expect(screen.getByText("description")).toBeInTheDocument();
 	});
 
+	// @spec SEARCH-UI-003
 	it("clears results when query becomes empty", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockSearch.mockResolvedValueOnce({ results: [tvResult()] });
@@ -101,6 +103,7 @@ describe("Search", () => {
 		);
 	});
 
+	// @spec SEARCH-UI-005
 	it("shows no-matches message when results array is empty", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockSearch.mockResolvedValueOnce({ results: [] });
@@ -113,6 +116,7 @@ describe("Search", () => {
 		);
 	});
 
+	// @spec SEARCH-UI-006
 	it("shows search error", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockSearch.mockRejectedValueOnce(new Error("500"));
@@ -125,6 +129,7 @@ describe("Search", () => {
 		);
 	});
 
+	// @spec SEARCH-UI-006
 	it("shows generic search error for non-Error rejection", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockSearch.mockRejectedValueOnce("boom");
@@ -137,6 +142,7 @@ describe("Search", () => {
 		);
 	});
 
+	// @spec SEARCH-UI-008
 	it("marks already-tracked items with a chip rather than an Add button", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockSearch.mockResolvedValueOnce({
@@ -154,6 +160,7 @@ describe("Search", () => {
 		).not.toBeInTheDocument();
 	});
 
+	// @spec SEARCH-UI-008, SEARCH-UI-009
 	it('adds a TV show, transitions to "On watchlist"', async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockSearch.mockResolvedValueOnce({ results: [tvResult({ tmdb_id: 7 })] });
@@ -172,6 +179,7 @@ describe("Search", () => {
 		);
 	});
 
+	// @spec SEARCH-UI-008, SEARCH-UI-009
 	it("adds a movie via addMovie, not addShow", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockSearch.mockResolvedValueOnce({
@@ -192,6 +200,7 @@ describe("Search", () => {
 		);
 	});
 
+	// @spec SEARCH-UI-007
 	it("renders media type badges for both kinds", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockSearch.mockResolvedValueOnce({
@@ -206,6 +215,7 @@ describe("Search", () => {
 		expect(screen.getByText("Movie")).toBeInTheDocument();
 	});
 
+	// @spec SEARCH-UI-011
 	it("shows per-result error when add fails", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockSearch.mockResolvedValueOnce({ results: [tvResult({ tmdb_id: 7 })] });
@@ -222,6 +232,7 @@ describe("Search", () => {
 		);
 	});
 
+	// @spec SEARCH-UI-011
 	it("shows generic add error for non-Error rejection", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockSearch.mockResolvedValueOnce({ results: [tvResult({ tmdb_id: 7 })] });
@@ -238,6 +249,7 @@ describe("Search", () => {
 		);
 	});
 
+	// @spec SEARCH-UI-007
 	it("renders placeholder card when poster is missing and date is null", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockSearch.mockResolvedValueOnce({

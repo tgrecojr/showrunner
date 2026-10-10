@@ -33,6 +33,7 @@ interface VisibleRange {
 	endIso: string; // last cell ISO
 }
 
+// @spec AIRING-CAL-006, AIRING-CAL-007
 function buildVisibleRange(year: number, month: number): VisibleRange {
 	const firstOfMonth = new Date(year, month, 1);
 	const startWeekday = firstOfMonth.getDay(); // 0 = Sun
@@ -51,6 +52,7 @@ function buildVisibleRange(year: number, month: number): VisibleRange {
 	};
 }
 
+// @spec AIRING-CAL-006, AIRING-CAL-007, AIRING-CAL-008, AIRING-CAL-009, AIRING-CAL-010, AIRING-CAL-011, AIRING-CAL-012
 export default function Calendar() {
 	const today = useMemo(() => new Date(), []);
 	const [year, setYear] = useState(today.getFullYear());

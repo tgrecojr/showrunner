@@ -104,7 +104,7 @@ async fn health_returns_503_degraded_when_db_unreachable() {
 
 // ============================ Search ============================
 
-// @spec SEARCH-API-001, SEARCH-API-003, SEARCH-API-004, SEARCH-API-005, SEARCH-API-006, SEARCH-API-007
+// @spec SEARCH-API-001, SEARCH-API-003, SEARCH-API-004, SEARCH-API-005, SEARCH-API-006, SEARCH-API-007, SEARCH-API-009
 #[tokio::test]
 async fn search_returns_mixed_results_with_already_tracked_flag() {
     let app = build_app().await;
@@ -160,6 +160,7 @@ async fn search_returns_mixed_results_with_already_tracked_flag() {
     assert_eq!(results[3]["already_tracked"], false);
 }
 
+// @spec SEARCH-API-002
 #[tokio::test]
 async fn search_rejects_blank_query() {
     let app = build_app().await;
@@ -232,6 +233,7 @@ async fn search_returns_502_with_raw_status_on_other_tmdb_errors() {
 
 // ============================ Shows: list ============================
 
+// @spec SHOWS-API-008
 #[tokio::test]
 async fn list_shows_returns_watchlist() {
     let app = build_app().await;
@@ -253,6 +255,7 @@ async fn list_shows_returns_watchlist() {
 
 // ============================ Shows: add ============================
 
+// @spec SHOWS-API-001, SHOWS-API-005
 #[tokio::test]
 async fn add_show_fetches_from_tmdb_and_inserts() {
     let app = build_app().await;
@@ -288,6 +291,7 @@ async fn add_show_fetches_from_tmdb_and_inserts() {
     assert_eq!(v["name"], "Added");
 }
 
+// @spec SHOWS-API-002
 #[tokio::test]
 async fn add_show_rejects_duplicate() {
     let app = build_app().await;
@@ -305,6 +309,7 @@ async fn add_show_rejects_duplicate() {
     assert!(v["error"].as_str().unwrap().contains("already"));
 }
 
+// @spec SHOWS-API-003
 #[tokio::test]
 async fn add_show_returns_404_when_tmdb_missing() {
     let app = build_app().await;
@@ -340,6 +345,7 @@ async fn add_show_rejects_malformed_body() {
 
 // ============================ Shows: get ============================
 
+// @spec SHOWS-API-009
 #[tokio::test]
 async fn get_show_returns_detail() {
     let app = build_app().await;
@@ -356,6 +362,7 @@ async fn get_show_returns_detail() {
     assert_eq!(v["name"], "X");
 }
 
+// @spec SHOWS-API-010
 #[tokio::test]
 async fn get_show_returns_404_when_unknown() {
     let app = build_app().await;
@@ -368,6 +375,7 @@ async fn get_show_returns_404_when_unknown() {
 
 // ============================ Shows: delete ============================
 
+// @spec SHOWS-API-011
 #[tokio::test]
 async fn delete_show_removes_and_returns_204() {
     let app = build_app().await;
@@ -379,6 +387,7 @@ async fn delete_show_removes_and_returns_204() {
     assert_eq!(resp.status(), StatusCode::NO_CONTENT);
 }
 
+// @spec SHOWS-API-010
 #[tokio::test]
 async fn delete_show_returns_404_for_unknown() {
     let app = build_app().await;
@@ -391,6 +400,7 @@ async fn delete_show_returns_404_for_unknown() {
 
 // ============================ Bulk watch ============================
 
+// @spec SHOWS-WATCHED-004, SHOWS-WATCHED-008
 #[tokio::test]
 async fn bulk_watch_marks_all_aired_episodes() {
     let app = build_app().await;
@@ -423,6 +433,7 @@ async fn bulk_watch_marks_all_aired_episodes() {
     assert_eq!(future.0, 0);
 }
 
+// @spec SHOWS-WATCHED-004, SHOWS-WATCHED-005, SHOWS-WATCHED-008
 #[tokio::test]
 async fn bulk_watch_supports_season_and_through_episode() {
     let app = build_app().await;
@@ -471,6 +482,7 @@ async fn bulk_watch_supports_season_and_through_episode() {
     assert_eq!(unwatched.0, 1, "only the future S02E02 stays unwatched");
 }
 
+// @spec SHOWS-API-010
 #[tokio::test]
 async fn bulk_watch_returns_404_when_show_unknown() {
     let app = build_app().await;
@@ -553,6 +565,7 @@ async fn patch_episode_404_when_episode_missing() {
 
 // ============================ Calendar ============================
 
+// @spec AIRING-CAL-005
 #[tokio::test]
 async fn calendar_returns_episodes_in_range() {
     let app = build_app().await;
@@ -572,6 +585,7 @@ async fn calendar_returns_episodes_in_range() {
     assert_eq!(v["episodes"].as_array().unwrap().len(), 1);
 }
 
+// @spec AIRING-CAL-001
 #[tokio::test]
 async fn calendar_rejects_invalid_dates() {
     let app = build_app().await;
@@ -594,6 +608,7 @@ async fn calendar_rejects_invalid_dates() {
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
 
+// @spec AIRING-CAL-002
 #[tokio::test]
 async fn calendar_rejects_inverted_range() {
     let app = build_app().await;
@@ -609,6 +624,7 @@ async fn calendar_rejects_inverted_range() {
     assert!(txt.contains("end must be"));
 }
 
+// @spec AIRING-CAL-003
 #[tokio::test]
 async fn calendar_rejects_range_exceeding_92_days() {
     let app = build_app().await;
@@ -624,6 +640,7 @@ async fn calendar_rejects_range_exceeding_92_days() {
 
 // ============================ Up next ============================
 
+// @spec AIRING-UPNEXT-001, AIRING-UPNEXT-004
 #[tokio::test]
 async fn up_next_returns_oldest_unwatched_per_show() {
     let app = build_app().await;
@@ -683,6 +700,7 @@ async fn sync_returns_per_show_results() {
 
 // ============================ Movies ============================
 
+// @spec MOVIES-API-005
 #[tokio::test]
 async fn list_movies_returns_empty_initially() {
     let app = build_app().await;
@@ -695,6 +713,7 @@ async fn list_movies_returns_empty_initially() {
     assert!(v["movies"].as_array().unwrap().is_empty());
 }
 
+// @spec MOVIES-API-001
 #[tokio::test]
 async fn add_movie_fetches_from_tmdb_and_inserts() {
     let app = build_app().await;
@@ -739,6 +758,7 @@ async fn add_movie_fetches_from_tmdb_and_inserts() {
     assert_eq!(movies[0]["tmdb_id"], 27205);
 }
 
+// @spec MOVIES-API-002
 #[tokio::test]
 async fn add_movie_rejects_duplicate() {
     let app = build_app().await;
@@ -756,6 +776,7 @@ async fn add_movie_rejects_duplicate() {
     assert!(v["error"].as_str().unwrap().contains("already"));
 }
 
+// @spec MOVIES-API-003
 #[tokio::test]
 async fn add_movie_returns_404_when_tmdb_missing() {
     let app = build_app().await;
@@ -775,6 +796,7 @@ async fn add_movie_returns_404_when_tmdb_missing() {
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
+// @spec MOVIES-API-006
 #[tokio::test]
 async fn get_movie_detail_returns_cast_and_providers() {
     let app = build_app().await;
@@ -826,6 +848,7 @@ async fn get_movie_detail_returns_cast_and_providers() {
     assert!(cast[1]["profile_url"].is_null());
 }
 
+// @spec MOVIES-API-007
 #[tokio::test]
 async fn get_movie_detail_returns_404_when_not_on_watchlist() {
     let app = build_app().await;
@@ -836,6 +859,7 @@ async fn get_movie_detail_returns_404_when_not_on_watchlist() {
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
+// @spec MOVIES-API-008
 #[tokio::test]
 async fn get_movie_detail_maps_tmdb_429_to_friendly_message() {
     let app = build_app().await;
@@ -855,6 +879,7 @@ async fn get_movie_detail_maps_tmdb_429_to_friendly_message() {
     assert!(v["error"].as_str().unwrap().contains("rate-limiting"));
 }
 
+// @spec MOVIES-API-010
 #[tokio::test]
 async fn delete_movie_removes_and_returns_204() {
     let app = build_app().await;
@@ -904,6 +929,7 @@ async fn get_calendar(
     (status, body_to_value(resp).await)
 }
 
+// @spec AIRING-CAL-004
 #[tokio::test]
 async fn calendar_signed_year_does_not_bypass_the_92_day_cap() {
     let app = build_app().await;
@@ -923,6 +949,7 @@ async fn calendar_signed_year_does_not_bypass_the_92_day_cap() {
     }
 }
 
+// @spec AIRING-CAL-004
 #[tokio::test]
 async fn calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql() {
     let app = build_app().await;
@@ -955,6 +982,7 @@ async fn calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql() {
     }
 }
 
+// @spec AIRING-CAL-005
 #[tokio::test]
 async fn calendar_ordinary_range_still_returns_the_in_window_episode() {
     let app = build_app().await;
@@ -1360,6 +1388,7 @@ async fn log_count(pool: &SqlitePool) -> i64 {
     row.0
 }
 
+// @spec MOVIES-API-009, WATCHLOG-DATA-003
 #[tokio::test]
 async fn mark_movie_watched_returns_204_then_404() {
     let app = build_app().await;
@@ -1380,6 +1409,7 @@ async fn mark_movie_watched_returns_204_then_404() {
     assert_eq!(log_count(&app.pool).await, 1);
 }
 
+// @spec MOVIES-API-010, WATCHLOG-DATA-005
 #[tokio::test]
 async fn delete_movie_writes_no_log_entry() {
     let app = build_app().await;
@@ -1393,6 +1423,7 @@ async fn delete_movie_writes_no_log_entry() {
     assert_eq!(log_count(&app.pool).await, 0);
 }
 
+// @spec WATCHLOG-API-001, WATCHLOG-API-002, WATCHLOG-API-005, WATCHLOG-DATA-001, WATCHLOG-DATA-002, MOVIES-API-009
 #[tokio::test]
 async fn watch_log_returns_page_shape() {
     let app = build_app().await;
@@ -1442,6 +1473,7 @@ async fn watch_log_returns_page_shape() {
     assert!(entries[1]["occurred_at"].as_str().unwrap().contains('T'));
 }
 
+// @spec WATCHLOG-API-002, WATCHLOG-API-003, WATCHLOG-API-004
 #[tokio::test]
 async fn watch_log_rejects_bad_page_and_clamps_per_page() {
     let app = build_app().await;
@@ -1473,7 +1505,7 @@ async fn watch_log_rejects_bad_page_and_clamps_per_page() {
     assert!(v["entries"].as_array().unwrap().is_empty());
 }
 
-// @spec SHOWS-API-009
+// @spec SHOWS-API-009, SHOWS-PROGRESS-002
 #[tokio::test]
 async fn get_show_detail_response_includes_show_level_counts() {
     let app = build_app().await;

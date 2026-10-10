@@ -21,6 +21,7 @@ pub struct CalendarResponse {
     pub episodes: Vec<CalendarEpisode>,
 }
 
+// @spec AIRING-CAL-001, AIRING-CAL-002, AIRING-CAL-003, AIRING-CAL-004, AIRING-CAL-005
 pub async fn get_calendar(
     State(state): State<AppState>,
     Query(q): Query<CalendarQuery>,

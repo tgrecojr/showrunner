@@ -114,6 +114,7 @@ describe("api client", () => {
 		expect(init?.method).toBe("DELETE");
 	});
 
+	// @spec SHOWS-WATCHED-001
 	it("setEpisodeWatched PATCHes with body", async () => {
 		fetchSpy.mockResolvedValueOnce(jsonResponse(200, { tmdb_id: 1 }));
 		await api.setEpisodeWatched(1, 2, 3, true);
@@ -123,6 +124,7 @@ describe("api client", () => {
 		expect(init?.body).toBe(JSON.stringify({ watched: true }));
 	});
 
+	// @spec SHOWS-WATCHED-008
 	it("bulkWatch POSTs scope + watched", async () => {
 		fetchSpy.mockResolvedValueOnce(jsonResponse(200, { tmdb_id: 1 }));
 		await api.bulkWatch(1, { type: "all" }, true);
@@ -134,6 +136,7 @@ describe("api client", () => {
 		});
 	});
 
+	// @spec AIRING-CAL-007
 	it("calendar passes start/end as query params", async () => {
 		fetchSpy.mockResolvedValueOnce(jsonResponse(200, { episodes: [] }));
 		await api.calendar("2026-01-01", "2026-01-31");

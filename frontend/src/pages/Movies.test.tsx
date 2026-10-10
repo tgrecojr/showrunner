@@ -51,6 +51,7 @@ afterEach(() => {
 });
 
 describe("Movies", () => {
+	// @spec MOVIES-UI-001, MOVIES-UI-002
 	it("shows loading then renders movies with year", async () => {
 		mockListMovies.mockResolvedValueOnce({
 			movies: [
@@ -78,6 +79,7 @@ describe("Movies", () => {
 		expect(screen.getByText("No poster")).toBeInTheDocument();
 	});
 
+	// @spec MOVIES-UI-001
 	it("poster links to the movie detail page", async () => {
 		mockListMovies.mockResolvedValueOnce({
 			movies: [buildMovie({ tmdb_id: 42, name: "Inception" })],
@@ -92,6 +94,7 @@ describe("Movies", () => {
 		).toHaveAttribute("href", "/movies/42");
 	});
 
+	// @spec MOVIES-UI-002
 	it("shows empty state with link to Search", async () => {
 		mockListMovies.mockResolvedValueOnce({ movies: [] });
 		renderPage();
@@ -112,6 +115,7 @@ describe("Movies", () => {
 		);
 	});
 
+	// @spec MOVIES-UI-003
 	it("Mark Watched calls markMovieWatched and removes the movie", async () => {
 		const user = userEvent.setup();
 		mockListMovies.mockResolvedValueOnce({
@@ -132,6 +136,7 @@ describe("Movies", () => {
 		);
 	});
 
+	// @spec MOVIES-UI-003
 	it("Remove triggers deleteMovie and removes the card", async () => {
 		const user = userEvent.setup();
 		mockListMovies.mockResolvedValueOnce({
@@ -150,6 +155,7 @@ describe("Movies", () => {
 		);
 	});
 
+	// @spec MOVIES-UI-003
 	it("does nothing if the user cancels the confirm", async () => {
 		vi.spyOn(window, "confirm").mockReturnValue(false);
 		const user = userEvent.setup();

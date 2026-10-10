@@ -57,6 +57,7 @@ impl AppState {
 }
 
 /// Today's date in the configured timezone, formatted as YYYY-MM-DD.
+// @spec SHOWS-PROGRESS-001
 pub fn today_in(tz: Tz) -> String {
     Utc::now().with_timezone(&tz).date_naive().to_string()
 }
@@ -65,6 +66,7 @@ pub fn today_in(tz: Tz) -> String {
 mod tests {
     use super::*;
 
+    // @spec SHOWS-PROGRESS-001
     #[test]
     fn today_in_returns_iso_date() {
         let tz: Tz = "America/New_York".parse().unwrap();
@@ -77,6 +79,7 @@ mod tests {
         chrono::NaiveDate::parse_from_str(&s, "%Y-%m-%d").unwrap();
     }
 
+    // @spec SHOWS-PROGRESS-001
     #[test]
     fn today_in_can_differ_across_timezones() {
         // Pacific/Kiritimati (UTC+14) and Pacific/Pago_Pago (UTC-11) span 25h,

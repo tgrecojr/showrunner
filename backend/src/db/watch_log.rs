@@ -1,6 +1,7 @@
 //! Queries for the append-only `watch_log` table. Inserts take a transaction
 //! so a log row is committed atomically with the state change it describes.
 
+// @spec WATCHLOG-DATA-001, WATCHLOG-DATA-003, WATCHLOG-DATA-004
 use chrono::Utc;
 use sqlx::{Sqlite, SqlitePool, Transaction};
 
@@ -12,6 +13,7 @@ use crate::models::watch_log::{NewWatchLogEntry, WatchLogEntry, WatchLogPage, Wa
 pub const MAX_PER_PAGE: i64 = 100;
 pub const DEFAULT_PER_PAGE: i64 = 50;
 
+// @spec WATCHLOG-DATA-002, WATCHLOG-DATA-005
 pub async fn insert_entry(
     tx: &mut Transaction<'_, Sqlite>,
     entry: &NewWatchLogEntry<'_>,
@@ -48,6 +50,7 @@ pub async fn count_entries(pool: &SqlitePool) -> Result<i64> {
 
 /// Newest first. `page` is 1-based; `per_page` must already be within
 /// `1..=MAX_PER_PAGE` (the handler validates).
+// @spec WATCHLOG-API-001, WATCHLOG-API-003, WATCHLOG-API-004, WATCHLOG-API-005
 pub async fn list_entries(pool: &SqlitePool, page: i64, per_page: i64) -> Result<WatchLogPage> {
     let per_page = per_page.clamp(1, MAX_PER_PAGE);
     let page = page.max(1);

@@ -14,11 +14,13 @@ pub struct WatchlistResponse {
     pub shows: Vec<WatchlistItem>,
 }
 
+// @spec SHOWS-API-008
 pub async fn list_shows(State(state): State<AppState>) -> Result<Json<WatchlistResponse>> {
     let shows = queries::list_watchlist(&state.pool, state.tz).await?;
     Ok(Json(WatchlistResponse { shows }))
 }
 
+// @spec SHOWS-API-001, SHOWS-API-002, SHOWS-API-003, SHOWS-API-004, SHOWS-API-005
 pub async fn add_show(
     State(state): State<AppState>,
     Json(req): Json<AddShowRequest>,
@@ -53,6 +55,7 @@ pub async fn add_show(
     Ok((StatusCode::CREATED, Json(item)))
 }
 
+// @spec SHOWS-API-009, SHOWS-API-010
 pub async fn get_show(
     State(state): State<AppState>,
     Path(tmdb_id): Path<i64>,
@@ -63,6 +66,7 @@ pub async fn get_show(
         .ok_or_else(|| AppError::NotFound(format!("show {} not on watchlist", tmdb_id)))
 }
 
+// @spec SHOWS-API-010, SHOWS-API-011
 pub async fn delete_show(
     State(state): State<AppState>,
     Path(tmdb_id): Path<i64>,
@@ -77,6 +81,7 @@ pub async fn delete_show(
     Ok(StatusCode::NO_CONTENT)
 }
 
+// @spec SHOWS-WATCHED-008
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BulkWatchScopeBody {
@@ -96,6 +101,7 @@ pub struct BulkWatchRequest {
     pub watched: bool,
 }
 
+// @spec SHOWS-API-010, SHOWS-WATCHED-004, SHOWS-WATCHED-008
 pub async fn bulk_watch(
     State(state): State<AppState>,
     Path(tmdb_id): Path<i64>,

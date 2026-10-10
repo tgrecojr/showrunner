@@ -58,6 +58,7 @@ beforeEach(() => {
 });
 
 describe("describeEntry", () => {
+	// @spec WATCHLOG-UI-006
 	it("builds a sentence per scope and action", () => {
 		expect(describeEntry(entry())).toBe(
 			'Marked S02E05 "Trojan\'s Horse" watched',
@@ -85,6 +86,7 @@ describe("describeEntry", () => {
 });
 
 describe("History", () => {
+	// @spec WATCHLOG-UI-001, WATCHLOG-UI-003, WATCHLOG-UI-004, WATCHLOG-UI-007
 	it("shows loading then renders entries newest-first with links for shows", async () => {
 		mockWatchLog.mockResolvedValueOnce(
 			page([
@@ -124,6 +126,7 @@ describe("History", () => {
 		expect(screen.getByText("Page 1 of 1 · 2 entries")).toBeInTheDocument();
 	});
 
+	// @spec WATCHLOG-UI-005
 	it("renders unwatched rows muted", async () => {
 		mockWatchLog.mockResolvedValueOnce(page([entry({ action: "unwatched" })]));
 		renderAt();
@@ -133,6 +136,7 @@ describe("History", () => {
 		expect(screen.getByRole("listitem")).toHaveClass("history-row-unwatched");
 	});
 
+	// @spec WATCHLOG-UI-003
 	it("shows empty state", async () => {
 		mockWatchLog.mockResolvedValueOnce(page([]));
 		renderAt();
@@ -141,6 +145,7 @@ describe("History", () => {
 		);
 	});
 
+	// @spec WATCHLOG-UI-003
 	it("shows error state when load fails", async () => {
 		mockWatchLog.mockRejectedValueOnce(new Error("boom"));
 		renderAt();
@@ -149,6 +154,7 @@ describe("History", () => {
 		);
 	});
 
+	// @spec WATCHLOG-UI-001, WATCHLOG-UI-002, WATCHLOG-UI-007
 	it("reads the page from the URL and pages with Previous/Next", async () => {
 		const user = userEvent.setup();
 		mockWatchLog.mockResolvedValueOnce(
@@ -174,6 +180,7 @@ describe("History", () => {
 		expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
 	});
 
+	// @spec WATCHLOG-UI-001, WATCHLOG-UI-007
 	it("disables Previous on the first page and ignores a bad page param", async () => {
 		mockWatchLog.mockResolvedValueOnce(page([entry()]));
 		renderAt("/history?page=abc");

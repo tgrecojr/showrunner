@@ -99,6 +99,7 @@ export const api = {
 		request<WatchLogPage>(`/watch-log?page=${page}&per_page=${perPage}`),
 };
 
+// @spec SHOWS-WATCHED-008
 export type BulkWatchScope =
 	| { type: "all" }
 	| { type: "season"; season_number: number }
