@@ -153,7 +153,7 @@ describe("Calendar", () => {
 		);
 	});
 
-	// @spec AIRING-CAL-012
+	// @spec AIRING-CAL-012, APP-SPA-006
 	it("shows error when calendar fetch rejects", async () => {
 		mockCalendar.mockRejectedValueOnce(new Error("range too big"));
 		renderPage();

@@ -26,6 +26,7 @@ function textResponse(status: number, body: string): Response {
 }
 
 describe("api client", () => {
+	// @spec APP-SPA-003
 	it("builds /api/v1 URLs with JSON content-type and parses JSON success", async () => {
 		fetchSpy.mockResolvedValueOnce(jsonResponse(200, { results: [] }));
 		await api.search("bear");
@@ -34,6 +35,7 @@ describe("api client", () => {
 		expect(init?.headers).toEqual({ "Content-Type": "application/json" });
 	});
 
+	// @spec APP-SPA-005
 	it("encodes search query strings safely", async () => {
 		fetchSpy.mockResolvedValueOnce(jsonResponse(200, { results: [] }));
 		await api.search("the bear & friends");
@@ -41,6 +43,7 @@ describe("api client", () => {
 		expect(url).toBe("/api/v1/search?q=the%20bear%20%26%20friends");
 	});
 
+	// @spec APP-SPA-003
 	it("returns undefined for 204 No Content", async () => {
 		fetchSpy.mockResolvedValueOnce(new Response(null, { status: 204 }));
 		const result = await api.deleteShow(1);
@@ -75,6 +78,7 @@ describe("api client", () => {
 		expect((err as ApiError).message).toBe('{"other":"noise"}');
 	});
 
+	// @spec APP-SPA-003
 	it("listShows hits /shows", async () => {
 		fetchSpy.mockResolvedValueOnce(jsonResponse(200, { shows: [] }));
 		const r = await api.listShows();

@@ -26,7 +26,7 @@ pub struct ScheduleConfig {
 }
 
 impl Config {
-    // @spec RESYNC-TRIGGER-001
+    // @spec RESYNC-TRIGGER-001, APP-CONFIG-001, APP-CONFIG-002
     pub fn from_env() -> Result<Self> {
         let host = std::env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
         let port: u16 = std::env::var("SERVER_PORT")
@@ -99,7 +99,7 @@ mod tests {
         unsafe { std::env::set_var(key, value) };
     }
 
-    // @spec RESYNC-TRIGGER-001
+    // @spec RESYNC-TRIGGER-001, APP-CONFIG-001
     #[test]
     #[serial]
     fn defaults_apply_when_only_required_vars_set() {
@@ -115,7 +115,7 @@ mod tests {
         assert_eq!(cfg.timezone.name(), "America/New_York");
     }
 
-    // @spec RESYNC-TRIGGER-001
+    // @spec RESYNC-TRIGGER-001, APP-CONFIG-001
     #[test]
     #[serial]
     fn overrides_pick_up_env_vars() {
@@ -140,6 +140,7 @@ mod tests {
         assert_eq!(cfg.timezone.name(), "Europe/London");
     }
 
+    // @spec APP-CONFIG-002
     #[test]
     #[serial]
     fn missing_tmdb_api_key_fails() {
@@ -149,6 +150,7 @@ mod tests {
         assert!(err.to_string().contains("TMDB_API_KEY"));
     }
 
+    // @spec APP-CONFIG-002
     #[test]
     #[serial]
     fn empty_tmdb_api_key_fails() {
@@ -158,6 +160,7 @@ mod tests {
         assert!(matches!(err, AppError::Config(_)));
     }
 
+    // @spec APP-CONFIG-002
     #[test]
     #[serial]
     fn invalid_port_fails() {
@@ -168,6 +171,7 @@ mod tests {
         assert!(err.to_string().contains("SERVER_PORT"));
     }
 
+    // @spec APP-CONFIG-002
     #[test]
     #[serial]
     fn invalid_timezone_fails() {
@@ -178,6 +182,7 @@ mod tests {
         assert!(err.to_string().contains("TIMEZONE"));
     }
 
+    // @spec APP-CONFIG-001
     #[test]
     #[serial]
     fn empty_optional_vars_treated_as_absent() {

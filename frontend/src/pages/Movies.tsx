@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { api } from "../api/client";
 import type { MovieWatchlistItem } from "../types";
 
-// @spec MOVIES-UI-001, MOVIES-UI-002, MOVIES-UI-003, MOVIES-UI-004, MOVIES-UI-010
+// @spec MOVIES-UI-001, MOVIES-UI-002, MOVIES-UI-003, MOVIES-UI-004, MOVIES-UI-010, APP-SPA-006
 export default function Movies() {
 	const [movies, setMovies] = useState<MovieWatchlistItem[] | null>(null);
 	const [error, setError] = useState<string | null>(null);

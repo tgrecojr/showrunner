@@ -26,6 +26,7 @@ async function renderAt(path: string) {
 }
 
 describe("App routing", () => {
+	// @spec APP-SPA-001
 	it("renders UpNext at /", async () => {
 		await renderAt("/");
 		await waitFor(() =>
@@ -33,6 +34,7 @@ describe("App routing", () => {
 		);
 	});
 
+	// @spec APP-SPA-001
 	it("renders Watchlist at /watchlist", async () => {
 		await renderAt("/watchlist");
 		await waitFor(() =>
@@ -40,6 +42,7 @@ describe("App routing", () => {
 		);
 	});
 
+	// @spec APP-SPA-001
 	it("renders Search at /search", async () => {
 		await renderAt("/search");
 		await waitFor(() =>
@@ -47,6 +50,7 @@ describe("App routing", () => {
 		);
 	});
 
+	// @spec APP-SPA-001
 	it("renders ShowDetail at /shows/:id", async () => {
 		await renderAt("/shows/42");
 		await waitFor(() =>
@@ -54,6 +58,7 @@ describe("App routing", () => {
 		);
 	});
 
+	// @spec APP-SPA-001
 	it("renders Calendar at /calendar", async () => {
 		await renderAt("/calendar");
 		await waitFor(() =>
@@ -61,6 +66,7 @@ describe("App routing", () => {
 		);
 	});
 
+	// @spec APP-SPA-001
 	it("renders History at /history", async () => {
 		await renderAt("/history");
 		await waitFor(() =>
@@ -68,6 +74,7 @@ describe("App routing", () => {
 		);
 	});
 
+	// @spec APP-SPA-001
 	it("renders Settings at /settings", async () => {
 		await renderAt("/settings");
 		await waitFor(() =>

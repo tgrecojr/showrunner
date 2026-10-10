@@ -74,6 +74,7 @@ pub async fn probe(host: &str, port: u16) -> bool {
 /// `probe` with the host and port read from the environment the way the
 /// server reads them (`SERVER_HOST` default `0.0.0.0`, `SERVER_PORT` default
 /// 3001). An unparsable port falls back to the default.
+// @spec APP-HEALTH-003
 pub async fn probe_from_env() -> bool {
     let host = std::env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port = std::env::var("SERVER_PORT")

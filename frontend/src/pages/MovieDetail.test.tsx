@@ -132,7 +132,7 @@ describe("MovieDetail", () => {
 		);
 	});
 
-	// @spec MOVIES-UI-008
+	// @spec MOVIES-UI-008, APP-SPA-006
 	it("shows banner error and stays on page when marking fails", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(movie());

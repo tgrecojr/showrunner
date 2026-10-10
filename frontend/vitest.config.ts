@@ -19,6 +19,7 @@ export default defineConfig({
 				"src/test/**",
 				"src/**/*.test.{ts,tsx}",
 			],
+			// @spec SHIP-CI-001
 			thresholds: {
 				lines: 85,
 				statements: 85,

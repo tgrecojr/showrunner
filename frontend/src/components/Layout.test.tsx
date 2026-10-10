@@ -18,6 +18,7 @@ function renderAt(path: string) {
 }
 
 describe("Layout", () => {
+	// @spec APP-SPA-002
 	it("renders nav links and brand", () => {
 		renderAt("/");
 		expect(screen.getByRole("link", { name: "Showrunner" })).toHaveAttribute(
@@ -35,6 +36,7 @@ describe("Layout", () => {
 		expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
 	});
 
+	// @spec APP-SPA-002
 	it("marks active nav link via NavLink", () => {
 		renderAt("/watchlist");
 		const watchlistLink = screen.getByRole("link", { name: "Watchlist" });

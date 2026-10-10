@@ -149,7 +149,7 @@ describe("ShowDetail", () => {
 		expect(screen.getByText("Error: Invalid show id")).toBeInTheDocument();
 	});
 
-	// @spec SHOWS-UI-014
+	// @spec SHOWS-UI-014, APP-SPA-006
 	it("shows API error when getShow rejects", async () => {
 		mockGet.mockRejectedValueOnce(new Error("boom"));
 		renderAt("/shows/1");
@@ -219,7 +219,7 @@ describe("ShowDetail", () => {
 		);
 	});
 
-	// @spec SHOWS-UI-012
+	// @spec SHOWS-UI-012, APP-SPA-006
 	it("shows error when episode toggle fails", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(show());
@@ -452,7 +452,7 @@ describe("ShowDetail", () => {
 		expect(mockDelete).not.toHaveBeenCalled();
 	});
 
-	// @spec SHOWS-UI-012
+	// @spec SHOWS-UI-012, APP-SPA-006
 	it("Shows error and stays on page when delete fails", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(show());

@@ -137,7 +137,7 @@ describe("UpNext", () => {
 		);
 	});
 
-	// @spec AIRING-UPNEXT-010
+	// @spec AIRING-UPNEXT-010, APP-SPA-006
 	it("shows error when initial load rejects", async () => {
 		mockUpNext.mockRejectedValueOnce(new Error("nope"));
 		renderPage();
@@ -172,7 +172,7 @@ describe("UpNext", () => {
 		);
 	});
 
-	// @spec AIRING-UPNEXT-012
+	// @spec AIRING-UPNEXT-012, APP-SPA-006
 	it("mark watched: surfaces an error from the API call", async () => {
 		const user = userEvent.setup();
 		mockUpNext.mockResolvedValueOnce({ items: [item()] });

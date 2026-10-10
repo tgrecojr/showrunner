@@ -53,6 +53,7 @@ impl AppError {
     /// in `From<reqwest::Error>` didn't cover — never reach a response body.
     /// Use this anywhere an error is serialized into a `200 OK` body (e.g. the
     /// per-item results of `/sync`), not just the `IntoResponse` error path.
+    // @spec APP-ERR-002
     pub fn client_message(&self) -> String {
         match self {
             AppError::NotFound(msg)
@@ -78,6 +79,7 @@ impl AppError {
 }
 
 impl IntoResponse for AppError {
+    // @spec APP-ERR-001, APP-ERR-002
     fn into_response(self) -> Response {
         if matches!(
             self,
@@ -102,6 +104,7 @@ mod tests {
         serde_json::from_slice(&bytes).unwrap()
     }
 
+    // @spec APP-ERR-001, APP-ERR-002
     #[tokio::test]
     async fn not_found_maps_to_404_with_message() {
         let resp = AppError::NotFound("show 7 missing".into()).into_response();
@@ -112,6 +115,7 @@ mod tests {
         );
     }
 
+    // @spec APP-ERR-001
     #[tokio::test]
     async fn invalid_data_maps_to_400() {
         let resp = AppError::InvalidData("bad".into()).into_response();
@@ -119,6 +123,7 @@ mod tests {
         assert_eq!(body_json(resp).await, serde_json::json!({"error": "bad"}));
     }
 
+    // @spec APP-ERR-001, APP-ERR-002
     #[tokio::test]
     async fn config_maps_to_500_with_message() {
         let resp = AppError::Config("missing".into()).into_response();
@@ -129,6 +134,7 @@ mod tests {
         );
     }
 
+    // @spec APP-ERR-001, APP-ERR-002
     #[tokio::test]
     async fn upstream_maps_to_502() {
         let resp = AppError::Upstream("tmdb 500".into()).into_response();
@@ -139,6 +145,7 @@ mod tests {
         );
     }
 
+    // @spec APP-ERR-001, APP-ERR-002
     #[tokio::test]
     async fn database_error_hidden_from_response_body() {
         let inner = sqlx::Error::RowNotFound;

@@ -7,7 +7,7 @@ function pad(n: number): string {
 	return String(n).padStart(2, "0");
 }
 
-// @spec AIRING-UPNEXT-006, AIRING-UPNEXT-007, AIRING-UPNEXT-008, AIRING-UPNEXT-009, AIRING-UPNEXT-010
+// @spec AIRING-UPNEXT-006, AIRING-UPNEXT-007, AIRING-UPNEXT-008, AIRING-UPNEXT-009, AIRING-UPNEXT-010, APP-SPA-006
 export default function UpNext() {
 	const [items, setItems] = useState<UpNextItem[] | null>(null);
 	const [error, setError] = useState<string | null>(null);

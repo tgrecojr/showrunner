@@ -145,7 +145,7 @@ describe("History", () => {
 		);
 	});
 
-	// @spec WATCHLOG-UI-003
+	// @spec WATCHLOG-UI-003, APP-SPA-006
 	it("shows error state when load fails", async () => {
 		mockWatchLog.mockRejectedValueOnce(new Error("boom"));
 		renderAt();

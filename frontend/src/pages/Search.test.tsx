@@ -241,7 +241,7 @@ describe("Search", () => {
 		);
 	});
 
-	// @spec SEARCH-UI-006
+	// @spec SEARCH-UI-006, APP-SPA-006
 	it("shows search error", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockSearch.mockRejectedValueOnce(new Error("500"));
@@ -340,7 +340,7 @@ describe("Search", () => {
 		expect(screen.getByText("Movie")).toBeInTheDocument();
 	});
 
-	// @spec SEARCH-UI-011
+	// @spec SEARCH-UI-011, APP-SPA-006
 	it("shows per-result error when add fails", async () => {
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 		mockSearch.mockResolvedValueOnce({ results: [tvResult({ tmdb_id: 7 })] });
