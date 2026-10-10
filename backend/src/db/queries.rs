@@ -201,7 +201,15 @@ pub async fn get_watchlist_item(
     }))
 }
 
-pub async fn get_show_detail(pool: &SqlitePool, tmdb_id: i64) -> Result<Option<ShowDetail>> {
+/// Full show tree plus the show-level aired-only counts (computed with
+/// `today`, the current date in the configured timezone, via the same helper
+/// as the watchlist).
+// @spec SHOWS-API-009, SHOWS-PROGRESS-002
+pub async fn get_show_detail(
+    pool: &SqlitePool,
+    tmdb_id: i64,
+    today: &str,
+) -> Result<Option<ShowDetail>> {
     let s: Option<ShowRow> = sqlx::query_as(
         "SELECT tmdb_id, name, overview, poster_path, backdrop_path, status,
                 first_air_date, last_air_date, in_production, watch_providers_json,
@@ -219,6 +227,8 @@ pub async fn get_show_detail(pool: &SqlitePool, tmdb_id: i64) -> Result<Option<S
         .as_deref()
         .and_then(|j| serde_json::from_str(j).ok())
         .unwrap_or_default();
+
+    let counts = episode_counts(pool, tmdb_id, today).await?;
 
     let seasons: Vec<SeasonRow> = sqlx::query_as(
         "SELECT show_tmdb_id, season_number, name, overview, air_date, episode_count
@@ -277,6 +287,9 @@ pub async fn get_show_detail(pool: &SqlitePool, tmdb_id: i64) -> Result<Option<S
         first_air_date: s.first_air_date,
         last_air_date: s.last_air_date,
         watch_providers: providers,
+        watched_count: counts.watched,
+        aired_count: counts.aired,
+        total_count: counts.total,
         seasons: season_details,
     }))
 }

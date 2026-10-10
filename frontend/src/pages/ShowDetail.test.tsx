@@ -33,6 +33,9 @@ function show(overrides: Partial<ShowDetailType> = {}): ShowDetailType {
 		first_air_date: "2022-01-01",
 		last_air_date: "2024-01-01",
 		watch_providers: ["Hulu"],
+		watched_count: 0,
+		aired_count: 2,
+		total_count: 2,
 		seasons: [
 			{
 				season_number: 1,
@@ -89,6 +92,7 @@ afterEach(() => {
 });
 
 describe("ShowDetail", () => {
+	// @spec SHOWS-UI-004, SHOWS-UI-013
 	it("renders header with progress, providers, year range, and overview", async () => {
 		mockGet.mockResolvedValueOnce(show());
 		const { container } = renderAt("/shows/1");
@@ -162,11 +166,13 @@ describe("ShowDetail", () => {
 		expect(screen.queryByText("Pilot")).not.toBeInTheDocument();
 	});
 
+	// @spec SHOWS-UI-008, SHOWS-UI-010
 	it("checking an episode calls setEpisodeWatched and updates UI", async () => {
 		const user = userEvent.setup();
 		mockGet.mockResolvedValueOnce(show());
 		mockSet.mockResolvedValueOnce(
 			show({
+				watched_count: 1,
 				seasons: [
 					{
 						...show().seasons[0],
@@ -237,9 +243,57 @@ describe("ShowDetail", () => {
 		);
 	});
 
+	// @spec SHOWS-UI-013
+	it("header chip reads the server's aired-only counts, not the season sums", async () => {
+		mockGet.mockResolvedValueOnce(
+			show({ watched_count: 1, aired_count: 1, total_count: 2 }),
+		);
+		const { container } = renderAt("/shows/1");
+		await waitFor(() =>
+			expect(screen.getByText("My Show")).toBeInTheDocument(),
+		);
+		expect(container.querySelector(".progress-chip")).toHaveTextContent("1/1");
+	});
+
+	// @spec SHOWS-UI-006
+	it('offers "Mark all unwatched" when every aired episode is watched despite unaired ones', async () => {
+		const user = userEvent.setup();
+		mockGet.mockResolvedValueOnce(
+			show({ watched_count: 1, aired_count: 1, total_count: 2 }),
+		);
+		mockBulk.mockResolvedValueOnce(show({}));
+		renderAt("/shows/1");
+		await waitFor(() =>
+			expect(screen.getByText("My Show")).toBeInTheDocument(),
+		);
+		await user.click(
+			screen.getByRole("button", { name: "Mark all unwatched" }),
+		);
+		await waitFor(() =>
+			expect(mockBulk).toHaveBeenCalledWith(1, { type: "all" }, false),
+		);
+	});
+
+	// @spec SHOWS-UI-006
+	it('keeps "Mark all watched" when nothing has aired', async () => {
+		mockGet.mockResolvedValueOnce(
+			show({ watched_count: 0, aired_count: 0, total_count: 2 }),
+		);
+		renderAt("/shows/1");
+		await waitFor(() =>
+			expect(screen.getByText("My Show")).toBeInTheDocument(),
+		);
+		expect(
+			screen.getByRole("button", { name: "Mark all watched" }),
+		).toBeInTheDocument();
+	});
+
+	// @spec SHOWS-UI-006
 	it('Toggles to "Mark all unwatched" when fully watched', async () => {
 		const user = userEvent.setup();
 		const fullyWatched = show({
+			watched_count: 2,
+			aired_count: 2,
 			seasons: [
 				{
 					...show().seasons[0],

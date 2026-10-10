@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::db::queries::{self, BulkScope};
 use crate::error::{AppError, Result};
 use crate::models::show::{AddShowRequest, ShowDetail, WatchlistItem};
-use crate::state::AppState;
+use crate::state::{today_in, AppState};
 
 #[derive(Serialize)]
 pub struct WatchlistResponse {
@@ -57,7 +57,7 @@ pub async fn get_show(
     State(state): State<AppState>,
     Path(tmdb_id): Path<i64>,
 ) -> Result<Json<ShowDetail>> {
-    queries::get_show_detail(&state.pool, tmdb_id)
+    queries::get_show_detail(&state.pool, tmdb_id, &today_in(state.tz))
         .await?
         .map(Json)
         .ok_or_else(|| AppError::NotFound(format!("show {} not on watchlist", tmdb_id)))
@@ -122,7 +122,7 @@ pub async fn bulk_watch(
 
     queries::bulk_set_watched(&state.pool, tmdb_id, &scope, req.watched, state.tz).await?;
 
-    queries::get_show_detail(&state.pool, tmdb_id)
+    queries::get_show_detail(&state.pool, tmdb_id, &today_in(state.tz))
         .await?
         .map(Json)
         .ok_or_else(|| AppError::NotFound(format!("show {} not on watchlist", tmdb_id)))

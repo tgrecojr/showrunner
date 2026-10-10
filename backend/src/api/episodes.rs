@@ -5,7 +5,7 @@ use serde::Deserialize;
 use crate::db::queries;
 use crate::error::{AppError, Result};
 use crate::models::show::ShowDetail;
-use crate::state::AppState;
+use crate::state::{today_in, AppState};
 
 #[derive(Debug, Deserialize)]
 pub struct EpisodeUpdate {
@@ -34,7 +34,7 @@ pub async fn patch_episode(
         )));
     }
 
-    queries::get_show_detail(&state.pool, show_tmdb_id)
+    queries::get_show_detail(&state.pool, show_tmdb_id, &today_in(state.tz))
         .await?
         .map(Json)
         .ok_or_else(|| AppError::NotFound(format!("show {} not on watchlist", show_tmdb_id)))

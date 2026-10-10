@@ -4,6 +4,7 @@ import type { BulkWatchScope } from "../api/client";
 import { api } from "../api/client";
 import type { ShowDetail as ShowDetailType } from "../types";
 
+// @spec SHOWS-UI-003, SHOWS-UI-004, SHOWS-UI-005, SHOWS-UI-006, SHOWS-UI-007, SHOWS-UI-008, SHOWS-UI-009, SHOWS-UI-010, SHOWS-UI-011, SHOWS-UI-012, SHOWS-UI-013
 export default function ShowDetail() {
 	const { tmdbId } = useParams<{ tmdbId: string }>();
 	const navigate = useNavigate();
@@ -91,15 +92,11 @@ export default function ShowDetail() {
 		return <p className="status status-error">Error: {error}</p>;
 	if (!show) return <p className="status">Loading…</p>;
 
-	const totalWatched = show.seasons.reduce(
-		(acc, s) => acc + s.watched_count,
-		0,
-	);
-	const totalEpisodes = show.seasons.reduce(
-		(acc, s) => acc + s.episode_count,
-		0,
-	);
-	const allWatched = totalWatched > 0 && totalWatched === totalEpisodes;
+	// Show-level counts are aired-only and computed by the server against its
+	// own "today", so they match the Watchlist chip and unaired episodes never
+	// hold the header button open.
+	const allWatched =
+		show.aired_count > 0 && show.watched_count === show.aired_count;
 
 	return (
 		<div className="show-detail">
@@ -119,7 +116,7 @@ export default function ShowDetail() {
 					<h1>{show.name}</h1>
 					<div className="meta-row">
 						<span className="progress-chip">
-							{totalWatched}/{totalEpisodes}
+							{show.watched_count}/{show.aired_count}
 						</span>
 						{show.status && <span className="status-pill">{show.status}</span>}
 						{show.first_air_date && (

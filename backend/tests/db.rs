@@ -5,6 +5,7 @@ mod common;
 use chrono::{Duration, Utc};
 use showrunner_backend::datasources::tmdb::{TmdbEpisode, TmdbSeason, TmdbShow};
 use showrunner_backend::db::queries::{self, BulkScope};
+use showrunner_backend::state::today_in;
 
 use crate::common::*;
 
@@ -45,7 +46,10 @@ async fn insert_show_full_persists_show_seasons_and_episodes() {
         .await
         .unwrap();
 
-    let detail = queries::get_show_detail(&pool, 100).await.unwrap().unwrap();
+    let detail = queries::get_show_detail(&pool, 100, &today_in(utc_tz()))
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(detail.tmdb_id, 100);
     assert_eq!(detail.name, "Bear");
     assert_eq!(
@@ -84,7 +88,9 @@ async fn delete_show_cascades_to_seasons_and_episodes() {
     insert_episode(&pool, 1, 1, 2, Some(&iso_offset(-2)), false).await;
 
     assert!(queries::delete_show(&pool, 1).await.unwrap());
-    let detail = queries::get_show_detail(&pool, 1).await.unwrap();
+    let detail = queries::get_show_detail(&pool, 1, &today_in(utc_tz()))
+        .await
+        .unwrap();
     assert!(detail.is_none());
     let counts: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM episodes")
         .fetch_one(&pool)
@@ -135,7 +141,7 @@ async fn get_watchlist_item_returns_none_for_unknown() {
 #[tokio::test]
 async fn get_show_detail_returns_none_for_unknown() {
     let pool = test_pool().await;
-    assert!(queries::get_show_detail(&pool, 999)
+    assert!(queries::get_show_detail(&pool, 999, &today_in(utc_tz()))
         .await
         .unwrap()
         .is_none());
@@ -151,7 +157,10 @@ async fn get_show_detail_handles_invalid_providers_json() {
     .execute(&pool)
     .await
     .unwrap();
-    let detail = queries::get_show_detail(&pool, 1).await.unwrap().unwrap();
+    let detail = queries::get_show_detail(&pool, 1, &today_in(utc_tz()))
+        .await
+        .unwrap()
+        .unwrap();
     assert!(detail.watch_providers.is_empty());
 }
 
@@ -977,4 +986,29 @@ async fn list_entries_clamps_per_page() {
     let pool = test_pool().await;
     let page = watch_log::list_entries(&pool, 1, 10_000).await.unwrap();
     assert_eq!(page.per_page, watch_log::MAX_PER_PAGE);
+}
+
+// @spec SHOWS-API-009, SHOWS-PROGRESS-002
+#[tokio::test]
+async fn get_show_detail_carries_aired_based_show_counts() {
+    let pool = test_pool().await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
+    insert_season(&pool, 1, 1, 4).await;
+    insert_episode(&pool, 1, 1, 1, Some(&iso_offset(-3)), true).await;
+    insert_episode(&pool, 1, 1, 2, Some(&iso_offset(-1)), false).await;
+    insert_episode(&pool, 1, 1, 3, Some(&iso_offset(5)), true).await;
+    insert_episode(&pool, 1, 1, 4, None, false).await;
+
+    let detail = queries::get_show_detail(&pool, 1, &today_in(utc_tz()))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        detail.watched_count, 1,
+        "future watched episode must not count"
+    );
+    assert_eq!(detail.aired_count, 2);
+    assert_eq!(detail.total_count, 4);
+    // The per-season count stays total-based.
+    assert_eq!(detail.seasons[0].watched_count, 2);
 }
