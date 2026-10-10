@@ -169,6 +169,7 @@ async fn get_show_detail_handles_invalid_providers_json() {
     assert!(detail.watch_providers.is_empty());
 }
 
+// @spec SEARCH-API-006
 #[tokio::test]
 async fn tracked_tmdb_ids_in_handles_empty_and_subset() {
     let pool = test_pool().await;

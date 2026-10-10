@@ -19,111 +19,111 @@ taxonomy:
 # Flat depth-2 design tree: every segment is a root-level leaf under the HLD.
 arrows:
   search:
-    status: MAPPED
+    status: AUDITED
     parent: null
     sampled: 2026-10-10
-    audited: null
-    audited_sha: null
+    audited: 2026-10-10
+    audited_sha: 4da220e
     blocks: []
     blockedBy: [shows, movies, tmdb]
     detail: search.md
-    next: "Confirm [inferred] decisions; cap q length; consider aborting in-flight searches"
-    drift: null
+    next: "Confirm or refute the seven [inferred] LLD decisions; decide who owns the tracked-id lookups (search annotates them, the LLD says shows/movies)"
+    drift: "LLD Context and the SEARCH-API-006 annotations disagree on who owns tracked_tmdb_ids_in / tracked_movie_tmdb_ids_in"
 
   shows:
-    status: MAPPED
+    status: AUDITED
     parent: null
     sampled: 2026-10-10
-    audited: null
-    audited_sha: null
+    audited: 2026-10-10
+    audited_sha: 4da220e
     blocks: [search, up-next-calendar, resync, watch-log]
     blockedBy: [tmdb, watch-log]
     detail: shows.md
-    next: "Confirm [inferred] decisions; add a timezone-boundary test; decide per-season watched_count semantics"
+    next: "Confirm or refute the six [inferred] LLD decisions; add a timezone-boundary test with ny_tz(); move LLD Deferred 1 and 5 to Resolved now that SHOWS-API-009/007 specify them"
     drift: null
 
   movies:
-    status: MAPPED
+    status: AUDITED
     parent: null
     sampled: 2026-10-10
-    audited: null
-    audited_sha: null
+    audited: 2026-10-10
+    audited_sha: 4da220e
     blocks: [search, watch-log]
     blockedBy: [tmdb, watch-log]
     detail: movies.md
-    next: "Confirm [inferred] decisions; add routing and client tests for the movie endpoints"
-    drift: null
+    next: "Confirm or refute the five [inferred] LLD decisions; refresh the LLD's stale line numbers and its claim that movie detail is the only 429 mapping"
+    drift: "LLD still says the 429 mapping is movie-detail-only; it is the shared tmdb map_status"
 
   up-next-calendar:
-    status: MAPPED
+    status: AUDITED
     parent: null
     sampled: 2026-10-10
-    audited: null
-    audited_sha: null
+    audited: 2026-10-10
+    audited_sha: 4da220e
     blocks: []
     blockedBy: [shows]
     detail: up-next-calendar.md
-    next: "Confirm [inferred] decisions; resolve whose today the calendar highlights and the malformed-date contract"
-    drift: null
+    next: "Confirm or refute the six [inferred] LLD decisions; resolve whose today the calendar highlights (HLD Open Question 1) and the malformed-date contract"
+    drift: "LLD Deferred 5 attributes overflow:hidden to .calendar-cell; it is on .calendar-eps"
 
   watch-log:
-    status: MAPPED
+    status: AUDITED
     parent: null
     sampled: 2026-10-10
-    audited: null
-    audited_sha: null
+    audited: 2026-10-10
+    audited_sha: 4da220e
     blocks: [shows, movies]
     blockedBy: []
     detail: watch-log.md
-    next: "Confirm [inferred] decisions; add a client test for watchLog; decide on CHECK constraints"
+    next: "Confirm the four [inferred] LLD decisions; add a client.test.ts case for api.watchLog; decide on CHECK constraints"
     drift: null
 
   resync:
-    status: MAPPED
+    status: AUDITED
     parent: null
     sampled: 2026-10-10
-    audited: null
-    audited_sha: null
+    audited: 2026-10-10
+    audited_sha: 4da220e
     blocks: []
     blockedBy: [tmdb, shows]
     detail: resync.md
-    next: "Confirm [inferred] decisions; serialize cron and manual runs; decide per-show transaction scope"
+    next: "Confirm or refute the three [inferred] LLD decisions (failure isolation, upsert-only, per-statement autocommit)"
     drift: null
 
   tmdb:
-    status: MAPPED
+    status: AUDITED
     parent: null
     sampled: 2026-10-10
-    audited: null
-    audited_sha: null
+    audited: 2026-10-10
+    audited_sha: 4da220e
     blocks: [search, shows, movies, resync]
     blockedBy: []
     detail: tmdb.md
-    next: "Confirm [inferred] decisions; fix README credential naming; decide season-404 mapping"
-    drift: null
+    next: "Confirm or refute the five [inferred] LLD decisions; decide how TMDB-CLIENT-008 is verified; decide whether a season 404 stays 502; fix README's 'API Read Access Token (v3 auth)' wording"
+    drift: "README.md mixes TMDB's v4 label with the v3 auth scheme"
 
   app:
-    status: MAPPED
+    status: AUDITED
     parent: null
     sampled: 2026-10-10
-    audited: null
-    audited_sha: null
+    audited: 2026-10-10
+    audited_sha: 4da220e
     blocks: [build-ship]
     blockedBy: []
     detail: app.md
-    next: "Confirm [inferred] decisions; fold STATIC_DIR and DB_MAX_CONNECTIONS into Config"
-    drift: null
+    next: "Confirm or refute the six [inferred] LLD decisions; refresh LLD Deferred 1 and 10 (STATIC_DIR / DB_MAX_CONNECTIONS documentation, lib.rs length)"
+    drift: "LLD Deferred 1 and 10 describe env-var documentation and lib.rs size that have since changed"
 
   build-ship:
-    status: MAPPED
+    status: AUDITED
     parent: null
     sampled: 2026-10-10
-    audited: null
-    audited_sha: null
+    audited: 2026-10-10
+    audited_sha: 4da220e
     blocks: []
     blockedBy: [app]
     detail: build-ship.md
-    next: "Confirm [inferred] decisions; make publish depend on CI; add concurrency groups"
+    next: "Confirm or refute the two [inferred] LLD decisions (scan-only publish gate, linux/amd64 only); add an image-inspection CI job to cover SHIP-IMAGE-002..006"
     drift: null
 
 # Items found during mapping that don't yet belong to a segment.

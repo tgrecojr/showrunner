@@ -4,7 +4,7 @@ The flat movie to-watch list: add, list, detail with live TMDB credits, mark wat
 
 ## Status
 
-**MAPPED** — sampled 2026-10-10 (git SHA `3b525e1`), not yet audited. Skeleton LLD and EARS specs were reverse-engineered from code; design rationale carries `[inferred]` markers until confirmed.
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 20 active specs are implemented, annotated in code, and cited by at least one test; what remains open is confirming the five `[inferred]` decisions in the LLD and the eight Deferred items listed there.
 
 ## References
 
@@ -15,21 +15,25 @@ The flat movie to-watch list: add, list, detail with live TMDB credits, mark wat
 - docs/intent/movies/movies-design.md
 
 ### EARS
-- docs/intent/movies/movies-specs.md (21 specs: 20 implemented, 1 active gap)
+- docs/intent/movies/movies-specs.md (20 specs: 20 implemented, 0 deferred, 0 active gaps)
 
 ### Tests
-- backend/tests/api.rs — list/add/detail/delete (:595-782), mark-watched and delete log behavior (:1272-1302)
-- backend/tests/db.rs — list cap (:577), `mark_movie_watched` and `delete_movie` log behavior (:797-822)
-- backend/src/models/movie.rs unit test (request shape)
-- frontend/src/pages/Movies.test.tsx (8 tests), frontend/src/pages/MovieDetail.test.tsx (9 tests)
-- Not covered: `App.test.tsx` has no movie routes; `client.test.ts` has none of the movie client methods
+- backend/tests/api.rs — `movies_are_absent_from_up_next_calendar_and_resync`, `list_movies_returns_empty_initially`, `add_movie_fetches_from_tmdb_and_inserts`, `add_movie_rejects_duplicate`, `add_movie_returns_404_when_tmdb_missing`, `get_movie_detail_returns_cast_and_providers`, `get_movie_detail_returns_404_when_not_on_watchlist`, `get_movie_detail_maps_tmdb_429_to_friendly_message`, `delete_movie_removes_and_returns_204`, `mark_movie_watched_returns_204_then_404`, `delete_movie_writes_no_log_entry`, `watch_log_returns_page_shape`
+- backend/tests/db.rs — `insert_movie_stores_only_basic_metadata_and_nulls_empty_strings`, `list_movies_is_capped`, `mark_movie_watched_deletes_and_logs_snapshot`, `delete_movie_does_not_log`
+- frontend/src/pages/Movies.test.tsx (11 tests)
+- frontend/src/pages/MovieDetail.test.tsx (10 tests)
+- Not covered: `App.test.tsx` mocks no movie route; `client.test.ts` exercises none of the five movie client methods
 
 ### Code
-- backend/src/api/movies.rs; backend/src/models/movie.rs
-- backend/src/db/queries.rs — `movie_exists` (:286), `insert_movie` (:294), `list_movies` (:315), `get_movie` (:342), `delete_movie` (:363), `mark_movie_watched` (:374), `tracked_movie_tmdb_ids_in` (:412)
-- backend/src/db/migrations/20260513000000_add_movies.sql
-- frontend/src/pages/Movies.tsx, frontend/src/pages/MovieDetail.tsx; frontend/src/api/client.ts (:48-57)
-- Consumed from other segments: `tmdb` (`get_movie`, `us_providers`, `directors`, 429 mapping), `watch-log` (`insert_entry`)
+- backend/src/api/movies.rs — `list_movies`, `get_movie_detail`, `add_movie`, `mark_movie_watched`, `delete_movie`
+- backend/src/db/queries.rs — `MAX_LIST_ROWS` (shared cap), the `=== Movies ===` module anchor (movies absent from resync, calendar, Up Next), `insert_movie`, `list_movies`, `delete_movie`, `mark_movie_watched`; unannotated helpers `movie_exists`, `get_movie`, `tracked_movie_tmdb_ids_in`
+- backend/src/models/movie.rs — `MovieRow`, `MovieWatchlistItem`, `MovieDetail`, `CastMember`, `AddMovieRequest` (unannotated wire shapes; `profile_url` is cited under `tmdb`)
+- backend/src/db/migrations/20260513000000_add_movies.sql (never annotated; the table is cited on the queries module)
+- frontend/src/pages/Movies.tsx — `Movies` page (`removeMovie` helper, per-card `pending`, action-error banner)
+- frontend/src/pages/MovieDetail.tsx — `MovieDetail` page
+- frontend/src/api/client.ts — `listMovies`, `addMovie`, `getMovie`, `deleteMovie`, `markMovieWatched` (object-literal properties, not annotated)
+- Consumed from other segments: `tmdb` (`get_movie`, `us_providers`, `directors`, `map_status` 429/5xx mapping), `watch-log` (`insert_entry`)
+- Consumers: `search` (`tracked_movie_tmdb_ids_in`, and the add endpoint from the Search page), `watch-log` (movie rows in History are not linked because the row is gone)
 
 ## Architecture
 
@@ -46,27 +50,26 @@ The flat movie to-watch list: add, list, detail with live TMDB credits, mark wat
 | Category | Spec IDs | Implemented | Deferred | Gaps |
 |----------|----------|-------------|----------|------|
 | API | MOVIES-API-001 to 011 | 11 | 0 | 0 |
-| UI | MOVIES-UI-001 to 010 (009 deleted) | 9 | 0 | 0 |
+| UI | MOVIES-UI-001 to 010 (009 retired, not in the spec file) | 9 | 0 | 0 |
 
-**Summary:** 20 of 20 active specs implemented; no gaps.
+**Summary:** 20 of 20 active specs implemented; 0 deferred. (Specs with no test citation: none.)
 
 ## Key Findings
 
-1. **Detail depends on TMDB at view time** — `get_movie_detail` calls TMDB on every request (backend/src/api/movies.rs:34); a listed movie's page fails with 502 during an outage, and stored metadata is never refreshed because movies are outside resync.
-2. **Check-then-insert on add** (movies.rs:70-78) can surface a concurrent duplicate as 500.
-3. **`runtime` of 0 is hidden** by a truthiness check (MovieDetail.tsx:93).
-4. **Cast card key collides** on identical name/character pairs (MovieDetail.tsx:145).
-5. **Impossible-state text reaches clients** — `AppError::Config("movie vanished after insert")` (movies.rs:82).
-6. **Routing and client tests skip movies** — `App.test.tsx` mocks 7 of 9 routes; `client.test.ts` exercises 10 of 16 methods, none of them movie or watch-log.
+1. **Detail depends on TMDB at view time** — `backend/src/api/movies.rs:get_movie_detail` calls `state.tmdb.get_movie` on every request, so a listed movie's page is a 502 during a TMDB outage, and stored metadata is never refreshed because movies are outside resync. LLD Deferred 1 and 2.
+2. **Check-then-insert on add** — `backend/src/api/movies.rs:add_movie` runs `movie_exists` then `insert_movie` without a transaction; a concurrent duplicate surfaces the primary-key violation as 500. LLD Deferred 8.
+3. **Cast card key collides** on identical name/character pairs — `frontend/src/pages/MovieDetail.tsx:MovieDetail` keys cast cards by `${name}-${character}`. LLD Deferred 3.
+4. **Impossible-state text reaches clients** — `backend/src/api/movies.rs:add_movie` returns `AppError::Config("movie vanished after insert")`, and `error.rs:client_message` passes `Config` text through verbatim. LLD Deferred 4.
+5. **Routing and client tests skip movies** — `frontend/src/App.test.tsx` mocks seven pages, neither `Movies` nor `MovieDetail`; `frontend/src/api/client.test.ts` exercises 10 of 16 client methods, none of the five movie methods. LLD Deferred 7.
 
 ## Work Required
 
 ### Must Fix
-1. Confirm or refute the `[inferred]` decisions (live credits fetch, cast cap, newest-first order, local removal, post-mutation navigation).
+1. Confirm or refute the five `[inferred]` rows in the LLD decisions table (live credits fetch, cast cap, newest-first order, local removal, post-mutation navigation).
 
 ### Should Fix
-2. Add routing and client tests for the movie endpoints.
+2. Add routing (`App.test.tsx`) and client (`client.test.ts`) tests for the movie routes and endpoints.
 
 ### Nice to Have
 3. Cache credits and providers at add time, or add movies to resync.
-4. Collapse the two near-identical exit handlers.
+4. Collapse the two near-identical exit handlers (`mark_movie_watched`, `delete_movie` in backend/src/api/movies.rs).

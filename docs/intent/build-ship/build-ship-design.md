@@ -38,7 +38,7 @@ OSV runs in **diff mode** on pull requests: the base branch's lockfiles are fetc
 
 ## Publish (`docker-publish.yml`)
 
-On push to `main`, on `v*` tags, and on pull requests, under a workflow-level `permissions: contents: read` that the publish job alone widens (packages, id-token, attestations): the supply-chain scan runs first, then `build-and-push`. Pull requests build only. Pushes log in to GHCR with the workflow token, derive tags (`latest` on the default branch, semver `X.Y.Z` and `X.Y` from `v*` tags, `sha-<short>` always), build with GitHub Actions cache, push, then `cosign sign --yes` keyless against the digest, generate an SPDX SBOM from the pushed digest, and attach SBOM and SLSA build-provenance attestations to the registry. The build is single-platform (the runner's `linux/amd64`). The publish job depends on the scan but not on `ci.yml`.
+On push to `main`, on `v*` tags, and on pull requests, under a workflow-level `permissions: contents: read` that the publish job alone widens (packages, id-token, attestations, artifact-metadata): the supply-chain scan runs first, then `build-and-push`. Pull requests build only. Pushes log in to GHCR with the workflow token, derive tags (`latest` on the default branch, semver `X.Y.Z` and `X.Y` from `v*` tags, `sha-<short>` always), build with GitHub Actions cache, push, then `cosign sign --yes` keyless against the digest, generate an SPDX SBOM from the pushed digest, and attach SBOM and SLSA build-provenance attestations to the registry. The build is single-platform (the runner's `linux/amd64`). The publish job depends on the scan but not on `ci.yml`.
 
 ## Retention and dependency updates
 

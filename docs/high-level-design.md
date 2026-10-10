@@ -114,7 +114,7 @@ Each decision names the segment design where its rationale and alternatives are 
 - **Specs implemented by absence anchor on the owning module.** "Movies never appear in resync" is cited on the movies query module, not on resync functions that happen not to mention movies.
 - **Private helpers are annotated when they alone own the behavior.** The aired predicate lives in `episode_counts`, so that is where `SHOWS-PROGRESS-001` sits even though the function is private.
 - **Never annotate SQL migrations.** sqlx checksums every applied migration; a comment added later makes the app refuse to start against an existing volume. Cite the Rust module that owns the table instead.
-- **Build and CI files carry `#` annotations.** A CI gate step is both the specified behavior and its own check, so `SHIP-CI`, `SHIP-SUPPLY`, and `SHIP-RELEASE` specs are covered by the step itself. Specs about the built image (`SHIP-IMAGE`) need a separate check and are counted as untested until one exists.
+- **Build and CI files carry `#` annotations.** A CI gate step is both the specified behavior and its own check, so `SHIP-CI`, `SHIP-SUPPLY`, and `SHIP-RELEASE` specs are covered by the step itself. Specs about the built image (`SHIP-IMAGE`) need a separate check: the pull-request image build covers `SHIP-IMAGE-001` (the build itself), and the rest are counted as untested until an image-inspection job exists.
 - **Not annotated:** properties inside the `api` object literal, CSS rules, and JSON files (which cannot carry comments). `SHIP-SUPPLY-004` (Renovate rules) therefore has no code anchor; its LLD section is the only home.
 
 ## Success Metrics
@@ -130,7 +130,6 @@ Falsification signals; any one of these means the project is broken:
 Project-level questions the segment designs could not settle:
 
 1. **Whose "today" the calendar highlights.** The grid highlight is browser-local while every other date rule is the server's `TIMEZONE`; by the third tenet the server should supply it, which needs a small API addition (`up-next-calendar`).
-2. **Whether resync should ever revisit ended shows.** Excluding `Ended` and `Canceled` shows means a revival is never noticed without removing and re-adding (`resync`).
 
 ## References
 

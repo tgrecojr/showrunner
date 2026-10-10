@@ -4,7 +4,7 @@ Tracking a TV show: add with its full season/episode tree, list with progress, d
 
 ## Status
 
-**MAPPED** — sampled 2026-10-10 (git SHA `3b525e1`), not yet audited. Skeleton LLD and EARS specs were reverse-engineered from code; design rationale carries `[inferred]` markers until confirmed.
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 40 specs are implemented, annotated in code, and cited by at least one test; what remains open is the LLD's deferred list (per-season count semantics, query fan-out, duplicate-add race, add-under-timeout, and the untested timezone boundary) and the six `[inferred]` decision rows awaiting confirmation.
 
 ## References
 
@@ -15,21 +15,25 @@ Tracking a TV show: add with its full season/episode tree, list with progress, d
 - docs/intent/shows/shows-design.md
 
 ### EARS
-- docs/intent/shows/shows-specs.md (38 specs: 35 implemented, 3 active gaps)
+- docs/intent/shows/shows-specs.md (40 specs: 40 implemented, 0 deferred, 0 active gaps)
 
 ### Tests
-- backend/tests/api.rs — list/add/get/delete (:173-330), bulk-watch (:332-425), episode PATCH (:428-462)
-- backend/tests/db.rs — insert/exists/delete (:24-95), watchlist/detail (:97-171), single and bulk watched (:390-537), list cap (:556-575, :615), watch-log side effects of show mutations (:656-793, :826-839)
-- backend/src/state.rs unit tests (`today_in`), backend/src/models/show.rs unit tests (image URLs, request shape)
-- frontend/src/pages/Watchlist.test.tsx (4 tests), frontend/src/pages/ShowDetail.test.tsx (22 tests)
-- frontend/src/api/client.test.ts — `listShows`, `addShow`, `getShow`, `deleteShow`, `setEpisodeWatched`, `bulkWatch`
+- backend/tests/api.rs — `list_shows_returns_watchlist`, `add_show_fetches_from_tmdb_and_inserts`, `add_show_persists_nothing_when_a_season_fetch_fails`, `add_show_rejects_duplicate`, `add_show_returns_404_when_tmdb_missing`, `get_show_returns_detail`, `get_show_returns_404_when_unknown`, `delete_show_removes_and_returns_204`, `delete_show_returns_404_for_unknown`, `bulk_watch_marks_all_aired_episodes`, `bulk_watch_supports_season_and_through_episode`, `bulk_watch_returns_404_when_show_unknown`, `patch_episode_toggles_and_returns_show_detail`, `patch_episode_same_state_returns_200_detail_without_logging`, `patch_episode_404_when_episode_missing`, `get_show_detail_response_includes_show_level_counts`
+- backend/tests/db.rs — `insert_show_full_persists_show_seasons_and_episodes`, `show_exists_and_delete_show`, `delete_show_cascades_to_seasons_and_episodes`, `list_watchlist_includes_progress_and_next_air_date`, `get_show_detail_handles_invalid_providers_json`, `list_up_next_includes_networks_and_resync_backfills_them`, `set_episode_watched_toggles_state`, `set_episode_watched_returns_false_when_episode_missing`, `bulk_set_watched_all_filters_to_aired_only`, `bulk_set_watched_season_scope`, `bulk_set_watched_through_episode_inclusive_and_aired_only`, `bulk_set_unwatched_clears_state`, `list_watchlist_is_capped`, `set_episode_watched_logs_watch_and_unwatch`, `set_episode_watched_same_state_preserves_watched_at_and_logs_nothing`, `set_episode_watched_false_on_unwatched_episode_logs_nothing`, `set_episode_watched_missing_episode_logs_nothing`, `bulk_set_watched_logs_one_entry_with_changed_count`, `bulk_set_watched_preserves_watched_at_on_already_watched`, `bulk_scopes_map_to_log_scopes`, `watch_log_survives_show_removal`, `get_show_detail_carries_aired_based_show_counts`
+- backend/src/state.rs inline tests — `today_in_returns_iso_date`, `today_in_can_differ_across_timezones`
+- frontend/src/pages/Watchlist.test.tsx (4 tests)
+- frontend/src/pages/ShowDetail.test.tsx (26 tests)
+- frontend/src/api/client.test.ts — `setEpisodeWatched PATCHes with body`, `bulkWatch POSTs scope + watched`
 
 ### Code
-- backend/src/api/shows.rs, backend/src/api/episodes.rs
-- backend/src/db/queries.rs — `insert_show_full` (:31), `show_exists` (:121), `delete_show` (:129), `list_watchlist` (:137), `get_watchlist_item` (:170), `get_show_detail` (:204), `episode_counts` (:451), `next_unaired_air_date` (:471), `set_episode_watched` (:744), `BulkScope` (:810), `bulk_set_watched` (:826)
-- backend/src/models/show.rs; backend/src/state.rs (`today_in`, :60)
-- backend/src/db/migrations/20260509000000_initial.sql, 20260808000000_drop_notifications.sql, 20260921000000_add_show_networks.sql
-- frontend/src/pages/Watchlist.tsx, frontend/src/pages/ShowDetail.tsx; frontend/src/api/client.ts (:38-46, :59-75)
+- backend/src/api/shows.rs — `list_shows`, `add_show`, `get_show`, `delete_show`, `BulkWatchScopeBody`, `bulk_watch`
+- backend/src/api/episodes.rs — `patch_episode`
+- backend/src/db/queries.rs — `MAX_LIST_ROWS`, `insert_show_full`, `delete_show`, `list_watchlist`, `get_show_detail`, `episode_counts`, `next_unaired_air_date`, `set_episode_watched`, `bulk_set_watched` (the unannotated `show_exists` and `get_watchlist_item` are reached through `add_show`)
+- backend/src/state.rs — `today_in`
+- backend/src/models/show.rs — `ShowRow`, `WatchlistItem`, `ShowDetail`, `SeasonDetail`, `EpisodeDetail` (wire shapes; the file's own annotations belong to `tmdb`)
+- backend/src/db/migrations/20260509000000_initial.sql, 20260808000000_drop_notifications.sql, 20260921000000_add_show_networks.sql (never annotated; the owning module is queries.rs)
+- frontend/src/pages/Watchlist.tsx — page component; frontend/src/pages/ShowDetail.tsx — page component
+- frontend/src/api/client.ts — `BulkWatchScope` type (the `listShows`, `addShow`, `getShow`, `deleteShow`, `setEpisodeWatched`, `bulkWatch` properties of the `api` literal cannot carry annotations)
 - Consumed from other segments: `tmdb` (`get_show`, `get_season`, `us_providers`, `network_names`), `watch-log` (`insert_entry`)
 
 ## Architecture
@@ -49,31 +53,31 @@ Tracking a TV show: add with its full season/episode tree, list with progress, d
 | API | SHOWS-API-001 to 011 | 11 | 0 | 0 |
 | Progress | SHOWS-PROGRESS-001 to 004 | 4 | 0 | 0 |
 | Watched | SHOWS-WATCHED-001 to 010 | 10 | 0 | 0 |
-| UI | SHOWS-UI-001 to 013 | 13 | 0 | 0 |
+| UI | SHOWS-UI-001 to 015 | 15 | 0 | 0 |
 
-**Summary:** 38 of 38 active specs implemented; no gaps.
+**Summary:** 40 of 40 active specs implemented; 0 deferred. (Specs with no test citation: none.)
 
 ## Key Findings
 
-1. **Per-season `watched_count` on detail ignores air date** (queries.rs:245), unlike the watchlist's aired-only count (:454).
-2. **Query fan-out** — `list_watchlist` issues 1 + 2N statements (:152-166), `get_show_detail` 2 + S (:232-243); bounded only by the 500-row cap.
-3. **Duplicate-add race** — check-then-insert (shows.rs:26, queries.rs:43) turns a concurrent duplicate into a 500 instead of a 400.
-4. **Add runs N+1 serial TMDB calls under the 30 s request timeout** (shows.rs:43-46; lib.rs:35); the response can be cut off while fetches continue.
-5. **`seasons.episode_count` is derived from fetched episodes** (queries.rs:81), not TMDB's summary count.
-6. **`networks_json` is invisible to this segment's wire shapes** — absent from `ShowRow` (models/show.rs:24-37) and `ShowDetail`; only Up Next reads it (queries.rs:638).
-7. **Impossible-state error text reaches clients** — `AppError::Config("show vanished after insert")` (shows.rs:52) is passed through `client_message()` as a 500 body.
-8. **One `mutating` flag locks the whole detail page** during any single toggle (ShowDetail.tsx:146, :154, :199, :212, :244).
-9. **Timezone boundary untested** — every backend test uses UTC (backend/tests/common/mod.rs:33 `ny_tz()` is never called).
-10. **Stale doc comment** at queries.rs:30 (`season_episodes` parameter does not exist).
+1. **Per-season `watched_count` on detail ignores air date** (queries.rs:`get_show_detail`), unlike the show-level aired-only count from `episode_counts`. Now pinned as intended by SHOWS-API-009; still listed as LLD Deferred 1.
+2. **Query fan-out** — `list_watchlist` issues 1 + 2N statements, `get_show_detail` 3 + S; bounded only by `MAX_LIST_ROWS`. LLD Deferred 2.
+3. **Duplicate-add race** — check-then-insert (shows.rs:`add_show` → `show_exists`, then queries.rs:`insert_show_full`) turns a concurrent duplicate into a 500 instead of a 400. LLD Deferred 3.
+4. **Add runs N+1 serial TMDB calls under the 30 s request timeout** (shows.rs:`add_show`; lib.rs:`API_REQUEST_TIMEOUT`); the response is cut off while fetches continue. LLD Deferred 4.
+5. **`seasons.episode_count` is the number of fetched episodes** (queries.rs:`insert_show_full`), not TMDB's summary count. Pinned as intended by SHOWS-API-007; still LLD Deferred 5.
+6. **`networks_json` is invisible to this segment's wire shapes** — absent from `ShowRow` and `ShowDetail` (models/show.rs); only Up Next reads it. LLD Deferred 6.
+7. **Impossible-state error text reaches clients** — `AppError::Config("show vanished after insert")` (shows.rs:`add_show`) passes through `client_message()` verbatim as a 500 body. LLD Deferred 7.
+8. **One `mutating` flag locks the whole detail page** during any single toggle (ShowDetail.tsx:`mutating`). LLD Deferred 8.
+9. **Timezone boundary untested** — every integration test uses UTC (backend/tests/common/mod.rs:`ny_tz` is never called); the `state.rs` unit tests only check `today_in`'s shape, not a midnight crossing in queries. LLD Deferred 9.
+10. **Stale doc comment** on queries.rs:`insert_show_full` names a `season_episodes` parameter that does not exist. LLD Deferred 10.
 
 ## Work Required
 
 ### Must Fix
-1. Confirm or refute the `[inferred]` rows in the LLD decisions table (mutation response shape, TEXT dates, JSON columns, read-only Watchlist, post-remove navigation).
+1. Confirm or refute the `[inferred]` rows in the LLD decisions table (season 0 rationale, mutation response shape, TEXT dates, JSON columns, read-only Watchlist, post-remove navigation).
 
 ### Should Fix
-2. Add a timezone-boundary test for `SHOWS-PROGRESS-001` and `SHOWS-WATCHED-004`.
-3. Align per-season `watched_count` semantics with the watchlist, or document the difference as intended.
+2. Add a timezone-boundary test for `SHOWS-PROGRESS-001` and `SHOWS-WATCHED-004` using `ny_tz()`.
+3. Move LLD Deferred 1 and 5 to Resolved: SHOWS-API-009 and SHOWS-API-007 now state the per-season count and `episode_count` semantics as intent.
 
 ### Nice to Have
 4. Collapse the per-show count queries into a single grouped query.
