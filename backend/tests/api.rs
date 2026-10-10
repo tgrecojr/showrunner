@@ -424,6 +424,7 @@ async fn bulk_watch_returns_404_when_show_unknown() {
 
 // ============================ Episodes patch ============================
 
+// @spec SHOWS-WATCHED-001
 #[tokio::test]
 async fn patch_episode_toggles_and_returns_show_detail() {
     let app = build_app().await;
@@ -444,6 +445,34 @@ async fn patch_episode_toggles_and_returns_show_detail() {
     assert_eq!(v["seasons"][0]["episodes"][0]["watched"], true);
 }
 
+// @spec SHOWS-WATCHED-010
+#[tokio::test]
+async fn patch_episode_same_state_returns_200_detail_without_logging() {
+    let app = build_app().await;
+    insert_show(&app.pool, 1, "X", None, None, &[]).await;
+    insert_season(&app.pool, 1, 1, 1).await;
+    insert_episode(&app.pool, 1, 1, 1, Some(&iso_offset(-1)), true).await;
+
+    let resp = build_api_router(app.state.clone())
+        .oneshot(json_request(
+            Method::PATCH,
+            "/api/v1/episodes/1/1/1",
+            serde_json::json!({"watched": true}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v = body_to_value(resp).await;
+    assert_eq!(v["seasons"][0]["episodes"][0]["watched"], true);
+
+    let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM watch_log")
+        .fetch_one(&app.pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 0);
+}
+
+// @spec SHOWS-WATCHED-002
 #[tokio::test]
 async fn patch_episode_404_when_episode_missing() {
     let app = build_app().await;

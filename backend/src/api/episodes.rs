@@ -12,6 +12,7 @@ pub struct EpisodeUpdate {
     pub watched: bool,
 }
 
+// @spec SHOWS-WATCHED-001, SHOWS-WATCHED-002, SHOWS-WATCHED-010
 pub async fn patch_episode(
     State(state): State<AppState>,
     Path((show_tmdb_id, season_number, episode_number)): Path<(i64, i64, i64)>,

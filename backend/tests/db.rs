@@ -386,6 +386,7 @@ async fn list_calendar_episodes_filters_by_range() {
     );
 }
 
+// @spec SHOWS-WATCHED-001
 #[tokio::test]
 async fn set_episode_watched_toggles_state() {
     let pool = test_pool().await;
@@ -652,6 +653,7 @@ async fn log_rows(pool: &sqlx::SqlitePool) -> Vec<LogRow> {
     .unwrap()
 }
 
+// @spec SHOWS-WATCHED-003
 #[tokio::test]
 async fn set_episode_watched_logs_watch_and_unwatch() {
     let pool = test_pool().await;
@@ -680,6 +682,60 @@ async fn set_episode_watched_logs_watch_and_unwatch() {
     assert_eq!(rows[1].action, "unwatched");
 }
 
+// @spec SHOWS-WATCHED-010
+#[tokio::test]
+async fn set_episode_watched_same_state_preserves_watched_at_and_logs_nothing() {
+    let pool = test_pool().await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
+    insert_season(&pool, 1, 1, 1).await;
+    insert_episode(&pool, 1, 1, 1, Some(&iso_offset(-1)), false).await;
+
+    assert!(queries::set_episode_watched(&pool, 1, 1, 1, true)
+        .await
+        .unwrap());
+    let first: (i64, Option<String>) =
+        sqlx::query_as("SELECT watched, watched_at FROM episodes WHERE show_tmdb_id=1")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(first.0, 1);
+    assert!(first.1.is_some());
+
+    // Re-sending the state the episode already has is a no-op: the episode
+    // still exists (true), watched_at is byte-identical, and no second row.
+    assert!(queries::set_episode_watched(&pool, 1, 1, 1, true)
+        .await
+        .unwrap());
+    let second: (i64, Option<String>) =
+        sqlx::query_as("SELECT watched, watched_at FROM episodes WHERE show_tmdb_id=1")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(second, first);
+    assert_eq!(log_rows(&pool).await.len(), 1);
+}
+
+// @spec SHOWS-WATCHED-010
+#[tokio::test]
+async fn set_episode_watched_false_on_unwatched_episode_logs_nothing() {
+    let pool = test_pool().await;
+    insert_show(&pool, 1, "X", None, None, &[]).await;
+    insert_season(&pool, 1, 1, 1).await;
+    insert_episode(&pool, 1, 1, 1, Some(&iso_offset(-1)), false).await;
+
+    assert!(queries::set_episode_watched(&pool, 1, 1, 1, false)
+        .await
+        .unwrap());
+    let row: (i64, Option<String>) =
+        sqlx::query_as("SELECT watched, watched_at FROM episodes WHERE show_tmdb_id=1")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(row, (0, None));
+    assert!(log_rows(&pool).await.is_empty());
+}
+
+// @spec SHOWS-WATCHED-002
 #[tokio::test]
 async fn set_episode_watched_missing_episode_logs_nothing() {
     let pool = test_pool().await;

@@ -39,7 +39,7 @@ arrows:
     blocks: [search, up-next-calendar, resync, watch-log]
     blockedBy: [tmdb, watch-log]
     detail: shows.md
-    next: "Confirm [inferred] decisions; implement SHOWS-WATCHED-010 (idempotent PATCH) and SHOWS-UI-006/013 (aired-based header progress)"
+    next: "Confirm [inferred] decisions; implement SHOWS-UI-006/013 (aired-based header progress)"
     drift: null
 
   movies:
