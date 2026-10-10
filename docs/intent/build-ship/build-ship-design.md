@@ -1,0 +1,92 @@
+---
+parent: high-level-design
+prefix: SHIP
+---
+
+# Build and ship
+
+## Context and Design Philosophy
+
+Showrunner ships as one container image. This segment owns how that image is built reproducibly from committed lockfiles, how small and unprivileged its runtime is, which checks gate a merge, how dependencies are scanned and kept current, and how a published image is signed and attested so a homelab operator can verify what they pull. The guiding posture is supply-chain conservatism: install exactly what was audited, run nothing at install time, pin every base image and action by digest, and let Renovate move the pins.
+
+## Image
+
+`Dockerfile` has three stages:
+
+1. **`frontend-build`** on `node:24-trixie-slim` (digest-pinned). Copies `package.json` and `package-lock.json`, runs `npm ci --ignore-scripts --no-audit --no-fund`, then `npm run build`. glibc Debian rather than Alpine so the lockfile resolves to the same tree CI audited (:2-3); `--ignore-scripts` because the toolchain ships platform binaries, not install hooks (:7-11).
+2. **`backend-build`** on `rust:1.98-slim-trixie` (digest-pinned). Copies `Cargo.toml` and `Cargo.lock` without a glob so a missing lockfile fails the build (:20-23), warms a dependency layer with a placeholder `main.rs`, then `cargo build --release --locked`. It also pre-creates `/rootfs/data` owned by uid 65532, because the runtime has no shell to `mkdir` or `chown` (:34-37).
+3. **Runtime** on `cgr.dev/chainguard/glibc-dynamic:latest` (digest-pinned). No shell, no package manager, no libssl; TLS is rustls using the image's CA bundle (:39-42). It receives only the binary, the built `dist/` as `/app/static`, and `/data`, all owned by 65532, and runs as that uid by image default. `ENV STATIC_DIR=/app/static`, `EXPOSE 3001`, entrypoint is the binary. There is no `HEALTHCHECK`.
+
+`docker-compose.yml` builds locally, restarts unless stopped, publishes `3001:3001`, mounts the named volume `showrunner_data` at `/data`, and passes `SERVER_HOST`, `SERVER_PORT`, `DATABASE_URL`, `TMDB_API_KEY` (no default), `RESYNC_CRON`, `TIMEZONE`, `CORS_ALLOWED_ORIGIN`, and `RUST_LOG` with defaults, plus a hard-coded `STATIC_DIR`. `DB_MAX_CONNECTIONS` is not passed. `.dockerignore` keeps `.git`, dotenv files, build outputs, `node_modules`, `dist`, Markdown, `.claude/`, `data/`, and `*.db` out of the context.
+
+## Merge gates (`ci.yml`)
+
+On push to `main` and on pull requests, two jobs under `permissions: contents: read`:
+
+| Job | Steps |
+|---|---|
+| Backend (Rust) | stable toolchain with clippy, rustfmt, llvm-tools; `cargo fmt --check`; `cargo clippy --all-targets -- -D warnings`; `cargo llvm-cov --lcov --fail-under-lines 85`; upload `lcov.info` |
+| Frontend | Node 24; `npm ci`; `npx tsc --noEmit`; `npx biome ci .`; `npm run test:coverage` (vitest thresholds 85/85/85/80 from `vitest.config.ts`); upload `lcov.info` |
+
+A third job runs only on the Monday 13:00 UTC schedule and calls the supply-chain workflow in absolute mode, so an advisory that lands against already-merged dependencies surfaces weekly (:8-12, :96-97). Every action is SHA-pinned with a version comment, maintained by Renovate's `helpers:pinGitHubActionDigests`.
+
+## Supply-chain scan (`supply-chain.yml`)
+
+A reusable `workflow_call` job with an optional `SOCKET_SECURITY_API_KEY` secret, optional so bot-authored PRs, which cannot read secrets, still run the rest (:6-9). Steps: `npm ci --ignore-scripts`; `npm audit signatures` (registry signature verification, not a vulnerability audit); a Socket Security scan of `frontend/` when the key is present, using an exact-pinned CLI version because `@latest` would execute arbitrary code in a job holding the key (:43-44); OSV scanning in two modes; `cargo audit`.
+
+OSV runs in **diff mode** on pull requests: the base branch's lockfiles are fetched into `.osv-base/`, both old and new lockfile sets are scanned with `continue-on-error`, a check refuses to compare if either scan wrote no results, and the reporter fails only on vulnerabilities the PR introduces (:56-78). On pushes to `main` and on the schedule it runs in **absolute mode** over the tree and fails on any known vulnerability.
+
+## Publish (`docker-publish.yml`)
+
+On push to `main`, on `v*` tags, and on pull requests: the supply-chain scan runs first, then `build-and-push`. Pull requests build only. Pushes log in to GHCR with the workflow token, derive tags (`latest` on the default branch, semver `X.Y.Z` and `X.Y` from `v*` tags, `sha-<short>` always), build with GitHub Actions cache, push, then `cosign sign --yes` keyless against the digest, generate an SPDX SBOM from the pushed digest, and attach SBOM and SLSA build-provenance attestations to the registry. The build is single-platform (the runner's `linux/amd64`). The publish job depends on the scan but not on `ci.yml`.
+
+## Retention and dependency updates
+
+`ghcr-retention.yml` runs Mondays 06:00 UTC and on demand, with `packages: write`, keeping `latest` plus the five most recent tagged versions and deleting untagged manifests; it relies on the cleanup action being referrer-aware so signatures and attestations of kept images survive (:19-21). Because every `main` push adds a `sha-*` tag, older semver tags fall out of the five.
+
+`renovate.json`: digest-pins Docker images and GitHub Actions; groups all Docker base images into one PR so the Rust builder's glibc cannot get ahead of the runtime's (:66); groups minor and patch updates into one PR with a 3-day release age; digest updates after 1 day; majors are never auto-merged and get a `major-update` label; vulnerability alerts are labelled `security`; lockfile maintenance runs weekly. Runs on a night-and-weekend schedule in America/New_York with `platformAutomerge`, which depends on branch protection requiring the gates above.
+
+## Decisions & Alternatives
+
+| Decision | Chosen | Alternatives Considered | Rationale |
+|----------|--------|------------------------|-----------|
+| Builder base | Debian-slim glibc images | Alpine/musl | The committed lockfile is resolved against glibc in CI; building on the same libc installs exactly the audited tree (Dockerfile:2-3). |
+| Install discipline | `npm ci --ignore-scripts`; `cargo build --locked` with the lockfile required | `npm install`; tolerate a missing lockfile | Install only what was audited; run no lifecycle scripts; fail rather than resolve fresh (Dockerfile:7-11, :20-22). |
+| Runtime base | Chainguard `glibc-dynamic`, uid 65532, rustls | Debian slim; Alpine; scratch | No shell or package manager to abuse, no libssl to patch; the image's CA bundle serves rustls (Dockerfile:39-42, SECURITY.md:30). |
+| Pinning | Every image and action by digest, moved by Renovate | Floating tags | Reproducible builds; updates arrive as reviewed PRs (renovate.json:10, :26). |
+| Base-image updates | All Docker bases in one PR | Independent PRs | Builder and runtime glibc must move together (renovate.json:66). |
+| What gates a merge | fmt, clippy `-D warnings`, 85% backend line coverage, tsc, Biome, vitest thresholds | Lint only | CONTRIBUTING.md:37-63; the PR template restates the same commands. |
+| What gates a publish | The supply-chain scan | Also the CI lint/test jobs | `[inferred]` Branch protection on PR merges is relied on to keep untested code off `main`. |
+| OSV on PRs | Diff mode, fail only on introduced vulnerabilities | Absolute on every PR | An advisory against a dependency already on `main` must not block unrelated PRs (supply-chain.yml:56-64). |
+| Socket secret | Optional; step self-skips | Required | Bot PRs run without secrets and would hard-fail the call (supply-chain.yml:6-9). |
+| Image trust | Keyless cosign signature, SPDX SBOM attestation, SLSA provenance | Unsigned; key-based signing | Verifiable with the workflow identity and no key to protect (SECURITY.md:34-40, README.md:102-118). |
+| Retention | `latest` + 5 tagged, untagged pruned, weekly | Keep everything | Bounded registry use with rollback headroom (ghcr-retention.yml:19-21). |
+| Platforms | `linux/amd64` only | Multi-arch | `[inferred]` Matches the homelab host. |
+| Health check | Intended: a container check against `/api/v1/health` (`SHIP-IMAGE-006`); today none | Rely on the process staying up | A dead database with a live process should fail the container's health, not hide behind a 200; the distroless image has no curl, so the check needs a probe mode in the binary or a compose-level test. |
+
+## Open Questions & Future Decisions
+
+### Resolved
+1. ✅ **The container declares a health check.** It probes `/api/v1/health`, which `app` will make return 503 when degraded (`APP-HEALTH-002`). Not yet implemented; tracked as `SHIP-IMAGE-006`.
+
+### Deferred
+1. **Health check mechanism.** With no shell or curl in the image, the check must be either a `--healthcheck` probe mode in the binary invoked by `HEALTHCHECK`, or a compose-level `healthcheck` from the host; which is preferred?
+2. **Publish does not depend on CI.** `docker-publish.yml:23` needs only the scan; a `main` push failing clippy or tests would still publish `latest` if it ever bypassed branch protection.
+3. **Inconsistent `npm ci` hardening.** `ci.yml:77` runs lifecycle scripts; the Dockerfile and the scan do not.
+4. **No `concurrency:` groups** on CI or publish; rapid pushes can race to tag `latest`.
+5. **Semver tags are pruned** by the keep-5 rule once enough `sha-*` tags accrue, while README.md:131 suggests pinning `0.1`.
+6. **README backup procedure** (`docker compose exec app sqlite3 …`, README.md:220) cannot run in a shell-less image.
+7. **Compose and docs disagree on variables.** `DB_MAX_CONNECTIONS` is documented but not passed; `STATIC_DIR` is passed but undocumented; overriding `SERVER_PORT` breaks the hard-coded `3001:3001` mapping.
+8. **Toolchain drift.** CI uses floating `stable` Rust; the image pins 1.98.
+9. **Renovate residue.** Overlapping automerge rules for Docker (branch vs grouped PR), a stable-image list naming services this repo does not use, and `:enablePreCommit` with no pre-commit config.
+10. **Ignore-file naming.** Both ignore files negate a dot-prefixed example file; the committed template is `env.example` without the dot.
+11. **OSV SARIF** is written but never uploaded to code scanning; annotations are the only surfacing.
+12. **Socket org** is hard-coded to `grecolabs`.
+
+## References
+
+- Dockerfile; docker-compose.yml; .dockerignore; .gitignore; env.example
+- .github/workflows/ci.yml, docker-publish.yml, supply-chain.yml, ghcr-retention.yml
+- renovate.json; frontend/osv-scanner.toml; frontend/vitest.config.ts (coverage thresholds)
+- README.md:54-131 (quick start, verification, updating), :215-224 (backup); SECURITY.md:32-42; CONTRIBUTING.md:37-63; .github/pull_request_template.md
+- Consumers: `app` (`STATIC_DIR`, env passthrough, health endpoint)
