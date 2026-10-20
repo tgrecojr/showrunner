@@ -216,3 +216,17 @@ describe("MovieDetail", () => {
 		expect(container.querySelector(".meta-row")?.textContent).toBe("2010");
 	});
 });
+
+describe("MovieDetail narrow-width hooks for the stylesheet", () => {
+	// @spec APP-SPA-011
+	it("marks the overview paragraph so the narrow header can place it full width", async () => {
+		mockGet.mockResolvedValueOnce(movie());
+		const { container } = renderPage();
+		await waitFor(() =>
+			expect(screen.getByText("Inception")).toBeInTheDocument(),
+		);
+		const overview = container.querySelector(".show-header .detail-overview");
+		expect(overview).not.toBeNull();
+		expect(overview?.textContent).toBe("A thief who steals corporate secrets…");
+	});
+});

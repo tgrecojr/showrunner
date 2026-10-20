@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router";
 import { api } from "../api/client";
 import type { MovieDetail as MovieDetailType } from "../types";
 
-// @spec MOVIES-UI-005, MOVIES-UI-006, MOVIES-UI-007, MOVIES-UI-008, APP-SPA-006
+// @spec MOVIES-UI-005, MOVIES-UI-006, MOVIES-UI-007, MOVIES-UI-008, APP-SPA-006, APP-SPA-011
 export default function MovieDetail() {
 	const { tmdbId } = useParams<{ tmdbId: string }>();
 	const navigate = useNavigate();
@@ -93,7 +93,9 @@ export default function MovieDetail() {
 								<strong>Watch on:</strong> {movie.watch_providers.join(", ")}
 							</p>
 						)}
-						{movie.overview && <p>{movie.overview}</p>}
+						{movie.overview && (
+							<p className="detail-overview">{movie.overview}</p>
+						)}
 						<div className="action-row">
 							<button
 								type="button"

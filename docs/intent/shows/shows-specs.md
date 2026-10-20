@@ -1,6 +1,6 @@
 # Shows — EARS specs
 
-Prefix `SHOWS`. Facets: `API` (add, list, detail, delete endpoints and persistence), `PROGRESS` (the definition of today, aired, and progress counts), `WATCHED` (single and bulk watched-state mutations), `UI` (Watchlist and ShowDetail pages). "Aired" throughout means `air_date` is non-null and not after today in the configured `TIMEZONE`.
+Prefix `SHOWS`. Facets: `API` (add, list, detail, delete endpoints and persistence), `PROGRESS` (the definition of today, aired, and progress counts), `WATCHED` (single and bulk watched-state mutations), `UI` (Watchlist and ShowDetail pages). "Aired" throughout means `air_date` is non-null and not after today in the configured `TIMEZONE`. "Narrow" means the viewport is at most 900 CSS px wide, the single breakpoint `APP-SPA-007` defines.
 
 ## API
 
@@ -53,3 +53,5 @@ Prefix `SHOWS`. Facets: `API` (add, list, detail, delete endpoints and persisten
 - [x] **SHOWS-UI-013**: The ShowDetail header progress chip shall read `{watched_count}/{aired_count}` from the detail response's show-level counts, the same aired-only counts the Watchlist chip shows for that show.
 - [x] **SHOWS-UI-014**: While the show detail is loading, the ShowDetail page shall render `Loading…`; if the initial show request rejects, it shall render `Error: <message>` (`Load failed` when the rejection carries no message) in place of the page.
 - [x] **SHOWS-UI-015**: If a show has no seasons, the ShowDetail page shall render `No seasons available yet.` in place of the season list.
+- [x] **SHOWS-UI-016**: While the viewport is narrow, each ShowDetail episode row shall keep the checkbox, `SxxExx`, and episode name on its first line, place the air date on a second line aligned with the name's left edge, and place the `Mark through here` button at the row's right edge spanning both lines at least 44 px tall, with the row's markup unchanged from the wide layout.
+- [x] **SHOWS-UI-017**: While the viewport is wide, the ShowDetail episode name shall truncate with an ellipsis when it does not fit its row and carry the full name (or `—` when null) as its `title` attribute; while the viewport is narrow it shall wrap onto further lines instead of truncating.

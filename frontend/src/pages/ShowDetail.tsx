@@ -4,7 +4,7 @@ import type { BulkWatchScope } from "../api/client";
 import { api } from "../api/client";
 import type { ShowDetail as ShowDetailType } from "../types";
 
-// @spec SHOWS-UI-003, SHOWS-UI-004, SHOWS-UI-005, SHOWS-UI-006, SHOWS-UI-007, SHOWS-UI-008, SHOWS-UI-009, SHOWS-UI-010, SHOWS-UI-011, SHOWS-UI-012, SHOWS-UI-013, SHOWS-UI-014, SHOWS-UI-015, APP-SPA-006
+// @spec SHOWS-UI-003, SHOWS-UI-004, SHOWS-UI-005, SHOWS-UI-006, SHOWS-UI-007, SHOWS-UI-008, SHOWS-UI-009, SHOWS-UI-010, SHOWS-UI-011, SHOWS-UI-012, SHOWS-UI-013, SHOWS-UI-014, SHOWS-UI-015, SHOWS-UI-016, SHOWS-UI-017, APP-SPA-006, APP-SPA-011
 export default function ShowDetail() {
 	const { tmdbId } = useParams<{ tmdbId: string }>();
 	const navigate = useNavigate();
@@ -135,7 +135,7 @@ export default function ShowDetail() {
 							<strong>Watch on:</strong> {show.watch_providers.join(", ")}
 						</p>
 					)}
-					{show.overview && <p>{show.overview}</p>}
+					{show.overview && <p className="detail-overview">{show.overview}</p>}
 					<div className="action-row">
 						<button
 							type="button"
@@ -221,7 +221,9 @@ export default function ShowDetail() {
 													S{String(season.season_number).padStart(2, "0")}E
 													{String(ep.episode_number).padStart(2, "0")}
 												</span>
-												<span className="ep-name">{ep.name ?? "—"}</span>
+												<span className="ep-name" title={ep.name ?? "—"}>
+													{ep.name ?? "—"}
+												</span>
 												{ep.air_date && (
 													<span className="ep-date">{ep.air_date}</span>
 												)}

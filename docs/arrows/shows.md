@@ -4,7 +4,7 @@ Tracking a TV show: add with its full season/episode tree, list with progress, d
 
 ## Status
 
-**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 40 specs are implemented, annotated in code, and cited by at least one test; what remains open is the LLD's deferred list (per-season count semantics, query fan-out, duplicate-add race, add-under-timeout, and the untested timezone boundary).
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 42 specs are implemented, annotated in code, and cited by at least one test; what remains open is the LLD's deferred list (per-season count semantics, query fan-out, duplicate-add race, add-under-timeout, and the untested timezone boundary).
 
 ## References
 
@@ -15,14 +15,15 @@ Tracking a TV show: add with its full season/episode tree, list with progress, d
 - docs/intent/shows/shows-design.md
 
 ### EARS
-- docs/intent/shows/shows-specs.md (40 specs: 40 implemented, 0 deferred, 0 active gaps)
+- docs/intent/shows/shows-specs.md (42 specs: 42 implemented, 0 deferred, 0 active gaps)
 
 ### Tests
 - backend/tests/api.rs — `list_shows_returns_watchlist`, `add_show_fetches_from_tmdb_and_inserts`, `add_show_persists_nothing_when_a_season_fetch_fails`, `add_show_rejects_duplicate`, `add_show_returns_404_when_tmdb_missing`, `get_show_returns_detail`, `get_show_returns_404_when_unknown`, `delete_show_removes_and_returns_204`, `delete_show_returns_404_for_unknown`, `bulk_watch_marks_all_aired_episodes`, `bulk_watch_supports_season_and_through_episode`, `bulk_watch_returns_404_when_show_unknown`, `patch_episode_toggles_and_returns_show_detail`, `patch_episode_same_state_returns_200_detail_without_logging`, `patch_episode_404_when_episode_missing`, `get_show_detail_response_includes_show_level_counts`
 - backend/tests/db.rs — `insert_show_full_persists_show_seasons_and_episodes`, `show_exists_and_delete_show`, `delete_show_cascades_to_seasons_and_episodes`, `list_watchlist_includes_progress_and_next_air_date`, `get_show_detail_handles_invalid_providers_json`, `list_up_next_includes_networks_and_resync_backfills_them`, `set_episode_watched_toggles_state`, `set_episode_watched_returns_false_when_episode_missing`, `bulk_set_watched_all_filters_to_aired_only`, `bulk_set_watched_season_scope`, `bulk_set_watched_through_episode_inclusive_and_aired_only`, `bulk_set_unwatched_clears_state`, `list_watchlist_is_capped`, `set_episode_watched_logs_watch_and_unwatch`, `set_episode_watched_same_state_preserves_watched_at_and_logs_nothing`, `set_episode_watched_false_on_unwatched_episode_logs_nothing`, `set_episode_watched_missing_episode_logs_nothing`, `bulk_set_watched_logs_one_entry_with_changed_count`, `bulk_set_watched_preserves_watched_at_on_already_watched`, `bulk_scopes_map_to_log_scopes`, `watch_log_survives_show_removal`, `get_show_detail_carries_aired_based_show_counts`
 - backend/src/state.rs inline tests — `today_in_returns_iso_date`, `today_in_can_differ_across_timezones`
 - frontend/src/pages/Watchlist.test.tsx (4 tests)
-- frontend/src/pages/ShowDetail.test.tsx (26 tests)
+- frontend/src/pages/ShowDetail.test.tsx (28 tests)
+- frontend/src/styles.test.ts — the episode-row and episode-name tests cite SHOWS-UI-016 and SHOWS-UI-017
 - frontend/src/api/client.test.ts — `setEpisodeWatched PATCHes with body`, `bulkWatch POSTs scope + watched`
 
 ### Code
@@ -53,9 +54,9 @@ Tracking a TV show: add with its full season/episode tree, list with progress, d
 | API | SHOWS-API-001 to 011 | 11 | 0 | 0 |
 | Progress | SHOWS-PROGRESS-001 to 004 | 4 | 0 | 0 |
 | Watched | SHOWS-WATCHED-001 to 010 | 10 | 0 | 0 |
-| UI | SHOWS-UI-001 to 015 | 15 | 0 | 0 |
+| UI | SHOWS-UI-001 to 017 | 17 | 0 | 0 |
 
-**Summary:** 40 of 40 active specs implemented; 0 deferred. (Specs with no test citation: none.)
+**Summary:** 42 of 42 active specs implemented; 0 deferred. (Specs with no test citation: none.)
 
 ## Key Findings
 

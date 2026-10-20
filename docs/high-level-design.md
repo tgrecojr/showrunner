@@ -10,7 +10,7 @@ Mirror each tracked show's season and episode tree from TMDB into a local databa
 
 ## Target Users
 
-One household running a homelab: comfortable with Docker Compose and an environment file, reaching the app over a LAN or a reverse proxy they control, and willing to trust that network because the app has no accounts.
+One household running a homelab: comfortable with Docker Compose and an environment file, reaching the app over a LAN or a reverse proxy they control from desktop browsers and phones alike, and willing to trust that network because the app has no accounts.
 
 ## Goals
 
@@ -35,6 +35,7 @@ Ordered: when two conflict, the earlier one wins.
 2. **Bound the anonymous caller rather than authenticate.** Until the auth design lands, every new endpoint gets a cost ceiling (a cap, a cooldown, a size or time limit) instead of a login.
 3. **Server computes, client renders.** Derived values such as aired, remaining, progress, and ordering come from the API; the client formats them and never recomputes them.
 4. **Friendly over precise for upstream errors.** Users see a readable sentence and what to do next, never a raw TMDB status.
+5. **Every feature at every width.** When one layout cannot hold both desktop density and phone usability, rearrange or scroll rather than hide: nothing reachable on a desktop is dropped or tucked behind a phone-only menu.
 
 ## System Design
 
@@ -83,7 +84,7 @@ flowchart LR
 | `watch-log` | The append-only history table, its read endpoint, the History page | docs/intent/watch-log/watch-log-design.md |
 | `resync` | Scheduled and manual refresh from TMDB, bounded, never touching watched state | docs/intent/resync/resync-design.md |
 | `tmdb` | The HTTP client, response shapes, reductions, and key hygiene | docs/intent/tmdb/tmdb-design.md |
-| `app` | Configuration, the unauthenticated-API perimeter, error mapping, health, SPA delivery and shell | docs/intent/app/app-design.md |
+| `app` | Configuration, the unauthenticated-API perimeter, error mapping, health, SPA delivery and shell, the shared stylesheet and its narrow breakpoint | docs/intent/app/app-design.md |
 | `build-ship` | Image build, merge gates, supply-chain scanning, signed publish, retention | docs/intent/build-ship/build-ship-design.md |
 
 Cross-segment ownership rules the segment designs rely on:
@@ -92,6 +93,7 @@ Cross-segment ownership rules the segment designs rely on:
 - **Watch-log rows** are written by `shows` and `movies` inside their own transactions; `watch-log` owns the row shape and the read side.
 - **Upstream error wording** is produced by the `tmdb` client for every TMDB call; the fetch wrapper hands pages the server's message verbatim with the HTTP status as a separate field, and pages display it as received (`app`).
 - **Health** is reported by `app` and probed by `build-ship`.
+- **The narrow breakpoint** is defined once, in `app`'s stylesheet; page segments arrange their own markup under it and never introduce a second breakpoint.
 
 ## Key Design Decisions
 
@@ -105,6 +107,7 @@ Each decision names the segment design where its rationale and alternatives are 
 6. **Movies are a queue, not a tree.** Row existence means unwatched; "watched" and "remove" are different routes so the log stays honest (`movies`).
 7. **One process, one container, one file.** The backend serves the SPA with history fallback; SQLite in WAL mode on a named volume; a distroless non-root runtime built from lockfiles with every base image and action digest-pinned (`app`, `build-ship`).
 8. **Dates are local, timestamps are UTC.** "Today" is computed in the configured `TIMEZONE`; `watched_at`, `added_at`, `last_synced_at`, and `occurred_at` are RFC3339 UTC (`shows`, `watch-log`).
+9. **One stylesheet, one narrow breakpoint.** Phone layouts are rearrangements of the desktop markup under a single `max-width` media query in the shared stylesheet; a component switches its markup only where no arrangement of the desktop markup fits at phone width (the calendar's month grid becomes an agenda list). No separate mobile shell, routes, or CSS framework. Shared patterns (the bar, detail headers, card grids, controls, the page frame) are arranged by `app`; a page-specific arrangement belongs to that page's segment (`app`).
 
 ## Annotation Conventions
 
@@ -117,6 +120,7 @@ Each decision names the segment design where its rationale and alternatives are 
 - **Build and CI files carry `#` annotations.** A CI gate step is both the specified behavior and its own check, so `SHIP-CI`, `SHIP-SUPPLY`, and `SHIP-RELEASE` specs are covered by the step itself. Specs about the built image (`SHIP-IMAGE`) need a separate check: the pull-request image build covers `SHIP-IMAGE-001` (the build itself), and the rest are counted as untested until an image-inspection job exists.
 - **Verified by review:** a spec that states a compile-time property with no runtime observable (`TMDB-CLIENT-008`, the client's private key and HTTP fields) has no test; the coherence script carries it on a named allowlist with the reason.
 - **Not annotated:** properties inside the `api` object literal, CSS rules, and JSON files (which cannot carry comments). `SHIP-SUPPLY-004` (Renovate rules) therefore has no code anchor; its LLD section is the only home.
+- **Specs implemented by a stylesheet rule anchor on the component that renders the class the rule keys on**, and are pinned by a test that reads the stylesheet text and asserts the rule exists under the narrow breakpoint. The unit test environment lays out nothing, so this is the strongest check available without a browser; a visual check on a real phone remains part of review.
 
 ## Success Metrics
 

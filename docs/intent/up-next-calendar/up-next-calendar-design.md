@@ -32,6 +32,7 @@ Both derive "aired" from the definition `shows` owns: `air_date` is non-null and
 - Row: poster and title both link to `/shows/{id}`; one `network-pill` per network, omitted when empty; `SxxExx` plus episode name when present; overview when present; a `{remaining} remaining` pill; `aired <air_date>` (the `upnext-row` list item).
 - Remaining pill: when `remaining > 1` it takes the `status-pill-accent` style and the title `N aired episodes not yet watched`; when exactly 1 it stays neutral with the singular title (the `status-pill` span in the `upnext-row`).
 - **Mark watched**: calls the single-episode PATCH with `watched: true`, shows "Marking…" and disables only that row's button, then re-fetches the whole list; a failure renders an error banner above the list while the list stays (`markWatched`, the `status-error` paragraph above `upnext-list`, and the `upnext-action` button).
+- **Narrow width** (the breakpoint `app` defines): the row wraps so poster and text share the first line and the Mark watched button takes the full width beneath them, at least 44 px tall, so advancing a show stays one tap (the `.upnext-row` and `.upnext-action` rules inside the narrow media block of frontend/src/index.css). The markup is unchanged.
 
 The initial fetch and the post-mark `load()` are two separate implementations of the same call (`load()` vs the `useEffect` body in `UpNext`); only the effect carries the `cancelled` guard.
 
@@ -59,6 +60,14 @@ Each `CalendarEpisode` (models/show.rs) carries show id and name, poster, season
 - Each episode renders as a link to `/shows/{id}` with the show name and `SxxExx`, a decorative poster (`alt=""`) when present, and the episode name as the link title; watched episodes add `calendar-ep-watched`, which the stylesheet fades (the `calendar-ep` list item; `.calendar-ep-watched .calendar-ep-link` in index.css).
 - Cells outside the month get `calendar-cell-other`. An error renders above the grid; "Loading…" renders below it; the grid itself always renders, so an empty month is simply empty (the `status-error` paragraph above `calendar-grid` and the `Loading…` paragraph below it).
 
+**Agenda list at narrow width.** Seven columns at phone width leave each day about 50 px, too little for a poster, a show name, and an episode code, so below the breakpoint `app` defines the page keeps everything above but renders an agenda list (`calendar-agenda`) in place of the grid, chosen by `useNarrow` (frontend/src/hooks/useNarrow.ts, `app`):
+
+- One group per day of the displayed month that has at least one episode, in date order, headed by the weekday and unpadded day of month (`Thu 15`, `Fri 5`), taken from the date string's own parts rather than a UTC parse; days with nothing airing are omitted, and episodes on the padding days outside the month, which the 42-cell fetch still returns, are not listed.
+- Each episode renders with the same link, text, poster, title, and `calendar-ep-watched` fading as a grid chip, so the two shapes share one episode component; the agenda additionally shows the episode name after the code, because a `title` tooltip never appears on a touch screen and the list has room.
+- The group for the server's `today` carries `calendar-agenda-today`, so the day is highlighted exactly as the grid cell would be; a month with no today has no such group.
+- When no day of the month has an episode, the list is replaced by `Nothing airing in <Month> <Year>.`
+- Heading, Prev, Today, Next, the fetch range, "Loading…" below, and the error above behave exactly as for the grid; switching shape never refetches, because the data and `today` are shared state.
+
 ## Decisions & Alternatives
 
 | Decision | Chosen | Alternatives Considered | Rationale |
@@ -74,6 +83,8 @@ Each `CalendarEpisode` (models/show.rs) carries show id and name, poster, season
 | Grid shape | Fixed 42 cells, Sunday start | Variable rows; locale-aware start | Stable layout across months; single-locale homelab app. |
 | Calendar "today" | The server's today in `TIMEZONE`, carried on every calendar response; browser-local only until the first response | A dedicated today endpoint; browser-local throughout | One definition of today across the app, and the response the page already fetches is the cheapest carrier. |
 | Calendar links | To the show page, not an episode anchor | Deep link to the episode row | No episode-level route exists. |
+| Calendar at narrow width | An agenda list of the month's airing days, swapped in by `useNarrow` | Squeeze the seven-column grid; a week view with its own navigation; a horizontally scrolling grid | A 50 px column cannot show a poster and a name; a week view needs a second fetch range and navigation; a sideways-scrolling month hides most of it. The agenda keeps the month navigation and data unchanged and answers the phone question, "what airs when", in reading order. |
+| Agenda scope | Days of the displayed month only, airing days only | Every day of the month; every fetched day including padding | Empty days are noise on a phone; padding days belong to a neighbouring month and would appear under the wrong heading. |
 
 ## Open Questions & Future Decisions
 
@@ -89,6 +100,7 @@ Each `CalendarEpisode` (models/show.rs) carries show id and name, poster, season
 6. **Locale.** English month and weekday names, Sunday start, raw `YYYY-MM-DD` dates in the UI.
 7. **Fetch window.** The 42-cell grid requests up to six days before and twelve after the month; those episodes render in `calendar-cell-other` cells.
 8. **Mark watched semantics.** Up Next's button marks only the shown episode; marking "through here" from Up Next is not offered.
+9. **Agenda chip count.** The agenda has no overflow hiding, so a day with many episodes is as tall as it needs to be; the grid's clipped cells (item 4) remain the desktop behaviour.
 
 ## References
 
@@ -98,4 +110,4 @@ Each `CalendarEpisode` (models/show.rs) carries show id and name, poster, season
 - frontend/src/pages/UpNext.tsx, frontend/src/pages/Calendar.tsx
 - backend/tests/db.rs (`list_up_next_picks_oldest_unwatched_aired_per_show`, `list_up_next_includes_networks_and_resync_backfills_them`, `list_up_next_skips_shows_with_no_unwatched_aired_episodes`, `list_calendar_episodes_filters_by_range`, `list_up_next_is_capped`); backend/tests/api.rs (`calendar_returns_episodes_in_range`, `calendar_rejects_invalid_dates`, `calendar_rejects_inverted_range`, `calendar_rejects_range_exceeding_92_days`, `up_next_returns_oldest_unwatched_per_show`, `calendar_signed_year_does_not_bypass_the_92_day_cap`, `calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql`, `calendar_ordinary_range_still_returns_the_in_window_episode`)
 - frontend/src/pages/UpNext.test.tsx (13 tests), frontend/src/pages/Calendar.test.tsx (11 tests)
-- Consumed: `shows` (`today_in`, the aired definition, `networks_json`, the single-episode PATCH), `app` (home route `/` → Up Next)
+- Consumed: `shows` (`today_in`, the aired definition, `networks_json`, the single-episode PATCH), `app` (home route `/` → Up Next; the narrow breakpoint, `useNarrow`, and the narrow media block in frontend/src/index.css)

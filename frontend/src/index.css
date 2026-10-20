@@ -15,6 +15,8 @@ body {
 
 .layout {
 	min-height: 100vh;
+	/* biome-ignore lint/suspicious/noDuplicateProperties: 100vh is the fallback where dvh is unsupported */
+	min-height: 100dvh;
 }
 
 .topnav {
@@ -36,24 +38,24 @@ body {
 	text-decoration: none;
 }
 
-.topnav nav {
+.topnav-brand-row {
+	display: flex;
+	align-items: center;
+}
+
+.topnav-links {
 	display: flex;
 	gap: 1rem;
 }
 
-.topnav nav a {
+.topnav-links a {
 	color: #bbb;
 	text-decoration: none;
 	padding: 0.25rem 0.5rem;
 	border-radius: 4px;
 }
 
-.topnav nav a:hover {
-	color: #fff;
-	background: rgba(255, 255, 255, 0.08);
-}
-
-.topnav nav a.active {
+.topnav-links a.active {
 	color: #fff;
 	background: rgba(255, 255, 255, 0.12);
 }
@@ -177,19 +179,10 @@ body {
 	border-color: #1a1a1a;
 }
 
-.btn-primary:hover:not(:disabled) {
-	background: #333;
-}
-
 .btn-danger {
 	background: #fff;
 	color: #c0392b;
 	border-color: #c0392b;
-}
-
-.btn-danger:hover:not(:disabled) {
-	background: #c0392b;
-	color: #fff;
 }
 
 .card-actions {
@@ -262,10 +255,6 @@ body {
 	text-decoration: none;
 }
 
-.card-title-link:hover {
-	text-decoration: underline;
-}
-
 /* Show detail */
 .show-header {
 	display: flex;
@@ -325,10 +314,6 @@ body {
 	min-width: 0;
 }
 
-.season-toggle:hover .season-name {
-	color: #1a1a1a;
-}
-
 .caret {
 	width: 1rem;
 	display: inline-block;
@@ -385,10 +370,6 @@ body {
 	cursor: pointer;
 	padding: 0.15rem 0.35rem;
 	border-radius: 3px;
-}
-
-.ep-through-btn:hover:not(:disabled) {
-	background: #eef2ff;
 }
 
 .ep-through-btn:disabled {
@@ -504,10 +485,6 @@ body {
 	border-radius: 3px;
 }
 
-.calendar-ep-link:hover {
-	background: #c7d2fe;
-}
-
 .calendar-ep-watched .calendar-ep-link {
 	background: #f3f4f6;
 	color: #888;
@@ -539,6 +516,71 @@ body {
 	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 	font-size: 0.65rem;
 	color: #666;
+}
+
+/* Calendar agenda list (the month view while narrow) */
+.calendar-agenda {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.calendar-agenda-day {
+	background: #fff;
+	border: 1px solid #e3e3e3;
+	border-radius: 6px;
+	padding: 0.5rem 0.75rem 0.75rem;
+}
+
+.calendar-agenda-today {
+	border-color: #1a1a1a;
+}
+
+.calendar-agenda-date {
+	margin: 0 0 0.5rem 0;
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: #555;
+}
+
+.calendar-agenda-today .calendar-agenda-date {
+	color: #1a1a1a;
+}
+
+.calendar-agenda .calendar-eps {
+	gap: 0.4rem;
+	overflow: visible;
+}
+
+.calendar-agenda .calendar-ep {
+	font-size: 0.9rem;
+}
+
+.calendar-agenda .calendar-ep-link {
+	padding: 0.4rem 0.6rem;
+	min-height: 44px;
+	gap: 0.6rem;
+}
+
+.calendar-agenda .calendar-ep-poster {
+	width: 30px;
+	height: 45px;
+}
+
+.calendar-agenda .calendar-ep-code {
+	font-size: 0.75rem;
+}
+
+.calendar-ep-name {
+	font-size: 0.8rem;
+	color: #444;
+}
+
+.calendar-ep-watched .calendar-ep-name {
+	color: #888;
 }
 
 /* Settings */
@@ -780,4 +822,193 @@ body {
 .pager-buttons {
 	display: flex;
 	gap: 0.5rem;
+}
+
+/* Hover styles apply only where a pointer can hover; on touch screens a tap
+   would otherwise leave the hover state stuck on the last-touched control. */
+@media (hover: hover) {
+	.topnav-links a:hover:not(.active) {
+		color: #fff;
+		background: rgba(255, 255, 255, 0.08);
+	}
+
+	.btn-primary:hover:not(:disabled) {
+		background: #333;
+	}
+
+	.btn-danger:hover:not(:disabled) {
+		background: #c0392b;
+		color: #fff;
+	}
+
+	.card-title-link:hover {
+		text-decoration: underline;
+	}
+
+	.season-toggle:hover .season-name {
+		color: #1a1a1a;
+	}
+
+	.ep-through-btn:hover:not(:disabled) {
+		background: #eef2ff;
+	}
+
+	.calendar-ep-link:hover {
+		background: #c7d2fe;
+	}
+}
+
+/* Narrow viewports (phones). The only width breakpoint in the app; it must
+   match NARROW_QUERY in src/hooks/useNarrow.ts. */
+@media (max-width: 900px) {
+	/* Top bar: brand on its own row, links on an edge-to-edge scrolling strip */
+	.topnav {
+		flex-wrap: wrap;
+		gap: 0;
+		padding: 0;
+		padding-top: env(safe-area-inset-top);
+	}
+
+	.topnav-brand-row {
+		flex: 0 0 100%;
+		padding: 0.6rem 1rem 0.1rem;
+		padding-left: max(1rem, env(safe-area-inset-left));
+		padding-right: max(1rem, env(safe-area-inset-right));
+	}
+
+	.topnav-links {
+		flex: 0 0 100%;
+		min-width: 0;
+		overflow-x: auto;
+		gap: 0.25rem;
+		padding: 0 0 0.4rem;
+		padding-left: max(1rem, env(safe-area-inset-left));
+		padding-right: max(1rem, env(safe-area-inset-right));
+		-webkit-mask-image: linear-gradient(
+			to right,
+			#000 calc(100% - 2.5rem),
+			transparent
+		);
+		mask-image: linear-gradient(
+			to right,
+			#000 calc(100% - 2.5rem),
+			transparent
+		);
+	}
+
+	/* Lets the last link scroll clear of the fade. */
+	.topnav-links::after {
+		content: "";
+		flex: 0 0 2.5rem;
+	}
+
+	.topnav-links a {
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		padding: 0 0.75rem;
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+
+	@media (hover: none) {
+		.topnav-links {
+			scrollbar-width: none;
+		}
+
+		.topnav-links::-webkit-scrollbar {
+			display: none;
+		}
+	}
+
+	.main {
+		padding: 1rem;
+		padding-left: max(1rem, env(safe-area-inset-left));
+		padding-right: max(1rem, env(safe-area-inset-right));
+		padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+	}
+
+	/* Touch targets */
+	.btn,
+	.ep-through-btn,
+	.season-toggle {
+		min-height: 44px;
+		min-width: 44px;
+	}
+
+	.btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	/* Detail header: small poster with the text beside it, overview and
+	   actions beneath */
+	.show-header {
+		display: block;
+	}
+
+	.show-header .poster-lg {
+		float: left;
+		width: 100px;
+		height: 150px;
+		margin: 0 1rem 0.5rem 0;
+	}
+
+	.show-header .detail-overview,
+	.show-header .action-row {
+		clear: both;
+	}
+
+	.show-header .action-row .btn {
+		flex: 1 1 100%;
+	}
+
+	.movie-backdrop .show-header {
+		padding: 1rem;
+	}
+
+	/* Card grid: one full-width card per row */
+	.results-grid {
+		grid-template-columns: 1fr;
+	}
+
+	/* Up Next row: button drops to its own full-width line */
+	.upnext-row {
+		flex-wrap: wrap;
+	}
+
+	.upnext-action {
+		flex: 1 0 100%;
+	}
+
+	.upnext-action .btn {
+		width: 100%;
+	}
+
+	/* Episode row: date under the name, through-button spanning both lines */
+	.episode-row {
+		align-items: stretch;
+	}
+
+	.episode-label {
+		grid-template-columns: auto auto 1fr;
+		row-gap: 0.1rem;
+	}
+
+	.episode-label .ep-date {
+		grid-column: 3;
+	}
+
+	.episode-row .ep-through-btn {
+		align-self: stretch;
+		flex-shrink: 0;
+		max-width: 5.5rem;
+		text-align: center;
+		line-height: 1.2;
+	}
+
+	.ep-name {
+		white-space: normal;
+	}
 }
