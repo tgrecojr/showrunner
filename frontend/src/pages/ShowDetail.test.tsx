@@ -556,3 +556,67 @@ describe("ShowDetail", () => {
 		expect(screen.getByText("—")).toBeInTheDocument();
 	});
 });
+
+describe("ShowDetail narrow-width hooks for the stylesheet", () => {
+	// @spec APP-SPA-011
+	it("marks the overview paragraph so the narrow header can place it full width", async () => {
+		mockGet.mockResolvedValueOnce(show());
+		const { container } = renderAt("/shows/1");
+		await waitFor(() =>
+			expect(screen.getByText("A great show")).toBeInTheDocument(),
+		);
+		const overview = container.querySelector(".show-header .detail-overview");
+		expect(overview).not.toBeNull();
+		expect(overview?.textContent).toBe("A great show");
+	});
+
+	// @spec SHOWS-UI-017
+	it("carries the full episode name as the name's title, with the dash fallback", async () => {
+		const user = userEvent.setup();
+		mockGet.mockResolvedValueOnce(
+			show({
+				seasons: [
+					{
+						season_number: 1,
+						name: "Season 1",
+						overview: null,
+						air_date: null,
+						episode_count: 2,
+						watched_count: 0,
+						episodes: [
+							{
+								episode_number: 1,
+								name: "A Very Long Episode Name That Will Not Fit",
+								overview: null,
+								air_date: "2022-01-01",
+								runtime: 30,
+								watched: false,
+							},
+							{
+								episode_number: 2,
+								name: null,
+								overview: null,
+								air_date: "2022-01-08",
+								runtime: 30,
+								watched: false,
+							},
+						],
+					},
+				],
+			}),
+		);
+		const { container } = renderAt("/shows/1");
+		await waitFor(() =>
+			expect(screen.getByText("My Show")).toBeInTheDocument(),
+		);
+		await user.click(screen.getByRole("button", { name: /Season 1/ }));
+		const names = container.querySelectorAll(".ep-name");
+		expect(names).toHaveLength(2);
+		expect(names[0]).toHaveAttribute(
+			"title",
+			"A Very Long Episode Name That Will Not Fit",
+		);
+		expect(names[1]).toHaveTextContent("—");
+		expect(names[1]).toHaveAttribute("title", "—");
+	});
+});

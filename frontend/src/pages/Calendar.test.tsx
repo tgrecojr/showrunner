@@ -1,7 +1,8 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { installMatchMedia } from "../test/matchMedia";
 import type { CalendarEpisode } from "../types";
 import Calendar from "./Calendar";
 
@@ -216,5 +217,222 @@ describe("Calendar", () => {
 		// No image rendered when poster_url is null
 		const img = within(link).queryByRole("img");
 		expect(img).toBeNull();
+	});
+});
+
+describe("Calendar at narrow width (agenda list)", () => {
+	const may = [
+		ep({
+			show_tmdb_id: 2,
+			show_name: "Beta",
+			air_date: "2026-05-15",
+			episode_name: "Second on the day",
+		}),
+		ep({
+			show_tmdb_id: 1,
+			show_name: "Alpha",
+			air_date: "2026-05-15",
+			watched: true,
+		}),
+		ep({ show_tmdb_id: 3, show_name: "Gamma", air_date: "2026-05-05" }),
+		// Padding days the 42-cell fetch returns but the agenda must not list.
+		ep({ show_tmdb_id: 4, show_name: "AprilShow", air_date: "2026-04-28" }),
+		ep({ show_tmdb_id: 5, show_name: "JuneShow", air_date: "2026-06-02" }),
+	];
+
+	// @spec AIRING-CAL-014, AIRING-CAL-006
+	it("renders the agenda instead of the grid, keeping heading and buttons", async () => {
+		installMatchMedia(true);
+		mockCalendar.mockResolvedValueOnce({ today: "2026-05-09", episodes: may });
+		const { container } = renderPage();
+		await waitFor(() => expect(screen.getByText("Gamma")).toBeInTheDocument());
+		expect(screen.getByText("May 2026")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /Prev/ })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Today" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /Next/ })).toBeInTheDocument();
+		expect(container.querySelector(".calendar-agenda")).not.toBeNull();
+		expect(container.querySelector(".calendar-grid")).toBeNull();
+		expect(container.querySelector(".calendar-weekday")).toBeNull();
+	});
+
+	// @spec AIRING-CAL-014, AIRING-CAL-007
+	it("switching between grid and agenda does not refetch", async () => {
+		const mm = installMatchMedia(true);
+		mockCalendar.mockResolvedValue({ today: "2026-05-09", episodes: may });
+		const { container } = renderPage();
+		await waitFor(() => expect(screen.getByText("Gamma")).toBeInTheDocument());
+		expect(mockCalendar).toHaveBeenCalledTimes(1);
+
+		act(() => mm.set(false));
+		await waitFor(() =>
+			expect(container.querySelector(".calendar-grid")).not.toBeNull(),
+		);
+		expect(container.querySelector(".calendar-agenda")).toBeNull();
+		expect(container.querySelectorAll(".calendar-cell")).toHaveLength(42);
+
+		act(() => mm.set(true));
+		await waitFor(() =>
+			expect(container.querySelector(".calendar-agenda")).not.toBeNull(),
+		);
+		expect(container.querySelector(".calendar-grid")).toBeNull();
+		expect(mockCalendar).toHaveBeenCalledTimes(1);
+	});
+
+	// @spec AIRING-CAL-015
+	it("groups in-month airing days in date order with unpadded weekday headings and API order inside", async () => {
+		installMatchMedia(true);
+		mockCalendar.mockResolvedValueOnce({ today: "2026-05-09", episodes: may });
+		const { container } = renderPage();
+		await waitFor(() => expect(screen.getByText("Gamma")).toBeInTheDocument());
+
+		const groups = container.querySelectorAll(".calendar-agenda-day");
+		expect(groups).toHaveLength(2);
+		const headings = Array.from(groups).map(
+			(g) => g.querySelector(".calendar-agenda-date")?.textContent,
+		);
+		expect(headings).toEqual(["Tue 5", "Fri 15"]);
+
+		const fifteenth = within(groups[1] as HTMLElement);
+		const names = fifteenth
+			.getAllByRole("link")
+			.map((a) => a.querySelector(".calendar-ep-show")?.textContent);
+		expect(names).toEqual(["Beta", "Alpha"]);
+
+		expect(screen.queryByText("AprilShow")).toBeNull();
+		expect(screen.queryByText("JuneShow")).toBeNull();
+	});
+
+	// @spec AIRING-CAL-015
+	it("derives the weekday from the date string, not from a UTC parse", async () => {
+		installMatchMedia(true);
+		// 2026-05-01 is a Friday. A UTC parse rendered in a negative-offset zone
+		// would land on Thursday April 30.
+		mockCalendar.mockResolvedValueOnce({
+			today: "2026-05-09",
+			episodes: [ep({ air_date: "2026-05-01" })],
+		});
+		const { container } = renderPage();
+		await waitFor(() =>
+			expect(container.querySelector(".calendar-agenda-date")).not.toBeNull(),
+		);
+		expect(container.querySelector(".calendar-agenda-date")?.textContent).toBe(
+			"Fri 1",
+		);
+	});
+
+	// @spec AIRING-CAL-016
+	it("reuses the grid chip markup and adds the visible episode name", async () => {
+		installMatchMedia(true);
+		mockCalendar.mockResolvedValueOnce({ today: "2026-05-09", episodes: may });
+		const { container } = renderPage();
+		await waitFor(() => expect(screen.getByText("Beta")).toBeInTheDocument());
+
+		const items = container.querySelectorAll(".calendar-agenda .calendar-ep");
+		expect(items).toHaveLength(3);
+
+		const beta = Array.from(items).find((li) =>
+			li.textContent?.includes("Beta"),
+		) as HTMLElement;
+		const link = within(beta).getByRole("link");
+		expect(link).toHaveClass("calendar-ep-link");
+		expect(link).toHaveAttribute("href", "/shows/2");
+		expect(link).toHaveAttribute("title", "Second on the day");
+		expect(beta.querySelector(".calendar-ep-code")?.textContent).toBe("S02E05");
+		expect(beta.querySelector(".calendar-ep-poster")).toHaveAttribute(
+			"src",
+			"/p.jpg",
+		);
+		expect(beta.querySelector(".calendar-ep-name")?.textContent).toBe(
+			"Second on the day",
+		);
+		expect(beta).not.toHaveClass("calendar-ep-watched");
+
+		const alpha = Array.from(items).find((li) =>
+			li.textContent?.includes("Alpha"),
+		) as HTMLElement;
+		expect(alpha).toHaveClass("calendar-ep-watched");
+	});
+
+	// @spec AIRING-CAL-016
+	it("omits the visible name element when the episode has no name", async () => {
+		installMatchMedia(true);
+		mockCalendar.mockResolvedValueOnce({
+			today: "2026-05-09",
+			episodes: [ep({ episode_name: null })],
+		});
+		const { container } = renderPage();
+		await waitFor(() => expect(screen.getByText("Show")).toBeInTheDocument());
+		expect(container.querySelector(".calendar-ep-name")).toBeNull();
+	});
+
+	// @spec AIRING-CAL-017
+	it("marks the group for the server's today, and none when today has no episodes", async () => {
+		installMatchMedia(true);
+		mockCalendar.mockResolvedValueOnce({ today: "2026-05-15", episodes: may });
+		const { container, unmount } = renderPage();
+		await waitFor(() => expect(screen.getByText("Beta")).toBeInTheDocument());
+		const todayGroups = container.querySelectorAll(".calendar-agenda-today");
+		expect(todayGroups).toHaveLength(1);
+		expect(
+			todayGroups[0]?.querySelector(".calendar-agenda-date")?.textContent,
+		).toBe("Fri 15");
+		unmount();
+
+		mockCalendar.mockResolvedValueOnce({ today: "2026-05-09", episodes: may });
+		const second = renderPage();
+		await waitFor(() => expect(screen.getByText("Beta")).toBeInTheDocument());
+		expect(second.container.querySelector(".calendar-agenda-today")).toBeNull();
+	});
+
+	// @spec AIRING-CAL-018, AIRING-CAL-012
+	it("shows the empty-month text only once the fetch has settled with no episodes", async () => {
+		installMatchMedia(true);
+		let resolve: (v: { today: string; episodes: CalendarEpisode[] }) => void =
+			() => {};
+		mockCalendar.mockReturnValueOnce(
+			new Promise((r) => {
+				resolve = r;
+			}),
+		);
+		renderPage();
+		expect(screen.getByText("Loading…")).toBeInTheDocument();
+		expect(screen.queryByText("Nothing airing in May 2026.")).toBeNull();
+
+		await act(async () => {
+			resolve({ today: "2026-05-09", episodes: [] });
+		});
+		await waitFor(() =>
+			expect(
+				screen.getByText("Nothing airing in May 2026."),
+			).toBeInTheDocument(),
+		);
+		expect(screen.queryByText("Loading…")).toBeNull();
+	});
+
+	// @spec AIRING-CAL-018
+	it("treats a month whose only episodes fall on padding days as empty", async () => {
+		installMatchMedia(true);
+		mockCalendar.mockResolvedValueOnce({
+			today: "2026-05-09",
+			episodes: [ep({ air_date: "2026-04-28" })],
+		});
+		renderPage();
+		await waitFor(() =>
+			expect(
+				screen.getByText("Nothing airing in May 2026."),
+			).toBeInTheDocument(),
+		);
+	});
+
+	// @spec AIRING-CAL-012, APP-SPA-006
+	it("shows the error above the agenda and keeps the month view", async () => {
+		installMatchMedia(true);
+		mockCalendar.mockRejectedValueOnce(new Error("range too big"));
+		const { container } = renderPage();
+		await waitFor(() =>
+			expect(screen.getByText("Error: range too big")).toBeInTheDocument(),
+		);
+		expect(container.querySelector(".calendar-page")).not.toBeNull();
+		expect(container.querySelector(".calendar-grid")).toBeNull();
 	});
 });

@@ -57,7 +57,9 @@ showrunner/
 │       ├── api/client.ts        # Fetch wrapper
 │       ├── types/index.ts       # TS interfaces matching Rust models
 │       ├── pages/               # Watchlist, UpNext, ShowDetail, Search, Calendar, History, Settings
-│       └── components/
+│       ├── components/
+│       ├── hooks/useNarrow.ts   # the one narrow breakpoint (≤900px), shared with index.css
+│       └── index.css            # shared stylesheet; its single @media block holds every phone layout
 ├── Dockerfile                   # Multi-stage: Node → Rust → slim runtime
 └── docker-compose.yml           # app + sqlite volume
 ```
@@ -97,6 +99,7 @@ showrunner/
 - **Calendar** — full month grid, episodes shown by air date. Watched episodes get faded styling.
 - **Up Next** — per-show earliest unwatched aired episode, sorted by air_date ASC (longest-overdue first). SQL uses `ROW_NUMBER() OVER (PARTITION BY show ORDER BY air_date)`. Each row shows the show's networks as pills (TMDB `networks` — broadcast/cable channels and streaming originals alike — stored in `shows.networks_json`, written on add and refreshed by resync) so it's obvious where to go watch. Watch providers are deliberately not shown here: TMDB's provider list is too noisy to read at a glance. Each row also carries an `N remaining` pill counting **aired** unwatched episodes only (same `air_date <= today` filter, never future airings); it switches to the indigo `status-pill-accent` style when N > 1 so being several weeks behind is obvious.
 - **Progress display** — `12/27` format (watched / aired), no percentage.
+- **One narrow breakpoint** — `@media (max-width: 900px)` in `index.css` is the only width query, and `useNarrow` reports the same query to components. Phones get a two-row top bar (brand over a sideways-scrolling link strip), a floated small poster on detail pages, one-column card grids, 44px controls, and an agenda list instead of the calendar grid. Hover styles live under `@media (hover: hover)`. `styles.test.ts` pins these rules by reading the stylesheet text, so restyling inside the block means updating that test. `index.html` and `public/manifest.webmanifest` make it installable to a phone home screen (no service worker).
 - Axum serves React SPA static files with fallback to index.html for client-side routing.
 
 ## Environment Variables

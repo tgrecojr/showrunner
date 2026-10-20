@@ -74,6 +74,7 @@ Bulk scopes: `all` (whole show), `season` (one season), `through_episode` (every
 - Seasons start collapsed; the toggle carries `aria-expanded`; rows show `SxxExx`, name or `—`, air date, a checkbox labelled `Mark S{s}E{e} watched`, and a `Mark through here` button that always sends `watched: true`.
 - One `mutating` flag disables every checkbox and bulk button while any mutation is in flight; each response replaces the whole `show` object (no optimistic update).
 - Remove asks for confirmation, calls DELETE, and navigates to `/` (Up Next). Failures render a banner above the header with the show still visible.
+- **Narrow width** (the breakpoint `app` defines): the header follows `app`'s detail-header pattern (small poster beside the title, overview and buttons full width beneath). An episode row keeps the checkbox, `SxxExx`, and the name on its first line and drops the air date to a second line beneath the name, with the `Mark through here` button at the row's right edge spanning both lines and at least 44 px tall; the name wraps onto further lines instead of truncating, because a `title` tooltip never appears on a touch screen (at wide widths it truncates with an ellipsis and carries the full name as its `title`). Season headers keep one line: the toggle shrinks and the bulk button keeps its label. All of this is arrangement in the narrow media block of frontend/src/index.css except the `title` attribute on the episode name and the `detail-overview` class on the header's overview paragraph.
 
 ## Decisions & Alternatives
 

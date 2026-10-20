@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { api } from "../api/client";
+import { useNarrow } from "../hooks/useNarrow";
 import type { CalendarEpisode } from "../types";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -52,8 +53,73 @@ function buildVisibleRange(year: number, month: number): VisibleRange {
 	};
 }
 
-// @spec AIRING-CAL-006, AIRING-CAL-007, AIRING-CAL-008, AIRING-CAL-009, AIRING-CAL-010, AIRING-CAL-011, AIRING-CAL-012, AIRING-CAL-013, APP-SPA-006
+interface AgendaGroup {
+	iso: string;
+	label: string; // "Fri 15"
+	episodes: CalendarEpisode[];
+}
+
+// One group per in-month date that has episodes, ascending. The fetched range
+// covers padding days of the neighbouring months; those are left out here.
+// @spec AIRING-CAL-015
+function buildAgenda(
+	byDate: Map<string, CalendarEpisode[]>,
+	year: number,
+	month: number,
+): AgendaGroup[] {
+	const prefix = `${year}-${pad(month + 1)}-`;
+	return [...byDate.keys()]
+		.filter((iso) => iso.startsWith(prefix))
+		.sort()
+		.map((iso) => {
+			const day = Number(iso.slice(8, 10));
+			// Built from the date's own parts so the weekday never shifts with the
+			// browser's UTC offset.
+			const weekday = WEEKDAYS[new Date(year, month, day).getDay()];
+			return {
+				iso,
+				label: `${weekday} ${day}`,
+				episodes: byDate.get(iso) ?? [],
+			};
+		});
+}
+
+function EpisodeChip({
+	ep,
+	showName,
+}: {
+	ep: CalendarEpisode;
+	showName: boolean;
+}) {
+	return (
+		<li
+			className={ep.watched ? "calendar-ep calendar-ep-watched" : "calendar-ep"}
+		>
+			<Link
+				to={`/shows/${ep.show_tmdb_id}`}
+				title={ep.episode_name ?? ""}
+				className="calendar-ep-link"
+			>
+				{ep.poster_url && (
+					<img src={ep.poster_url} alt="" className="calendar-ep-poster" />
+				)}
+				<span className="calendar-ep-text">
+					<span className="calendar-ep-show">{ep.show_name}</span>
+					<span className="calendar-ep-code">
+						S{pad(ep.season_number)}E{pad(ep.episode_number)}
+					</span>
+					{showName && ep.episode_name && (
+						<span className="calendar-ep-name">{ep.episode_name}</span>
+					)}
+				</span>
+			</Link>
+		</li>
+	);
+}
+
+// @spec AIRING-CAL-006, AIRING-CAL-007, AIRING-CAL-008, AIRING-CAL-009, AIRING-CAL-010, AIRING-CAL-011, AIRING-CAL-012, AIRING-CAL-013, AIRING-CAL-014, AIRING-CAL-015, AIRING-CAL-016, AIRING-CAL-017, AIRING-CAL-018, APP-SPA-006
 export default function Calendar() {
+	const narrow = useNarrow();
 	const today = useMemo(() => new Date(), []);
 	const [year, setYear] = useState(today.getFullYear());
 	const [month, setMonth] = useState(today.getMonth());
@@ -62,15 +128,17 @@ export default function Calendar() {
 	// The server's today in its TIMEZONE, once a response has carried it; the
 	// browser-local date stands in only until then.
 	const [serverToday, setServerToday] = useState<string | null>(null);
-	const [loading, setLoading] = useState(true);
+	// Start date of the range whose fetch last settled (succeeded or failed).
+	// A fetch is in flight exactly while this differs from the displayed range.
+	const [settledFor, setSettledFor] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
 	const range = useMemo(() => buildVisibleRange(year, month), [year, month]);
 	const todayIso = serverToday ?? isoDate(today);
+	const loading = settledFor !== range.startIso;
 
 	useEffect(() => {
 		let cancelled = false;
-		setLoading(true);
 		setError(null);
 		api
 			.calendar(range.startIso, range.endIso)
@@ -86,7 +154,7 @@ export default function Calendar() {
 				}
 			})
 			.finally(() => {
-				if (!cancelled) setLoading(false);
+				if (!cancelled) setSettledFor(range.startIso);
 			});
 		return () => {
 			cancelled = true;
@@ -102,6 +170,11 @@ export default function Calendar() {
 		}
 		return map;
 	}, [episodes]);
+
+	const agenda = useMemo(
+		() => buildAgenda(episodesByDate, year, month),
+		[episodesByDate, year, month],
+	);
 
 	function goPrev() {
 		if (month === 0) {
@@ -132,27 +205,8 @@ export default function Calendar() {
 		setMonth(today.getMonth());
 	}
 
-	return (
-		<div className="calendar-page">
-			<div className="calendar-toolbar">
-				<h1>
-					{MONTHS[month]} {year}
-				</h1>
-				<div className="calendar-nav">
-					<button type="button" className="btn btn-sm" onClick={goPrev}>
-						‹ Prev
-					</button>
-					<button type="button" className="btn btn-sm" onClick={goToday}>
-						Today
-					</button>
-					<button type="button" className="btn btn-sm" onClick={goNext}>
-						Next ›
-					</button>
-				</div>
-			</div>
-
-			{error && <p className="status status-error">Error: {error}</p>}
-
+	function renderGrid() {
+		return (
 			<div className="calendar-grid">
 				{WEEKDAYS.map((d) => (
 					<div key={d} className="calendar-weekday">
@@ -178,36 +232,75 @@ export default function Calendar() {
 							<div className="calendar-day-num">{date.getDate()}</div>
 							<ul className="calendar-eps">
 								{dayEpisodes.map((ep) => (
-									<li
+									<EpisodeChip
 										key={`${ep.show_tmdb_id}-${ep.season_number}-${ep.episode_number}`}
-										className={`calendar-ep ${ep.watched ? "calendar-ep-watched" : ""}`}
-									>
-										<Link
-											to={`/shows/${ep.show_tmdb_id}`}
-											title={ep.episode_name ?? ""}
-											className="calendar-ep-link"
-										>
-											{ep.poster_url && (
-												<img
-													src={ep.poster_url}
-													alt=""
-													className="calendar-ep-poster"
-												/>
-											)}
-											<span className="calendar-ep-text">
-												<span className="calendar-ep-show">{ep.show_name}</span>
-												<span className="calendar-ep-code">
-													S{pad(ep.season_number)}E{pad(ep.episode_number)}
-												</span>
-											</span>
-										</Link>
-									</li>
+										ep={ep}
+										showName={false}
+									/>
 								))}
 							</ul>
 						</div>
 					);
 				})}
 			</div>
+		);
+	}
+
+	function renderAgenda() {
+		if (agenda.length === 0 && !loading) {
+			return (
+				<p className="status">{`Nothing airing in ${MONTHS[month]} ${year}.`}</p>
+			);
+		}
+		return (
+			<ul className="calendar-agenda">
+				{agenda.map((group) => (
+					<li
+						key={group.iso}
+						className={
+							group.iso === todayIso
+								? "calendar-agenda-day calendar-agenda-today"
+								: "calendar-agenda-day"
+						}
+					>
+						<h2 className="calendar-agenda-date">{group.label}</h2>
+						<ul className="calendar-eps">
+							{group.episodes.map((ep) => (
+								<EpisodeChip
+									key={`${ep.show_tmdb_id}-${ep.season_number}-${ep.episode_number}`}
+									ep={ep}
+									showName
+								/>
+							))}
+						</ul>
+					</li>
+				))}
+			</ul>
+		);
+	}
+
+	return (
+		<div className="calendar-page">
+			<div className="calendar-toolbar">
+				<h1>
+					{MONTHS[month]} {year}
+				</h1>
+				<div className="calendar-nav">
+					<button type="button" className="btn btn-sm" onClick={goPrev}>
+						‹ Prev
+					</button>
+					<button type="button" className="btn btn-sm" onClick={goToday}>
+						Today
+					</button>
+					<button type="button" className="btn btn-sm" onClick={goNext}>
+						Next ›
+					</button>
+				</div>
+			</div>
+
+			{error && <p className="status status-error">Error: {error}</p>}
+
+			{narrow ? renderAgenda() : renderGrid()}
 
 			{loading && <p className="status">Loading…</p>}
 		</div>

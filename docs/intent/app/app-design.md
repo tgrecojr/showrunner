@@ -7,7 +7,7 @@ prefix: APP
 
 ## Context and Design Philosophy
 
-Showrunner has no authentication by design: anyone who can reach the port can read and change the watchlist. This segment owns everything that makes that acceptable on a home LAN and nothing more: the configuration the process boots from, the HTTP perimeter that bounds what an unauthenticated caller can do (content-type gate, concurrency ceiling, body and time limits, CORS, security headers), the mapping from internal errors to client-safe responses, the health probe, and the delivery of the single-page app (static serving with history fallback, the router, the navigation shell, the fetch wrapper). Feature segments own their routes and pages; this segment owns the frame they sit in.
+Showrunner has no authentication by design: anyone who can reach the port can read and change the watchlist. This segment owns everything that makes that acceptable on a home LAN and nothing more: the configuration the process boots from, the HTTP perimeter that bounds what an unauthenticated caller can do (content-type gate, concurrency ceiling, body and time limits, CORS, security headers), the mapping from internal errors to client-safe responses, the health probe, and the delivery of the single-page app (static serving with history fallback, the router, the navigation shell, the fetch wrapper, the shared stylesheet with its one narrow breakpoint). Feature segments own their routes and pages; this segment owns the frame they sit in, on a desktop browser and on a phone alike.
 
 ## Configuration
 
@@ -56,11 +56,42 @@ The binary doubles as its own probe. Started as `showrunner-backend --healthchec
 
 - **Entry** (frontend/src/main.tsx) mounts `App` into `#root` under `StrictMode`; effects double-invoke in development, which is why every page guards its fetch with a `cancelled` flag.
 - **Router** (frontend/src/App.tsx) — `BrowserRouter`, one `Layout` parent, nine child routes: `/` Up Next, `/watchlist`, `/movies`, `/movies/:tmdbId`, `/search`, `/shows/:tmdbId`, `/calendar`, `/history`, `/settings`. There is no catch-all; an unknown path renders the shell with an empty outlet. All pages are statically imported.
-- **Layout** (frontend/src/components/Layout.tsx) — a sticky top bar with the brand link to `/` and seven `NavLink`s in the order Up Next, Watchlist, Movies, Search, Calendar, History, Settings; Up Next uses `end` so it is active only at exactly `/`. No mobile navigation.
+- **Layout** (frontend/src/components/Layout.tsx) — a sticky dark top bar with the brand link to `/` and seven `NavLink`s in the order Up Next, Watchlist, Movies, Search, Calendar, History, Settings; Up Next uses `end` so it is active only at exactly `/`. The links sit in a strip (`nav`) that the stylesheet lets scroll sideways inside the bar at narrow widths. `Layout` reads `useNarrow`; while narrow, whenever the pathname changes (including the first render of a deep link) or the viewport crosses into narrow, it scrolls the strip's active link into view instantly (`scrollIntoView` with `inline: "center"`, `block: "nearest"`, `behavior: "auto"`), so the current page is visible even when it is the seventh link. With no active link (a show or movie detail page, an unknown path) the strip keeps its position; a browser without the method is skipped. See *Narrow-width layout*.
 - **Fetch wrapper** (`request` and `ApiError` in frontend/src/api/client.ts) — prefixes `/api/v1`, always sends `Content-Type: application/json` (so the server's gate is satisfied on every method), never opts into cross-origin credentials (fetch's same-origin default stands), has no timeout or retry. A non-2xx response rejects with an `ApiError` (a subclass of `Error`) whose `status` is the HTTP status and whose `message` is the body's `error` field when the body is JSON and the raw text otherwise, with no prefix; 204 resolves to `undefined`; any other success is parsed as JSON. Query values are URL-encoded; numeric path parameters are interpolated.
 - **Types** (frontend/src/types/index.ts) mirror the Rust response structs in snake_case with no mapping layer. `BulkWatchScope` lives in the client module because the lint rules forbid non-component exports from component files.
-- **Styles** (frontend/src/index.css) — one plain stylesheet: no custom properties, no media queries, light theme only; layout responsiveness comes from auto-fill grids and `flex-wrap`.
+- **Styles** (frontend/src/index.css) — one plain stylesheet, light theme only, no custom properties. Wide layouts come from auto-fill grids and `flex-wrap`; everything phone-specific lives in a single `@media (max-width: 900px)` block at the end of the file (the **narrow breakpoint**; the file has exactly one `max-width` query). Feature queries are separate and allowed: `@media (hover: hover)` wraps hover styles so touch screens never show a stuck hover state, and `@media (hover: none)` hides the link strip's scrollbar on touch devices only. Page segments add rules inside the one width block for their own markup; nobody adds a second width breakpoint.
+- **Document head** (frontend/index.html) — the viewport meta carries `width=device-width, initial-scale=1, viewport-fit=cover`; `theme-color` matches the bar (`#1a1a1a`); a web app manifest (frontend/public/manifest.webmanifest: name, `display: standalone`, bar-coloured theme, 192 and 512 px icons) and an `apple-touch-icon` (frontend/public/apple-touch-icon.png, 180 px) let "Add to Home Screen" launch the app full-screen with a proper icon. All are same-origin static files, so the CSP needs no change.
 - **Error presentation** — pages render `Error: <message>` with the message exactly as the wrapper delivered it, which is the server's own text. No page interprets statuses or rewrites messages; the wording of upstream errors is the `tmdb` client's responsibility, and the status is available on `ApiError` for any page that ever needs to branch on it.
+
+## Narrow-width layout
+
+The breakpoint is `max-width: 900px`, inclusive: a 900 px viewport is narrow. Below it the desktop top bar (brand, gaps, seven links, and the bar's own padding come to roughly 860 px) cannot fit, so the layout changes shape; above it the desktop layout is used unchanged. The value puts every phone in portrait and every tablet in portrait on the narrow layout and keeps a side-by-side desktop window on the dense one; the largest phones in landscape (above 900 CSS px) and a 13-inch iPad in portrait take the desktop layout, where the bar fits. The breakpoint appears twice and must agree: the stylesheet constant and the identical query string in `useNarrow` (frontend/src/hooks/useNarrow.ts), the one hook a component uses when it must change markup or behaviour rather than arrangement (`Layout` for the strip, the calendar in `up-next-calendar` for its agenda list). `useNarrow` reads `matchMedia(...).matches` synchronously for its first value, subscribes to the query's `change` event for resizes and rotation, and returns false when `matchMedia` is missing, so a page never renders one shape and then flips on mount. The stylesheet test pins both occurrences to the same value.
+
+**Top bar.** At narrow widths the bar becomes two rows that keep the dark background: the brand alone on the first row; the seven links on a second row that scrolls horizontally inside the bar (`overflow-x: auto`, `min-width: 0`, `-webkit-overflow-scrolling: touch`). The bar never exceeds the viewport by construction, because the strip is the only thing that can be wider than the bar and it scrolls inside it; no `overflow-x: hidden` is placed on `html` or `body`, which would clip content silently and interfere with sticky positioning in Safari. A mask fades the strip's right edge as the affordance that more links follow; being a mask on the strip itself it intercepts no taps, and a trailing spacer inside the strip keeps the last link clear of the fade when scrolled to the end. The scrollbar is hidden only where `(hover: none)`, so a mouse user in a narrow window still sees one; links remain keyboard-focusable with a visible `:focus-visible` ring, and focusing a link scrolls it into view natively. Each link's own box is at least 44 px tall. The bar stays sticky.
+
+```
+┌──────────────────────────────────────┐
+│ Showrunner                           │ ← brand row, dark
+│ Up Next  Watchlist  Movies  Search ▸ │ ← link strip scrolls sideways, fades at edge
+├──────────────────────────────────────┤
+│ Page content, 1rem gutters           │
+```
+
+**Shared patterns.** The stylesheet owns these class families and their narrow arrangement; page segments use them without redefining them:
+
+| Pattern | Classes | Desktop | Narrow |
+|---|---|---|---|
+| Detail header (show and movie pages) | `.show-header`, `.poster-lg`, `.show-meta`, `.detail-overview`, `.action-row` | 200×300 poster beside the metadata | 100×150 poster beside the title, pills, and metadata lines; the `.detail-overview` paragraph and the `.action-row` span the full width beneath; each action button stretches to the full row |
+| Card grid (Watchlist, Movies, Search) | `.results-grid`, `.result-card` | auto-fill columns at 280 px minimum | one column; cards fill the width |
+| Buttons and small controls | `.btn`, `.btn-sm`, `.ep-through-btn`, `.season-toggle` | compact | at least 44 px tall and 44 px wide, the Apple touch-target minimum, keeping their desktop font size |
+| Page frame | `.layout`, `.main`, `.topnav` | `min-height: 100vh` then `min-height: 100dvh` as a base rule at every width (the second wins where supported, so the Safari toolbar never leaves a scroll gap); 1.5rem padding | 1rem side gutters widened to the side safe-area insets where a notch reports them (`max(1rem, env(safe-area-inset-left))` and the right-hand twin, on the bar and on `.main`); the bar's top padding adds `env(safe-area-inset-top)` and `.main`'s bottom padding adds `env(safe-area-inset-bottom)`, which are zero in an ordinary browser tab and non-zero in standalone mode |
+| Inputs | `.search-input` | 1rem | unchanged: 16 px is the size below which iOS Safari zooms the page on focus |
+
+Flex children that hold text carry `min-width: 0` so a long title shrinks instead of widening its row; the calendar grid already uses `minmax(0, 1fr)` columns. Nothing in the layout clips: a page element that cannot fit shrinks or wraps.
+
+Arrangements specific to one page (the Up Next row's action button, the episode rows of a season, the calendar's agenda list) belong to that page's segment and are described in its design; their rules still live in the same media block of this stylesheet.
+
+**Verification.** The unit test environment (happy-dom) does not lay out or apply stylesheets, so narrow-width behaviour is pinned two ways: `useNarrow` is tested with `matchMedia` mocked (initial value, change subscription, absence of the API), `Layout` is tested with `scrollIntoView` spied (called on the active link only while narrow, not called with no active link), and frontend/src/styles.test.ts reads index.css and index.html as text and asserts that exactly one `max-width` media query exists with the 900 px value, that `useNarrow` carries the same query, that the required rules appear inside the block, and that the head carries the viewport, theme-color, manifest, and touch-icon tags. A look at a real phone (or a 390 px device emulation) is part of review for any change inside the media block.
 
 ## Decisions & Alternatives
 
@@ -83,11 +114,21 @@ The binary doubles as its own probe. Started as `showrunner-backend --healthchec
 | Home route | Up Next at `/` | Watchlist | "What do I watch next" is the daily question. |
 | Data layer | A thin `fetch` wrapper, no query or state library | React Query, SWR | Nine pages with simple load-then-mutate flows. |
 | Styling | Single plain stylesheet | CSS modules; utility framework; design tokens | Small surface, one theme. |
+| Narrow navigation | Two-row bar with a sideways-scrolling link strip | Bottom tab bar; hamburger or "More" menu; wrapping the links onto several rows | Seven destinations overflow a tab bar at phone width and a menu hides them (tenet 5); wrapped rows cost up to three rows of bar on every page. A strip keeps every link one swipe away inside the bar, with the active one scrolled into view. |
+| Breakpoint | One, `max-width: 900px`, shared by the stylesheet and `useNarrow` | 840 px; two breakpoints (phone and tablet); container queries per component | One shape change is enough for a nine-page app and keeps the stylesheet readable. The desktop bar needs about 860 px, so 840 would leave a band where the desktop layout overflows; tablets in portrait overflow it anyway. |
+| Phone layouts | Rearrange the desktop markup in one media block; switch markup only via `useNarrow` where no arrangement fits | A separate mobile shell or page variants; a CSS framework | One set of markup and tests to keep correct; the calendar is the only view whose desktop shape has no readable narrow arrangement. |
+| Touch targets | 44 px minimum height for controls only under the breakpoint | 44 px everywhere; leave as is | Desktop keeps its density; phones get Apple's recommended minimum. |
+| Hover styles | Wrapped in `@media (hover: hover)` | Unconditional hover rules | A tapped control on iOS otherwise keeps its hover colour until the next tap. |
+| Horizontal overflow | Prevented by construction (the strip scrolls inside the bar; text children carry `min-width: 0`) | `overflow-x: hidden` on `html, body` | Hiding overflow clips silently and can make `body` the scroll container, breaking the sticky bar in Safari. |
+| Strip affordance | A right-edge mask on the strip with a trailing spacer; no left-edge fade | A fade overlay element; fades on both edges; arrows | A mask intercepts no taps and needs no script; the strip starts at Up Next and centring the active link reveals its neighbours, so a left cue adds little. |
+| Strip scrollbar | Hidden only where `(hover: none)` | Hidden everywhere; shown everywhere | Touch users scroll by swipe and the fade shows there is more; a mouse user in a narrow window needs the bar. |
+| Home-screen install | Manifest, `theme-color`, and an `apple-touch-icon`; no service worker | Full PWA with offline cache; nothing | The install affordance and a proper icon cost three static files; offline caching is pointless for a LAN app whose every view is live data. |
+| Narrow-layout verification | Component tests with mocked `matchMedia` plus a stylesheet-text test | A Playwright or browser-mode CI job; review only | A browser job is a `build-ship` change out of proportion to one media block; a text test at least pins that the rules exist at the agreed breakpoint. |
 
 ## Open Questions & Future Decisions
 
 ### Resolved
-*(none yet)*
+1. ✅ **Responsive layout.** One narrow breakpoint at 900 px; the top bar becomes a brand row over a sideways-scrolling link strip; shared patterns rearrange in a single media block; the calendar alone switches markup (see *Narrow-width layout*).
 
 ### Deferred
 1. **Configuration outside `Config`.** `STATIC_DIR` (`run` in lib.rs) and `DB_MAX_CONNECTIONS` (`create_pool` in pool.rs) bypass `Config::from_env`; `STATIC_DIR` is passed by compose but documented in neither env.example nor README.md, and `DB_MAX_CONNECTIONS` is documented in both but missing from CLAUDE.md and not passed by compose.
@@ -97,14 +138,16 @@ The binary doubles as its own probe. Started as `showrunner-backend --healthchec
 5. **`Config` error text reaches clients** as a 500 body; handlers use the variant for impossible states.
 6. **`DELETE` and the content-type gate.** HTML forms cannot issue `DELETE`, so the gap is theoretical, but worth stating as a rule.
 7. **No catch-all route.** An unknown SPA path renders an empty shell rather than a not-found page.
-8. **Responsive layout.** No breakpoints, no mobile navigation, light theme only.
+8. **Light theme only.** No dark mode or `prefers-color-scheme` handling.
 9. **Duplicated page scaffolding.** The fetch-with-`cancelled` skeleton is hand-copied into eight pages with inconsistent loading, error, and empty structures.
 10. **`lib.rs` has grown past the 300-line limit** set by the repository's file-size guideline.
+11. **No scroll restoration.** A route change keeps the previous scroll position (React Router's default), so landing on a long page mid-scroll is possible.
+12. **No in-app Back control in standalone mode.** Every page is one tap away in the strip and detail pages are reached from strip pages, so the gap is small; revisit if the iOS edge-swipe proves unreliable for a home-screen app.
 
 ## References
 
 - backend/src/lib.rs; backend/src/main.rs (`--healthcheck` dispatch); backend/src/config.rs; backend/src/db/pool.rs; backend/src/error.rs; backend/src/api/health.rs (handler and probe)
 - env.example; README.md "Configuration" and "Homelab / reverse proxy"; SECURITY.md "Security model" and "What the app does protect"
-- frontend/src/main.tsx; frontend/src/App.tsx; frontend/src/components/Layout.tsx; frontend/src/api/client.ts; frontend/src/types/index.ts; frontend/src/index.css; frontend/index.html; frontend/vite.config.ts (dev proxy to 3001)
-- Tests: backend/src/lib.rs tests (log filter, CORS branches incl. the panic, security headers; content-type matching is covered in backend/tests/api.rs), backend/src/config.rs tests, backend/src/db/pool.rs tests, backend/src/error.rs tests; backend/tests/api.rs `health_returns_ok_when_db_responsive` (health), `form_encoded_post_to_sync_is_rejected` through `get_requests_are_unaffected_by_the_content_type_gate` (content-type gate), `wildcard_branch_grants_no_more_than_the_named_origin_branch` through `named_origin_branch_still_denies_other_origins` (CORS); frontend/src/App.test.tsx, components/Layout.test.tsx, api/client.test.ts
+- frontend/src/main.tsx; frontend/src/App.tsx; frontend/src/components/Layout.tsx; frontend/src/hooks/useNarrow.ts; frontend/src/api/client.ts; frontend/src/types/index.ts; frontend/src/index.css; frontend/index.html; frontend/public/manifest.webmanifest, frontend/public/apple-touch-icon.png, frontend/public/icon-192.png, frontend/public/icon-512.png; frontend/vite.config.ts (dev proxy to 3001)
+- Tests: backend/src/lib.rs tests (log filter, CORS branches incl. the panic, security headers; content-type matching is covered in backend/tests/api.rs), backend/src/config.rs tests, backend/src/db/pool.rs tests, backend/src/error.rs tests; backend/tests/api.rs `health_returns_ok_when_db_responsive` (health), `form_encoded_post_to_sync_is_rejected` through `get_requests_are_unaffected_by_the_content_type_gate` (content-type gate), `wildcard_branch_grants_no_more_than_the_named_origin_branch` through `named_origin_branch_still_denies_other_origins` (CORS); frontend/src/App.test.tsx, components/Layout.test.tsx, hooks/useNarrow.test.ts, styles.test.ts, api/client.test.ts
 - Consumers: every feature segment (routes, pages, `AppState`, `Config`, error mapping)

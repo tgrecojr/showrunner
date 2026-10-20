@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { api } from "../api/client";
 import type { WatchlistItem } from "../types";
 
-// @spec SHOWS-UI-001, SHOWS-UI-002, APP-SPA-006
+// @spec SHOWS-UI-001, SHOWS-UI-002, APP-SPA-006, APP-SPA-012
 export default function Watchlist() {
 	const [shows, setShows] = useState<WatchlistItem[] | null>(null);
 	const [error, setError] = useState<string | null>(null);

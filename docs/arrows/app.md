@@ -4,7 +4,7 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 
 ## Status
 
-**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 24 specs are implemented, annotated in code, and cited by at least one test; what remains open is the small design items the LLD lists as deferred.
+**AUDITED** — last audited 2026-10-10 (git SHA `4da220e`). All 35 specs are implemented, annotated in code, and cited by at least one test; what remains open is the small design items the LLD lists as deferred.
 
 ## References
 
@@ -15,7 +15,7 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 - docs/intent/app/app-design.md
 
 ### EARS
-- docs/intent/app/app-specs.md (24 specs: 24 implemented, 0 deferred, 0 active gaps)
+- docs/intent/app/app-specs.md (35 specs: 35 implemented, 0 deferred, 0 active gaps)
 
 ### Tests
 - backend/src/config.rs inline tests — `defaults_apply_when_only_required_vars_set`, `overrides_pick_up_env_vars`, `missing_tmdb_api_key_fails`, `empty_tmdb_api_key_fails`, `invalid_port_fails`, `invalid_timezone_fails`, `empty_optional_vars_treated_as_absent`
@@ -26,7 +26,10 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 - backend/tests/api.rs — `health_returns_ok_when_db_responsive`, `health_returns_503_degraded_when_db_unreachable`, `form_encoded_post_to_sync_is_rejected`, `text_plain_post_to_sync_is_rejected`, `json_suffix_and_charset_parameter_are_accepted`, `get_requests_are_unaffected_by_the_content_type_gate`, `wildcard_branch_grants_no_more_than_the_named_origin_branch`, `wildcard_cors_does_not_expose_all_response_headers`, `wildcard_cors_never_allows_credentials`, `wildcard_cors_still_allows_any_origin_with_the_explicit_method_list`, `named_origin_branch_still_denies_other_origins`, `api_routes_live_only_under_the_v1_prefix`, `request_bodies_over_one_mebibyte_are_rejected_with_413`, `the_sixty_fifth_in_flight_request_is_shed_with_503`, `requests_running_past_thirty_seconds_get_408`, `static_fallback_serves_index_for_unknown_paths_but_not_for_api_paths`, `missing_static_dir_leaves_the_app_api_only`
 - backend/tests/healthcheck.rs (4 tests, all on the `--healthcheck` probe)
 - frontend/src/App.test.tsx (7 tests, one per route except `/movies` and `/movies/:tmdbId`)
-- frontend/src/components/Layout.test.tsx (3 tests)
+- frontend/src/components/Layout.test.tsx (9 tests: nav, the two-row bar structure, and active-link scrolling)
+- frontend/src/hooks/useNarrow.test.ts (5 tests)
+- frontend/src/styles.test.ts (13 tests reading frontend/src/index.css, frontend/index.html, and frontend/public/manifest.webmanifest as text: the single 900 px breakpoint, the bar, touch targets, dvh and safe-area insets, hover guards, the shared narrow patterns, head tags, manifest)
+- frontend/src/pages/ShowDetail.test.tsx and MovieDetail.test.tsx — the `detail-overview` tests cite APP-SPA-011
 - frontend/src/api/client.test.ts — `builds /api/v1 URLs with JSON content-type and parses JSON success`, `encodes search query strings safely`, `returns undefined for 204 No Content`, `rejects with ApiError carrying the status and the bare server message`, `falls back to raw text when error body is not JSON`, `falls back to raw text when JSON has no error field`, `listShows hits /shows`
 - frontend/src/pages/*.test.tsx — the error-display tests in Calendar, History, MovieDetail, Movies, Search, Settings, ShowDetail, UpNext, and Watchlist cite APP-SPA-006 alongside their own segment's ID
 
@@ -41,7 +44,10 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 - Dockerfile — the `STATIC_DIR` `ENV` and the `HEALTHCHECK` instruction
 - docker-compose.yml — the `app` service (`STATIC_DIR` and `RUST_LOG` environment)
 - frontend/src/App.tsx — `App`
-- frontend/src/components/Layout.tsx — `Layout`
+- frontend/src/components/Layout.tsx — `Layout` (brand row, link strip, active-link scrolling)
+- frontend/src/hooks/useNarrow.ts — `NARROW_QUERY`, `useNarrow`
+- frontend/src/index.css — the shared stylesheet and its one `@media (max-width: 900px)` block (uncitable; pinned by styles.test.ts and anchored on the components that render the classes)
+- frontend/index.html and frontend/public/manifest.webmanifest, icon-192.png, icon-512.png, apple-touch-icon.png — document head and home-screen assets (uncitable; anchored on frontend/src/main.tsx)
 - frontend/src/api/client.ts — `request`, the `api` object (query encoding)
 - frontend/src/pages/*.tsx (APP-SPA-006 on every page component)
 - Consumed from other segments: `TmdbClient::new` (tmdb), `scheduler::start` and `resync_all` (resync), `AppState::new` (state.rs; `today_in` there belongs to shows), and every feature route handler mounted by `build_api_router`.
@@ -56,6 +62,7 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 2. Router middleware — content-type gate, load-shed concurrency limit, body limit, timeout; CORS on the API; security headers over everything.
 3. `AppError` — status mapping with generic text for internal variants.
 4. SPA shell — static serving with history fallback, `BrowserRouter` routes, `Layout` nav, the `request` fetch wrapper that rejects with `ApiError { status, message }`.
+5. Narrow layout — one 900 px breakpoint shared by the stylesheet and `useNarrow`; the bar becomes a brand row over a scrolling link strip, shared patterns (detail header, card grid, controls, page frame) rearrange, and the head carries the manifest and icons for home-screen install.
 
 ## Spec Coverage
 
@@ -65,9 +72,9 @@ The frame the features sit in: startup configuration, the unauthenticated-API pe
 | HTTP | APP-HTTP-001 to 008 | 8 | 0 | 0 |
 | Errors | APP-ERR-001 to 002 | 2 | 0 | 0 |
 | Health | APP-HEALTH-001 to 003 | 3 | 0 | 0 |
-| SPA | APP-SPA-001 to 006 | 6 | 0 | 0 |
+| SPA | APP-SPA-001 to 017 | 17 | 0 | 0 |
 
-**Summary:** 24 of 24 active specs implemented; 0 deferred. (Specs with no test citation: none.)
+**Summary:** 35 of 35 active specs implemented; 0 deferred. (Specs with no test citation: none.)
 
 ## Key Findings
 
