@@ -55,12 +55,12 @@ The two aired-episode views: Up Next (per show, the oldest unwatched aired episo
 
 ## Key Findings
 
-1. **The calendar query is the only uncapped list** — `queries.rs:list_calendar_episodes` has no `LIMIT`; the 92-day window in `calendar.rs:get_calendar` is its sole bound. LLD Deferred 2.
-2. **Malformed-date contract is unpinned** — `api.rs:calendar_signed_year_does_not_bypass_the_92_day_cap` and `api.rs:calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql` branch on the status code, accepting either normalization (200) or rejection (400). LLD Deferred 3.
-3. **Duplicate fetch implementations on Up Next** — `UpNext.tsx:load` and the mount effect in `UpNext.tsx:UpNext` make the same call; only the effect carries the `cancelled` guard, and a failed post-mark re-fetch shows an error over stale rows. LLD Deferred 4.
-4. **Overflowing cells clip silently** — `.calendar-eps` (frontend/src/index.css) sets `overflow: hidden`, so a day with many episodes drops chips without an indicator. LLD Deferred 5.
-5. **Network pill key is the name** — `UpNext.tsx:UpNext` keys each `network-pill` by the network string; duplicates would collide. LLD Deferred 6.
-6. **English-only, Sunday-first, raw ISO dates** throughout both pages (`Calendar.tsx` `MONTHS`/`WEEKDAYS` literals, `aired <air_date>` in `UpNext.tsx`). LLD Deferred 7.
+1. **The calendar query is the only uncapped list** — `queries.rs:list_calendar_episodes` has no `LIMIT`; the 92-day window in `calendar.rs:get_calendar` is its sole bound. LLD Deferred 1.
+2. **Malformed-date contract is unpinned** — `api.rs:calendar_signed_year_does_not_bypass_the_92_day_cap` and `api.rs:calendar_non_zero_padded_date_is_normalized_before_it_reaches_sql` branch on the status code, accepting either normalization (200) or rejection (400). LLD Deferred 2.
+3. **Duplicate fetch implementations on Up Next** — `UpNext.tsx:load` and the mount effect in `UpNext.tsx:UpNext` make the same call; only the effect carries the `cancelled` guard, and a failed post-mark re-fetch shows an error over stale rows. LLD Deferred 3.
+4. **Overflowing cells clip silently** — `.calendar-eps` (frontend/src/index.css) sets `overflow: hidden`, so a day with many episodes drops chips without an indicator. LLD Deferred 4.
+5. **Network pill key is the name** — `UpNext.tsx:UpNext` keys each `network-pill` by the network string; duplicates would collide. LLD Deferred 5.
+6. **English-only, Sunday-first, raw ISO dates** throughout both pages (`Calendar.tsx` `MONTHS`/`WEEKDAYS` literals, `aired <air_date>` in `UpNext.tsx`). LLD Deferred 6.
 
 ## Work Required
 

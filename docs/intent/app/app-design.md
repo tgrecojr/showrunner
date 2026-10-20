@@ -139,10 +139,10 @@ Arrangements specific to one page (the Up Next row's action button, the episode 
 6. **`DELETE` and the content-type gate.** HTML forms cannot issue `DELETE`, so the gap is theoretical, but worth stating as a rule.
 7. **No catch-all route.** An unknown SPA path renders an empty shell rather than a not-found page.
 8. **Light theme only.** No dark mode or `prefers-color-scheme` handling.
-11. **No scroll restoration.** A route change keeps the previous scroll position (React Router's default), so landing on a long page mid-scroll is possible.
-12. **No in-app Back control in standalone mode.** Every page is one tap away in the strip and detail pages are reached from strip pages, so the gap is small; revisit if the iOS edge-swipe proves unreliable for a home-screen app.
 9. **Duplicated page scaffolding.** The fetch-with-`cancelled` skeleton is hand-copied into eight pages with inconsistent loading, error, and empty structures.
 10. **`lib.rs` has grown past the 300-line limit** set by the repository's file-size guideline.
+11. **No scroll restoration.** A route change keeps the previous scroll position (React Router's default), so landing on a long page mid-scroll is possible.
+12. **No in-app Back control in standalone mode.** Every page is one tap away in the strip and detail pages are reached from strip pages, so the gap is small; revisit if the iOS edge-swipe proves unreliable for a home-screen app.
 
 ## References
 

@@ -1,5 +1,5 @@
 schema_version: 2
-last_updated: 2026-10-10
+last_updated: 2026-10-20
 
 # Taxonomy groups segments by domain cluster. Purely organizational.
 taxonomy:
@@ -34,8 +34,8 @@ arrows:
     status: AUDITED
     parent: null
     sampled: 2026-10-10
-    audited: 2026-10-10
-    audited_sha: 4da220e
+    audited: 2026-10-20
+    audited_sha: f901095
     blocks: [search, up-next-calendar, resync, watch-log]
     blockedBy: [tmdb, watch-log]
     detail: shows.md
@@ -46,8 +46,8 @@ arrows:
     status: AUDITED
     parent: null
     sampled: 2026-10-10
-    audited: 2026-10-10
-    audited_sha: 4da220e
+    audited: 2026-10-20
+    audited_sha: f901095
     blocks: [search, watch-log]
     blockedBy: [tmdb, watch-log]
     detail: movies.md
@@ -58,13 +58,13 @@ arrows:
     status: AUDITED
     parent: null
     sampled: 2026-10-10
-    audited: 2026-10-10
-    audited_sha: 4da220e
+    audited: 2026-10-20
+    audited_sha: f901095
     blocks: []
     blockedBy: [shows]
     detail: up-next-calendar.md
     next: "bound list_calendar_episodes or record the 92-day window as the intended bound"
-    drift: "LLD Deferred 5 attributes overflow:hidden to .calendar-cell; it is on .calendar-eps"
+    drift: null
 
   watch-log:
     status: AUDITED
@@ -106,8 +106,8 @@ arrows:
     status: AUDITED
     parent: null
     sampled: 2026-10-10
-    audited: 2026-10-10
-    audited_sha: 4da220e
+    audited: 2026-10-20
+    audited_sha: f901095
     blocks: [build-ship]
     blockedBy: []
     detail: app.md

@@ -21,7 +21,7 @@ The flat movie to-watch list: add, list, detail with live TMDB credits, mark wat
 - backend/tests/api.rs — `movies_are_absent_from_up_next_calendar_and_resync`, `list_movies_returns_empty_initially`, `add_movie_fetches_from_tmdb_and_inserts`, `add_movie_rejects_duplicate`, `add_movie_returns_404_when_tmdb_missing`, `get_movie_detail_returns_cast_and_providers`, `get_movie_detail_returns_404_when_not_on_watchlist`, `get_movie_detail_maps_tmdb_429_to_friendly_message`, `delete_movie_removes_and_returns_204`, `mark_movie_watched_returns_204_then_404`, `delete_movie_writes_no_log_entry`, `watch_log_returns_page_shape`
 - backend/tests/db.rs — `insert_movie_stores_only_basic_metadata_and_nulls_empty_strings`, `list_movies_is_capped`, `mark_movie_watched_deletes_and_logs_snapshot`, `delete_movie_does_not_log`
 - frontend/src/pages/Movies.test.tsx (11 tests)
-- frontend/src/pages/MovieDetail.test.tsx (10 tests)
+- frontend/src/pages/MovieDetail.test.tsx (11 tests; the `detail-overview` test cites the `app` segment's APP-SPA-011)
 - Not covered: `App.test.tsx` mocks no movie route; `client.test.ts` exercises none of the five movie client methods
 
 ### Code
@@ -30,7 +30,7 @@ The flat movie to-watch list: add, list, detail with live TMDB credits, mark wat
 - backend/src/models/movie.rs — `MovieRow`, `MovieWatchlistItem`, `MovieDetail`, `CastMember`, `AddMovieRequest` (unannotated wire shapes; `profile_url` is cited under `tmdb`)
 - backend/src/db/migrations/20260513000000_add_movies.sql (never annotated; the table is cited on the queries module)
 - frontend/src/pages/Movies.tsx — `Movies` page (`removeMovie` helper, per-card `pending`, action-error banner)
-- frontend/src/pages/MovieDetail.tsx — `MovieDetail` page
+- frontend/src/pages/MovieDetail.tsx — `MovieDetail` page (also cites APP-SPA-011: the shared detail-header pattern owned by `app`)
 - frontend/src/api/client.ts — `listMovies`, `addMovie`, `getMovie`, `deleteMovie`, `markMovieWatched` (object-literal properties, not annotated)
 - Consumed from other segments: `tmdb` (`get_movie`, `us_providers`, `directors`, `map_status` 429/5xx mapping), `watch-log` (`insert_entry`)
 - Consumers: `search` (`tracked_movie_tmdb_ids_in`, and the add endpoint from the Search page), `watch-log` (movie rows in History are not linked because the row is gone)
