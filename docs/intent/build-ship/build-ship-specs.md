@@ -21,9 +21,9 @@ Prefix `SHIP`. Facets: `IMAGE` (Dockerfile and compose), `CI` (merge gates), `SU
 
 ## Supply
 
-- [x] **SHIP-SUPPLY-001**: The supply-chain scan shall install frontend dependencies with `npm ci --ignore-scripts`, verify npm registry signatures with `npm audit signatures`, run a Socket Security scan of the frontend when the API key secret is present and skip it otherwise, scan both lockfiles with OSV, and run `cargo audit` on the backend.
-- [x] **SHIP-SUPPLY-002**: When the supply-chain scan runs for a pull request, it shall scan the base branch's lockfiles and the pull request's lockfiles, fail if either scan produced no results, and fail only on vulnerabilities the pull request introduces.
-- [x] **SHIP-SUPPLY-003**: When the supply-chain scan runs for a push to `main` or on a schedule, it shall fail on any known vulnerability in the repository's lockfiles.
+- [x] **SHIP-SUPPLY-001**: The supply-chain scan shall install frontend dependencies with `npm ci --ignore-scripts`, verify npm registry signatures with `npm audit signatures`, run a Socket Security scan of the frontend when the API key secret is present and skip it otherwise, and scan both lockfiles with OSV.
+- [x] **SHIP-SUPPLY-002**: When the supply-chain scan runs for a pull request, it shall scan the base branch's lockfiles and the pull request's lockfiles, fail if either scan produced no results, fail only on vulnerabilities the pull request introduces, and shall not run `cargo audit`.
+- [x] **SHIP-SUPPLY-003**: When the supply-chain scan runs for a push to `main` or on a schedule, it shall scan the repository's lockfiles with OSV in absolute mode and run `cargo audit` on the backend, and shall fail on any known vulnerability either reports.
 - [x] **SHIP-SUPPLY-004**: Renovate shall pin Docker images and GitHub Actions by digest, group all Docker base images into a single pull request, group minor and patch updates into a single pull request auto-merged after a 3-day release age, auto-merge digest updates after a 1-day release age, never auto-merge major updates, and run lockfile maintenance weekly.
 
 ## Release

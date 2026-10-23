@@ -154,12 +154,24 @@ jobs:
             --recursive
             ./
 
+      # --- cargo audit (absolute runs only) -----------------------------------
+      # Runs with the absolute OSV pass, never on pull requests. OSV diff mode
+      # above already scans Cargo.lock against the RustSec advisories, so an
+      # absolute cargo audit here would fail every open PR the day an advisory
+      # lands against a crate already on main (what stalled #176/#177 on
+      # RUSTSEC-2026-0382/0383). On main and the weekly schedule it stays as a
+      # second reader of the same lockfile. The toolchain and install steps are
+      # gated too so a PR run skips all three.
+      # @spec SHIP-SUPPLY-003
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        if: ${{ github.event_name != 'pull_request' }}
 
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2
+        if: ${{ github.event_name != 'pull_request' }}
         with:
           tool: cargo-audit
 
       - name: cargo audit (backend)
+        if: ${{ github.event_name != 'pull_request' }}
         working-directory: backend
         run: cargo audit
