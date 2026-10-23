@@ -20,7 +20,7 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 ### Tests
 - The gate steps are their own checks (HLD → Annotation Conventions). `SHIP-IMAGE-002` to `006` describe the built image and have no check; `SHIP-SUPPLY-004` lives in JSON and cannot be cited.
 - .github/workflows/ci.yml — job `backend`: steps `Check formatting`, `Lint with Clippy`, `Run tests with coverage`, `Upload backend coverage report`; job `frontend`: steps `Install dependencies`, `Type check`, `Lint and check formatting`, `Run tests with coverage`, `Upload frontend coverage report`; job `supply-chain` (schedule-only call of supply-chain.yml, absolute mode).
-- .github/workflows/supply-chain.yml — job `scan`: steps `Install frontend deps (no scripts)`, `Verify npm package signatures`, `Socket Security scan (frontend)`, `Fetch base-branch lockfiles (PR diff mode)`, `OSV scan base lockfiles (PR diff mode)`, `OSV scan PR lockfiles (PR diff mode)`, `Check that both scans completed (PR diff mode)`, `Report vulnerabilities introduced by this PR`, `OSV scan (absolute, main / scheduled)`, `cargo audit (backend)`.
+- .github/workflows/supply-chain.yml — job `scan`: steps `Install frontend deps (no scripts)`, `Verify npm package signatures`, `Socket Security scan (frontend)`, `Fetch base-branch lockfiles (PR diff mode)`, `OSV scan base lockfiles (PR diff mode)`, `OSV scan PR lockfiles (PR diff mode)`, `Check that both scans completed (PR diff mode)`, `Report vulnerabilities introduced by this PR`, `OSV scan (absolute, main / scheduled)`, `cargo audit (backend)` (absolute runs only).
 - .github/workflows/docker-publish.yml — job `supply-chain` (call of supply-chain.yml); job `build-and-push`: steps `Extract metadata (tags, labels)`, `Build and push Docker image` (the only check that exercises `SHIP-IMAGE-001`; builds without pushing on pull requests), `Install cosign`, `Sign image with cosign (keyless)`, `Generate SBOM (SPDX)`, `Attest SBOM`, `Attest build provenance`.
 - .github/workflows/ghcr-retention.yml — job `prune`: step `Prune GHCR (keep latest + 5 most recent tagged)`.
 - Image verification by an operator is documented in README.md → Verifying the image (`cosign verify`, `gh attestation verify`).
@@ -47,7 +47,7 @@ How the one container image is built reproducibly, kept small and unprivileged, 
 **Key Components:**
 1. Three-stage Dockerfile — lockfile-exact builds on glibc, distroless non-root runtime with a self-probing `HEALTHCHECK`.
 2. `ci.yml` — formatting, lint, typecheck, tests with coverage floors; weekly absolute supply-chain scan of `main`.
-3. `supply-chain.yml` — signatures, Socket, OSV diff/absolute, cargo audit.
+3. `supply-chain.yml` — signatures, Socket, OSV diff on PRs; OSV absolute plus cargo audit on `main` and the weekly schedule.
 4. `docker-publish.yml` and `ghcr-retention.yml` — scan-gated push, keyless signing, SBOM and provenance, weekly prune.
 5. `renovate.json` — digest pinning and grouped, soaked auto-merges.
 
