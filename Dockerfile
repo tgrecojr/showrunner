@@ -2,7 +2,7 @@
 # Stage 1: Build frontend
 # glibc (Debian slim), not alpine/musl: matches the CI environment the committed
 # lockfile is resolved against, so `npm ci` installs exactly the audited tree.
-FROM node:24-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS frontend-build
+FROM node:24-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 # `npm ci` installs strictly from the committed lockfile (the set CI audits),
