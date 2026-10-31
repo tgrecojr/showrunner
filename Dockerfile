@@ -16,7 +16,7 @@ RUN npm run build
 
 # @spec SHIP-IMAGE-001
 # Stage 2: Build backend
-FROM rust:1.99-slim-trixie@sha256:2752b332db73fdbb7dc576f06c82ed1f312005784ef913d7e04a28f5f55dc581 AS backend-build
+FROM rust:1.99-slim-trixie@sha256:b8e062b1c3a80183df83d9ba187cadd2b5ab84bc78d453dbfeb2fccd5f982247 AS backend-build
 WORKDIR /app
 
 # Copy manifests first for dependency caching. No glob on Cargo.lock: the
