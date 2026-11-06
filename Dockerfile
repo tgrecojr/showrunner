@@ -2,7 +2,7 @@
 # Stage 1: Build frontend
 # glibc (Debian slim), not alpine/musl: matches the CI environment the committed
 # lockfile is resolved against, so `npm ci` installs exactly the audited tree.
-FROM node:26-trixie-slim@sha256:e4db4c914bf8ad241bd24804fc25d272d89bad97e68cdc8a1414862790a02c39 AS frontend-build
+FROM node:26-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 # `npm ci` installs strictly from the committed lockfile (the set CI audits),
@@ -16,7 +16,7 @@ RUN npm run build
 
 # @spec SHIP-IMAGE-001
 # Stage 2: Build backend
-FROM rust:1.99-slim-trixie@sha256:2752b332db73fdbb7dc576f06c82ed1f312005784ef913d7e04a28f5f55dc581 AS backend-build
+FROM rust:1.99-slim-trixie@sha256:7eab7ce19273ce785e0ca7578bdf7bc1fcbae621775a8197379a04c9f6e03cd5 AS backend-build
 WORKDIR /app
 
 # Copy manifests first for dependency caching. No glob on Cargo.lock: the
